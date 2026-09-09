@@ -10,5 +10,8 @@ dependencies = [
     "djangorestframework>=3.18.0",
     "drf-spectacular>=0.30.0",
     "markdown>=3.10.3",
+    "model-bakery>=1.24.0",
     "psycopg[binary]>=3.3.5",
+    "pytest>=9.1.1",
+    "pytest-django>=4.14.0",
 ]

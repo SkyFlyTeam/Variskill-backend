@@ -1,0 +1,32 @@
+name: django-cookiecutter-tests
+
+services:
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uv run --locked pytest --strict-markers
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DJANGO_SETTINGS_MODULE: settings.settings
+      POSTGRES_DB: cookie_cutter_tests
+      POSTGRES_USER: cookie_cutter_tests
+      POSTGRES_PASSWORD: cookie_cutter_tests
+      POSTGRES_HOST: database
+      POSTGRES_PORT: 5432
+
+  database:
+    image: pgvector/pgvector:pg15-trixie
+    environment:
+      POSTGRES_DB: cookie_cutter_tests
+      POSTGRES_USER: cookie_cutter_tests
+      POSTGRES_PASSWORD: cookie_cutter_tests
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cookie_cutter_tests -d cookie_cutter_tests"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

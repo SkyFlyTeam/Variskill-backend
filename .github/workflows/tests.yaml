@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Django tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate test Compose configuration
+        run: docker compose -f docker-compose-test.yaml config --quiet
+
+      - name: Build test image
+        id: build
+        run: docker compose -f docker-compose-test.yaml build tests
+
+      - name: Run unit tests
+        run: |
+          test_status=0
+          docker compose -f docker-compose-test.yaml run --rm tests uv run --locked pytest --strict-markers -m unit || test_status=$?
+          if [ "$test_status" -eq 5 ]; then
+            echo "No unit tests collected; skipping this category."
+          else
+            exit "$test_status"
+          fi
+
+      - name: Run integration tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: >-
+          docker compose -f docker-compose-test.yaml run --rm tests
+          uv run --locked pytest --strict-markers -m integration
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f docker-compose-test.yaml logs --no-color
+
+      - name: Clean up test services
+        if: always()
+        run: docker compose -f docker-compose-test.yaml down --volumes --remove-orphans
