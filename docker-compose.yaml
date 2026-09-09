@@ -21,13 +21,13 @@ services:
       - .:/app
 
   database:
-    image: postgres:18-alpine
+    image: pgvector/pgvector:pg15-trixie
     environment:
       POSTGRES_DB: cookie_cutter
       POSTGRES_USER: cookie_cutter
       POSTGRES_PASSWORD: cookie_cutter
     volumes:
-      - postgres18_data:/var/lib/postgresql
+      - postgres15_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cookie_cutter -d cookie_cutter"]
       interval: 5s
@@ -35,4 +35,4 @@ services:
       retries: 5
 
 volumes:
-  postgres18_data:
+  postgres15_data:

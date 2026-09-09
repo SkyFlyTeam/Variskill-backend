@@ -5,7 +5,6 @@ build/
 dist/
 wheels/
 *.egg-info
-uv.lock
 *.sqlite3
 
 # Virtual environments
