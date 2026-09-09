@@ -1,0 +1,14 @@
+[project]
+name = "cookie-cutter"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "django>=6.1.1",
+    "django-filter>=26.1",
+    "djangorestframework>=3.18.0",
+    "drf-spectacular>=0.30.0",
+    "markdown>=3.10.3",
+    "psycopg[binary]>=3.3.5",
+]

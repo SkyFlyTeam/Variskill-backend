@@ -1,0 +1,38 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uv run python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DJANGO_SETTINGS_MODULE: settings.settings
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
+      POSTGRES_DB: cookie_cutter
+      POSTGRES_USER: cookie_cutter
+      POSTGRES_PASSWORD: cookie_cutter
+      POSTGRES_HOST: database
+      POSTGRES_PORT: 5432
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+
+  database:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: cookie_cutter
+      POSTGRES_USER: cookie_cutter
+      POSTGRES_PASSWORD: cookie_cutter
+    volumes:
+      - postgres18_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cookie_cutter -d cookie_cutter"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres18_data:
