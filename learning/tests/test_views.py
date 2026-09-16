@@ -221,3 +221,44 @@ def test_admin_listing_includes_inactive_activities(client, admin_user, module, 
     assert response.status_code == 200
     returned_ids = [item['id'] for item in response.data]
     assert str(inactive.pk) in returned_ids
+
+
+def test_inactive_activity_detail_hidden_from_regular_user(client, regular_user, module, content):
+    inactive = baker.make(Activity, module=module, content=content, active=False, order=1)
+
+    response = client.get(reverse('atividade-detail', args=[inactive.pk]), **auth_header(regular_user))
+
+    assert response.status_code == 404
+
+
+def test_inactive_activity_detail_visible_to_admin(client, admin_user, module, content):
+    inactive = baker.make(Activity, module=module, content=content, active=False, order=1)
+
+    response = client.get(reverse('atividade-detail', args=[inactive.pk]), **auth_header(admin_user))
+
+    assert response.status_code == 200
+    assert response.data['ativo'] is False
+
+
+def test_admin_can_partially_update_activity(client, admin_user, activity):
+    response = client.patch(
+        reverse('atividade-detail', args=[activity.pk]),
+        {'titulo': 'Título atualizado via PATCH'},
+        format='json',
+        **auth_header(admin_user),
+    )
+
+    assert response.status_code == 200
+    activity.refresh_from_db()
+    assert activity.title == 'Título atualizado via PATCH'
+
+
+def test_partial_update_requires_admin(client, regular_user, activity):
+    response = client.patch(
+        reverse('atividade-detail', args=[activity.pk]),
+        {'titulo': 'Não deveria funcionar'},
+        format='json',
+        **auth_header(regular_user),
+    )
+
+    assert response.status_code == 403
