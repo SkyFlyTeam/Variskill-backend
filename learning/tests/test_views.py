@@ -1,17 +1,11 @@
 import pytest
 from django.urls import reverse
 from model_bakery import baker
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from learning.models import Activity, Content, Module, Option, Question
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
-
-
-def auth_header(user):
-    token = RefreshToken.for_user(user).access_token
-    return {'HTTP_AUTHORIZATION': f'Bearer {token}'}
 
 
 @pytest.fixture
@@ -72,10 +66,11 @@ def question(activity):
 def test_activities_require_authentication(client, activity, method, route):
     url = reverse(route, args=[activity.pk] if route == 'atividade-detail' else None)
 
-    assert getattr(client, method)(url).status_code == 401
+    assert getattr(client, method)(url).status_code == 403
 
 
 def test_create_activity_requires_admin(client, regular_user, module, content):
+    client.force_login(regular_user)
     payload = {
         'modulo_id': str(module.pk),
         'conteudo_id': str(content.pk),
@@ -86,13 +81,14 @@ def test_create_activity_requires_admin(client, regular_user, module, content):
         'ordem_atividade': 1,
     }
 
-    response = client.post(reverse('atividade-list'), payload, format='json', **auth_header(regular_user))
+    response = client.post(reverse('atividade-list'), payload, format='json')
 
     assert response.status_code == 403
     assert not Activity.objects.exists()
 
 
 def test_admin_can_create_activity(client, admin_user, module, content):
+    client.force_login(admin_user)
     payload = {
         'modulo_id': str(module.pk),
         'conteudo_id': str(content.pk),
@@ -103,7 +99,7 @@ def test_admin_can_create_activity(client, admin_user, module, content):
         'ordem_atividade': 1,
     }
 
-    response = client.post(reverse('atividade-list'), payload, format='json', **auth_header(admin_user))
+    response = client.post(reverse('atividade-list'), payload, format='json')
 
     assert response.status_code == 201
     assert response.data['ativo'] is True
@@ -120,10 +116,9 @@ def test_retrieve_activity_includes_content_and_ordered_questions(client, regula
         Question, activity=activity, exercise_type='ORDENAR_BLOCOS', order=0,
         expected_answer='x', explanation='x', conceptual_hint='x',
     )
+    client.force_login(regular_user)
 
-    response = client.get(
-        reverse('atividade-detail', args=[activity.pk]), **auth_header(regular_user),
-    )
+    response = client.get(reverse('atividade-detail', args=[activity.pk]))
 
     assert response.status_code == 200
     assert response.data['conteudo_teorico']['id'] == str(content.pk)
@@ -133,9 +128,9 @@ def test_retrieve_activity_includes_content_and_ordered_questions(client, regula
 
 
 def test_retrieve_activity_never_exposes_sensitive_question_fields(client, regular_user, activity, question):
-    response = client.get(
-        reverse('atividade-detail', args=[activity.pk]), **auth_header(regular_user),
-    )
+    client.force_login(regular_user)
+
+    response = client.get(reverse('atividade-detail', args=[activity.pk]))
 
     question_payload = response.data['questoes'][0]
     assert 'gabarito_esperado' not in question_payload
@@ -145,6 +140,8 @@ def test_retrieve_activity_never_exposes_sensitive_question_fields(client, regul
 
 
 def test_admin_can_update_activity_mutable_fields(client, admin_user, activity):
+    client.force_login(admin_user)
+
     response = client.put(
         reverse('atividade-detail', args=[activity.pk]),
         {
@@ -155,7 +152,6 @@ def test_admin_can_update_activity_mutable_fields(client, admin_user, activity):
             'ordem_atividade': 2,
         },
         format='json',
-        **auth_header(admin_user),
     )
 
     assert response.status_code == 200
@@ -165,6 +161,8 @@ def test_admin_can_update_activity_mutable_fields(client, admin_user, activity):
 
 
 def test_update_activity_requires_admin(client, regular_user, activity):
+    client.force_login(regular_user)
+
     response = client.put(
         reverse('atividade-detail', args=[activity.pk]),
         {
@@ -174,16 +172,15 @@ def test_update_activity_requires_admin(client, regular_user, activity):
             'ordem_atividade': 2,
         },
         format='json',
-        **auth_header(regular_user),
     )
 
     assert response.status_code == 403
 
 
 def test_admin_delete_deactivates_without_removing_record(client, admin_user, activity):
-    response = client.delete(
-        reverse('atividade-detail', args=[activity.pk]), **auth_header(admin_user),
-    )
+    client.force_login(admin_user)
+
+    response = client.delete(reverse('atividade-detail', args=[activity.pk]))
 
     assert response.status_code == 200
     assert response.data == {'mensagem': 'Atividade desativada com sucesso.'}
@@ -193,9 +190,9 @@ def test_admin_delete_deactivates_without_removing_record(client, admin_user, ac
 
 
 def test_delete_requires_admin(client, regular_user, activity):
-    response = client.delete(
-        reverse('atividade-detail', args=[activity.pk]), **auth_header(regular_user),
-    )
+    client.force_login(regular_user)
+
+    response = client.delete(reverse('atividade-detail', args=[activity.pk]))
 
     assert response.status_code == 403
     activity.refresh_from_db()
@@ -205,8 +202,9 @@ def test_delete_requires_admin(client, regular_user, activity):
 def test_inactive_activities_excluded_from_public_listing(client, regular_user, module, content):
     baker.make(Activity, module=module, content=content, active=True, order=1)
     inactive = baker.make(Activity, module=module, content=content, active=False, order=2)
+    client.force_login(regular_user)
 
-    response = client.get(reverse('atividade-list'), **auth_header(regular_user))
+    response = client.get(reverse('atividade-list'))
 
     assert response.status_code == 200
     returned_ids = [item['id'] for item in response.data]
@@ -215,8 +213,9 @@ def test_inactive_activities_excluded_from_public_listing(client, regular_user, 
 
 def test_admin_listing_includes_inactive_activities(client, admin_user, module, content):
     inactive = baker.make(Activity, module=module, content=content, active=False, order=1)
+    client.force_login(admin_user)
 
-    response = client.get(reverse('atividade-list'), **auth_header(admin_user))
+    response = client.get(reverse('atividade-list'))
 
     assert response.status_code == 200
     returned_ids = [item['id'] for item in response.data]
@@ -225,27 +224,30 @@ def test_admin_listing_includes_inactive_activities(client, admin_user, module, 
 
 def test_inactive_activity_detail_hidden_from_regular_user(client, regular_user, module, content):
     inactive = baker.make(Activity, module=module, content=content, active=False, order=1)
+    client.force_login(regular_user)
 
-    response = client.get(reverse('atividade-detail', args=[inactive.pk]), **auth_header(regular_user))
+    response = client.get(reverse('atividade-detail', args=[inactive.pk]))
 
     assert response.status_code == 404
 
 
 def test_inactive_activity_detail_visible_to_admin(client, admin_user, module, content):
     inactive = baker.make(Activity, module=module, content=content, active=False, order=1)
+    client.force_login(admin_user)
 
-    response = client.get(reverse('atividade-detail', args=[inactive.pk]), **auth_header(admin_user))
+    response = client.get(reverse('atividade-detail', args=[inactive.pk]))
 
     assert response.status_code == 200
     assert response.data['ativo'] is False
 
 
 def test_admin_can_partially_update_activity(client, admin_user, activity):
+    client.force_login(admin_user)
+
     response = client.patch(
         reverse('atividade-detail', args=[activity.pk]),
         {'titulo': 'Título atualizado via PATCH'},
         format='json',
-        **auth_header(admin_user),
     )
 
     assert response.status_code == 200
@@ -254,11 +256,12 @@ def test_admin_can_partially_update_activity(client, admin_user, activity):
 
 
 def test_partial_update_requires_admin(client, regular_user, activity):
+    client.force_login(regular_user)
+
     response = client.patch(
         reverse('atividade-detail', args=[activity.pk]),
         {'titulo': 'Não deveria funcionar'},
         format='json',
-        **auth_header(regular_user),
     )
 
     assert response.status_code == 403
