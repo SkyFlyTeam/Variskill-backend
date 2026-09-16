@@ -16,6 +16,7 @@ class Content(models.Model):
     title = models.CharField(max_length=255)
     explanatory_text = models.TextField()
     estimated_minutes = models.PositiveIntegerField()
+    criado_em = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.title

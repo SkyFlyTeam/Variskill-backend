@@ -11,7 +11,7 @@ class ModuleAdmin(admin.ModelAdmin):
 
 @admin.register(Content)
 class ContentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'title', 'estimated_minutes')
+    list_display = ('id', 'title', 'estimated_minutes', 'criado_em')
     search_fields = ('title',)
 
 
