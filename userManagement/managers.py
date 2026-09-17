@@ -4,16 +4,16 @@ from django.contrib.auth.base_user import BaseUserManager
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
-    def create_user(self, nickName, password=None, **extra_fields):
-        if not nickName:
-            raise ValueError('The nickName field is required.')
+    def create_user(self, apelido, password=None, **extra_fields):
+        if not apelido:
+            raise ValueError('The apelido field is required.')
 
-        user = self.model(nickName=nickName, **extra_fields)
+        user = self.model(apelido=apelido, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, nickName, password=None, **extra_fields):
+    def create_superuser(self, apelido, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
@@ -23,4 +23,4 @@ class UserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser must have is_superuser=True.')
 
-        return self.create_user(nickName, password, **extra_fields)
+        return self.create_user(apelido, password, **extra_fields)
