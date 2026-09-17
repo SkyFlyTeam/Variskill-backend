@@ -1,7 +1,6 @@
 import pytest
 from django.urls import reverse
 from model_bakery import baker
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from learning.models import Content
 
@@ -12,11 +11,6 @@ MARKDOWN = (
     'Variáveis são usadas para armazenar dados em JavaScript.\n\n'
     '```js\nconst total = 4\nconsole.log(total)\n```\n'
 )
-
-
-def auth_header(user):
-    token = RefreshToken.for_user(user).access_token
-    return {'HTTP_AUTHORIZATION': f'Bearer {token}'}
 
 
 @pytest.fixture
@@ -50,15 +44,16 @@ def content():
 def test_content_requires_authentication(client, content, method, route):
     url = reverse(route, args=[content.pk] if route == 'conteudo-detail' else None)
 
-    assert getattr(client, method)(url).status_code == 401
+    assert getattr(client, method)(url).status_code == 403
 
 
 def test_create_content_requires_admin(client, regular_user):
+    client.force_login(regular_user)
+
     response = client.post(
         reverse('conteudo-list'),
         {'titulo': 'Variáveis', 'texto_explicativo': MARKDOWN, 'tempo_estimado_minutos': 4},
         format='json',
-        **auth_header(regular_user),
     )
 
     assert response.status_code == 403
@@ -67,10 +62,11 @@ def test_create_content_requires_admin(client, regular_user):
 
 @pytest.mark.parametrize('method', ['put', 'patch', 'delete'])
 def test_modify_content_requires_admin(client, regular_user, content, method):
+    client.force_login(regular_user)
     url = reverse('conteudo-detail', args=[content.pk])
     data = {'titulo': 'Outro título'} if method in ('put', 'patch') else None
 
-    response = getattr(client, method)(url, data, format='json', **auth_header(regular_user))
+    response = getattr(client, method)(url, data, format='json')
 
     assert response.status_code == 403
     content.refresh_from_db()
@@ -78,11 +74,12 @@ def test_modify_content_requires_admin(client, regular_user, content, method):
 
 
 def test_admin_can_create_content(client, admin_user):
+    client.force_login(admin_user)
+
     response = client.post(
         reverse('conteudo-list'),
         {'titulo': 'Variáveis', 'texto_explicativo': MARKDOWN, 'tempo_estimado_minutos': 4},
         format='json',
-        **auth_header(admin_user),
     )
 
     assert response.status_code == 201
@@ -95,9 +92,9 @@ def test_admin_can_create_content(client, admin_user):
 
 
 def test_retrieve_content_returns_full_markdown(client, regular_user, content):
-    response = client.get(
-        reverse('conteudo-detail', args=[content.pk]), **auth_header(regular_user),
-    )
+    client.force_login(regular_user)
+
+    response = client.get(reverse('conteudo-detail', args=[content.pk]))
 
     assert response.status_code == 200
     assert response.data['id'] == str(content.pk)
@@ -108,11 +105,12 @@ def test_retrieve_content_returns_full_markdown(client, regular_user, content):
 
 
 def test_admin_can_update_content(client, admin_user, content):
+    client.force_login(admin_user)
+
     response = client.put(
         reverse('conteudo-detail', args=[content.pk]),
         {'titulo': 'Laços', 'texto_explicativo': 'Novo texto', 'tempo_estimado_minutos': 7},
         format='json',
-        **auth_header(admin_user),
     )
 
     assert response.status_code == 200
