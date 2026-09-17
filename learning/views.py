@@ -33,5 +33,5 @@ class ActivityViewSet(viewsets.ModelViewSet):
 class ContentViewSet(viewsets.ModelViewSet):
     authentication_classes = (SessionAuthentication,)
     permission_classes = (permissions.IsAuthenticated, IsAdminForUnsafeMethods)
-    queryset = Content.objects.all().order_by('id')
+    queryset = Content.objects.all()
     serializer_class = ContentSerializer
