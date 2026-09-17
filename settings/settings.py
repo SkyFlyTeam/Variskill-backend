@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'main',
     'userManagement',
     'learning',
+    'trackManagement',
 ]
 
 AUTH_USER_MODEL = 'userManagement.User'
