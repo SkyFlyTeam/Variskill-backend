@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'activityManagement',
     'questionsManagement',
     'assistantManagement',
+    'trackManagement',
 ]
 
 AUTH_USER_MODEL = 'userManagement.User'
