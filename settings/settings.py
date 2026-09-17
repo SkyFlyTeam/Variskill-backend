@@ -41,12 +41,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',
     'rest_framework',
     'drf_spectacular',
     'main',
     'userManagement',
     'learning',
     'grading',
+    'intents',
 ]
 
 AUTH_USER_MODEL = 'userManagement.User'
