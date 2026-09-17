@@ -9,10 +9,12 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'nickName', 'password')
-        read_only_fields = ('id',)
+        fields = ('id', 'apelido', 'nome', 'email', 'password', 'xp_total', 'streak_dias')
+        read_only_fields = ('id', 'criado_em')
         extra_kwargs = {
-            'nickName': {'required': True},
+            'apelido': {'required': True},
+            'nome': {'required': True},
+            'email': {'required': True},
         }
 
     def validate(self, attrs):
@@ -29,13 +31,17 @@ class UserSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
-        instance.nickName = validated_data.get('nickName', instance.nickName)
+    
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+    
         if password is not None:
             instance.set_password(password)
+    
         instance.save()
         return instance
 
 
 class AuthSerializer(serializers.Serializer):
-    nickName = serializers.CharField(max_length=150)
+    apelido = serializers.CharField(max_length=150)
     password = serializers.CharField(write_only=True)

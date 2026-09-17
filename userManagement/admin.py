@@ -6,11 +6,11 @@ from .models import User
 
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
-    list_display = ('id', 'nickName', 'is_staff', 'is_active')
-    search_fields = ('nickName',)
-    ordering = ('nickName',)
+    list_display = ('id', 'apelido', 'is_staff', 'is_active')
+    search_fields = ('apelido',)
+    ordering = ('apelido',)
     fieldsets = (
-        (None, {'fields': ('nickName', 'password')}),
+        (None, {'fields': ('apelido', 'password')}),
         (
             'Permissions',
             {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')},
@@ -22,7 +22,7 @@ class UserAdmin(DjangoUserAdmin):
             None,
             {
                 'classes': ('wide',),
-                'fields': ('nickName', 'password1', 'password2', 'is_staff', 'is_active'),
+                'fields': ('apelido', 'password1', 'password2', 'is_staff', 'is_active'),
             },
         ),
     )
