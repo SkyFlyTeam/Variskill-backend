@@ -25,7 +25,7 @@ def test_modulo_serializer_create(trilha=None):
     trilha.is_valid(raise_exception=True)
     trilha = trilha.save()
 
-    data = {"trilha": trilha.id, "titulo": "Módulo X", "descricao": "d", "nivel": "INICIANTE", "ordem_modulo": 1}
+    data = {"trilha_id": trilha.id, "titulo": "Módulo X", "descricao": "d", "nivel": "INICIANTE", "ordem_modulo": 1}
     ser = ModuloSerializer(data=data)
     assert ser.is_valid(), ser.errors
     modulo = ser.save()
@@ -55,7 +55,7 @@ def test_progresso_modulo_serializer_create(django_user_model):
     trilha = TrilhaSerializer(data={"titulo": "TS", "descricao": "d", "habilidade": "Frontend", "ativo": True})
     trilha.is_valid(raise_exception=True)
     trilha = trilha.save()
-    modulo = ModuloSerializer(data={"trilha": trilha.id, "titulo": "M1", "descricao": "", "nivel": "INICIANTE", "ordem_modulo": 1})
+    modulo = ModuloSerializer(data={"trilha_id": trilha.id, "titulo": "M1", "descricao": "", "nivel": "INICIANTE", "ordem_modulo": 1})
     modulo.is_valid(raise_exception=True)
     modulo = modulo.save()
     matricula = MatriculaSerializer(data={"usuario": user.id, "trilha": trilha.id})

@@ -10,10 +10,21 @@ class TrilhaSerializer(serializers.ModelSerializer):
         read_only_fields = ('id',)
 
 
+class TrilhaPrimaryKeyRelatedField(serializers.PrimaryKeyRelatedField):
+    """PrimaryKeyRelatedField que serializa o UUID como string."""
+
+    def to_representation(self, value):
+        return str(super().to_representation(value))
+
+
 class ModuloSerializer(serializers.ModelSerializer):
+    trilha_id = TrilhaPrimaryKeyRelatedField(
+        source='trilha', queryset=Trilha.objects.all(),
+    )
+
     class Meta:
         model = Modulo
-        fields = ('id', 'trilha', 'titulo', 'descricao', 'nivel', 'ordem_modulo')
+        fields = ('id', 'trilha_id', 'titulo', 'descricao', 'nivel', 'ordem_modulo')
         read_only_fields = ('id',)
 
 
