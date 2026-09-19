@@ -12,67 +12,119 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+        ('userManagement', '0002_rename_nickname_user_apelido_user_criado_em_and_more'),
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='Trilha',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('titulo', models.CharField(max_length=100)),
-                ('descricao', models.TextField(blank=True)),
-                ('habilidade', models.CharField(max_length=50)),
-                ('ativo', models.BooleanField(default=True)),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.CreateModel(
+                    name='Trilha',
+                    fields=[
+                        ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                        ('titulo', models.CharField(max_length=100)),
+                        ('descricao', models.TextField(blank=True)),
+                        ('habilidade', models.CharField(max_length=50)),
+                        ('ativo', models.BooleanField(default=True)),
+                    ],
+                    options={
+                        'db_table': 'TRILHA',
+                    },
+                ),
+                migrations.CreateModel(
+                    name='Matricula',
+                    fields=[
+                        ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                        ('status', models.CharField(default='EM_ANDAMENTO', max_length=30)),
+                        ('criado_em', models.DateTimeField(auto_now_add=True)),
+                        ('concluido_em', models.DateTimeField(blank=True, null=True)),
+                        ('usuario', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='matriculas', to=settings.AUTH_USER_MODEL)),
+                        ('trilha', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='matriculas', to='trackManagement.trilha')),
+                    ],
+                    options={
+                        'db_table': 'MATRICULA',
+                    },
+                ),
+                migrations.CreateModel(
+                    name='Modulo',
+                    fields=[
+                        ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                        ('titulo', models.CharField(max_length=100)),
+                        ('descricao', models.TextField(blank=True)),
+                        ('nivel', models.CharField(max_length=30)),
+                        ('ordem_modulo', models.IntegerField(default=0)),
+                        ('trilha', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='modulos', to='trackManagement.trilha')),
+                    ],
+                    options={
+                        'db_table': 'MODULO',
+                        'ordering': ['ordem_modulo'],
+                    },
+                ),
+                migrations.CreateModel(
+                    name='ProgressoModulo',
+                    fields=[
+                        ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                        ('status', models.CharField(default='BLOQUEADO', max_length=30)),
+                        ('concluido_em', models.DateTimeField(blank=True, null=True)),
+                        ('matricula', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='progresso_modulos', to='trackManagement.matricula')),
+                        ('modulo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='progresso', to='trackManagement.modulo')),
+                    ],
+                    options={
+                        'db_table': 'PROGRESSO_MODULO',
+                        'constraints': [models.UniqueConstraint(fields=('matricula', 'modulo'), name='unique_matricula_modulo')],
+                    },
+                ),
+                migrations.AddConstraint(
+                    model_name='matricula',
+                    constraint=models.UniqueConstraint(fields=('usuario', 'trilha'), name='unique_usuario_trilha'),
+                ),
             ],
-            options={
-                'db_table': 'TRILHA',
-            },
-        ),
-        migrations.CreateModel(
-            name='Matricula',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('status', models.CharField(default='EM_ANDAMENTO', max_length=30)),
-                ('criado_em', models.DateTimeField(auto_now_add=True)),
-                ('concluido_em', models.DateTimeField(blank=True, null=True)),
-                ('usuario', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='matriculas', to=settings.AUTH_USER_MODEL)),
-                ('trilha', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='matriculas', to='trackManagement.trilha')),
+            database_operations=[
+                migrations.RunSQL(
+                    sql="""
+                        CREATE TABLE IF NOT EXISTS "TRILHA" (
+                            "id" uuid NOT NULL PRIMARY KEY,
+                            "titulo" varchar(100) NOT NULL,
+                            "descricao" text NOT NULL,
+                            "habilidade" varchar(50) NOT NULL,
+                            "ativo" boolean NOT NULL
+                        );
+
+                        CREATE TABLE IF NOT EXISTS "MODULO" (
+                            "id" uuid NOT NULL PRIMARY KEY,
+                            "titulo" varchar(100) NOT NULL,
+                            "descricao" text NOT NULL,
+                            "nivel" varchar(30) NOT NULL,
+                            "ordem_modulo" integer NOT NULL,
+                            "trilha_id" uuid NOT NULL REFERENCES "TRILHA" ("id") DEFERRABLE INITIALLY DEFERRED
+                        );
+
+                        CREATE TABLE IF NOT EXISTS "MATRICULA" (
+                            "id" uuid NOT NULL PRIMARY KEY,
+                            "status" varchar(30) NOT NULL,
+                            "criado_em" timestamp with time zone NOT NULL,
+                            "concluido_em" timestamp with time zone NULL,
+                            "trilha_id" uuid NOT NULL REFERENCES "TRILHA" ("id") DEFERRABLE INITIALLY DEFERRED,
+                            "usuario_id" uuid NOT NULL REFERENCES "userManagement_user" ("id") DEFERRABLE INITIALLY DEFERRED,
+                            CONSTRAINT "unique_usuario_trilha" UNIQUE ("usuario_id", "trilha_id")
+                        );
+
+                        CREATE TABLE IF NOT EXISTS "PROGRESSO_MODULO" (
+                            "id" uuid NOT NULL PRIMARY KEY,
+                            "status" varchar(30) NOT NULL,
+                            "concluido_em" timestamp with time zone NULL,
+                            "matricula_id" uuid NOT NULL REFERENCES "MATRICULA" ("id") DEFERRABLE INITIALLY DEFERRED,
+                            "modulo_id" uuid NOT NULL REFERENCES "MODULO" ("id") DEFERRABLE INITIALLY DEFERRED,
+                            CONSTRAINT "unique_matricula_modulo" UNIQUE ("matricula_id", "modulo_id")
+                        );
+                    """,
+                    reverse_sql="""
+                        DROP TABLE IF EXISTS "PROGRESSO_MODULO" CASCADE;
+                        DROP TABLE IF EXISTS "MATRICULA" CASCADE;
+                        DROP TABLE IF EXISTS "MODULO" CASCADE;
+                        DROP TABLE IF EXISTS "TRILHA" CASCADE;
+                    """
+                ),
             ],
-            options={
-                'db_table': 'MATRICULA',
-            },
-        ),
-        migrations.CreateModel(
-            name='Modulo',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('titulo', models.CharField(max_length=100)),
-                ('descricao', models.TextField(blank=True)),
-                ('nivel', models.CharField(max_length=30)),
-                ('ordem_modulo', models.IntegerField(default=0)),
-                ('trilha', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='modulos', to='trackManagement.trilha')),
-            ],
-            options={
-                'db_table': 'MODULO',
-                'ordering': ['ordem_modulo'],
-            },
-        ),
-        migrations.CreateModel(
-            name='ProgressoModulo',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('status', models.CharField(default='BLOQUEADO', max_length=30)),
-                ('concluido_em', models.DateTimeField(blank=True, null=True)),
-                ('matricula', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='progresso_modulos', to='trackManagement.matricula')),
-                ('modulo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='progresso', to='trackManagement.modulo')),
-            ],
-            options={
-                'db_table': 'PROGRESSO_MODULO',
-                'constraints': [models.UniqueConstraint(fields=('matricula', 'modulo'), name='unique_matricula_modulo')],
-            },
-        ),
-        migrations.AddConstraint(
-            model_name='matricula',
-            constraint=models.UniqueConstraint(fields=('usuario', 'trilha'), name='unique_usuario_trilha'),
         ),
     ]
