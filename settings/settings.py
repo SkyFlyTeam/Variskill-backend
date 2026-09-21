@@ -49,6 +49,9 @@ INSTALLED_APPS = [
     'learning',
     'grading',
     'intents',
+    'activityManagement',
+    'questionsManagement',
+    'assistantManagement',
 ]
 
 AUTH_USER_MODEL = 'userManagement.User'
