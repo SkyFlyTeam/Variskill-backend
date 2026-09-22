@@ -1,14 +1,24 @@
 from django.db import transaction
 from rest_framework import permissions, status, viewsets
 from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from activityManagement.models import Atividade, Conteudo
+from activityManagement.services import submit_activity
 
 from .models import Module
 
 from .permissions import IsAdminForUnsafeMethods
-from .serializers import ActivityCreateSerializer, ActivitySerializer, ContentSerializer, ModuleSerializer
+from .serializers import (
+    ActivityCreateSerializer,
+    ActivitySerializer,
+    ActivitySubmissionSerializer,
+    ContentSerializer,
+    ModuleSerializer,
+    SubmissionResultSerializer,
+)
 
 
 class ModuleViewSet(viewsets.ModelViewSet):
@@ -30,9 +40,33 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.action in ('list', 'retrieve') and not self.request.user.is_staff:
+        if self.action in ('list', 'retrieve', 'submit') and not self.request.user.is_staff:
             queryset = queryset.filter(ativo=True)
         return queryset
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='submeter',
+        permission_classes=(permissions.IsAuthenticated,),
+    )
+    def submit(self, request, pk=None):
+        atividade = self.get_object()
+        serializer = ActivitySubmissionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        answers = serializer.validated_data['respostas']
+
+        question_ids = {str(questao.pk) for questao in atividade.questoes.all()}
+        if not question_ids:
+            raise ValidationError({'detail': 'Atividade sem questões para avaliar.'})
+        unknown_ids = set(answers) - question_ids
+        if unknown_ids:
+            raise ValidationError({
+                'respostas': [f'Questões que não pertencem à atividade: {", ".join(sorted(unknown_ids))}'],
+            })
+
+        result = submit_activity(request.user, atividade, answers)
+        return Response(SubmissionResultSerializer(result).data)
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
