@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 
 
@@ -39,7 +40,9 @@ class Atividade(models.Model):
 
 class ExecucaoAtividade(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    # usuario = models.ForeignKey(User, related_name='execucoes_atividade', on_delete=models.CASCADE)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='execucoes_atividade', on_delete=models.CASCADE,
+    )
     atividade = models.ForeignKey(Atividade, related_name='execucoes', on_delete=models.CASCADE)
     resposta = models.JSONField()
     pontuacao_obtida = models.IntegerField()
