@@ -50,3 +50,22 @@ class ProgressoModuloSerializer(serializers.ModelSerializer):
         model = ProgressoModulo
         fields = ('id', 'matricula', 'modulo', 'status', 'concluido_em')
         read_only_fields = ('id',)
+
+
+class PosicionarNivelInputSerializer(serializers.Serializer):
+    matricula_id = serializers.UUIDField(required=True)
+
+
+class ModuloLiberadoSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    titulo = serializers.CharField()
+    nivel = serializers.CharField()
+    status = serializers.CharField()
+
+
+class PosicionarNivelOutputSerializer(serializers.Serializer):
+    nivel_posicionado = serializers.CharField()
+    taxa_acerto = serializers.FloatField()
+    modulos_liberados = ModuloLiberadoSerializer(many=True)
+    mensagem_assistente = serializers.CharField()
+
