@@ -21,7 +21,7 @@ class Conteudo(models.Model):
 
 class Atividade(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    modulo = models.ForeignKey('learning.Module', related_name='atividades', on_delete=models.CASCADE)
+    modulo = models.ForeignKey('trackManagement.Modulo', related_name='atividades', on_delete=models.CASCADE)
     conteudo = models.OneToOneField(Conteudo, related_name='atividade', on_delete=models.SET_NULL, null=True, blank=True)
     titulo = models.CharField(max_length=255)
     descricao = models.TextField(blank=True, default='')
