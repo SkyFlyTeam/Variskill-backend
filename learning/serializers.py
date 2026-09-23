@@ -3,8 +3,7 @@ from rest_framework import serializers
 
 from activityManagement.models import Atividade, Conteudo
 from questionsManagement.models import Questao, QuestaoOpcao
-
-from .models import Module
+from trackManagement.models import Modulo
 
 
 class OptionSerializer(serializers.ModelSerializer):
@@ -59,7 +58,7 @@ class ActivitySerializer(serializers.ModelSerializer):
 
 
 class ActivityCreateSerializer(ActivitySerializer):
-    modulo_id = serializers.PrimaryKeyRelatedField(source='modulo', queryset=Module.objects.all(), write_only=True)
+    modulo_id = serializers.PrimaryKeyRelatedField(source='modulo', queryset=Modulo.objects.all(), write_only=True)
     conteudo_id = serializers.PrimaryKeyRelatedField(source='conteudo', queryset=Conteudo.objects.all(), write_only=True, required=False, allow_null=True)
     ordem_atividade = serializers.IntegerField(source='ordem', write_only=True)
     questoes = QuestionCreateSerializer(many=True, required=False)
@@ -77,15 +76,6 @@ class ActivityCreateSerializer(ActivitySerializer):
                 QuestaoOpcao(questao=questao, **opcao) for opcao in opcoes
             ])
         return atividade
-
-
-class ModuleSerializer(serializers.ModelSerializer):
-    titulo = serializers.CharField(source='title')
-
-    class Meta:
-        model = Module
-        fields = ('id', 'titulo')
-        read_only_fields = ('id',)
 
 
 class ActivitySubmissionSerializer(serializers.Serializer):

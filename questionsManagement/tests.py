@@ -3,7 +3,7 @@ from model_bakery import baker
 from rest_framework.test import APIClient
 
 from activityManagement.models import Atividade
-from learning.models import Module
+from trackManagement.models import Modulo
 
 from .models import Questao, QuestaoOpcao
 
@@ -15,7 +15,7 @@ def admin_user(django_user_model):
 
 @pytest.fixture
 def atividade():
-    return baker.make(Atividade, modulo=baker.make(Module))
+    return baker.make(Atividade, modulo=baker.make(Modulo))
 
 
 @pytest.mark.django_db

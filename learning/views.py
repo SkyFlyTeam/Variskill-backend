@@ -8,24 +8,14 @@ from rest_framework.response import Response
 from activityManagement.models import Atividade, Conteudo
 from activityManagement.services import submit_activity
 
-from .models import Module
-
 from .permissions import IsAdminForUnsafeMethods
 from .serializers import (
     ActivityCreateSerializer,
     ActivitySerializer,
     ActivitySubmissionSerializer,
     ContentSerializer,
-    ModuleSerializer,
     SubmissionResultSerializer,
 )
-
-
-class ModuleViewSet(viewsets.ModelViewSet):
-    authentication_classes = (SessionAuthentication,)
-    permission_classes = (permissions.IsAuthenticated, IsAdminForUnsafeMethods)
-    queryset = Module.objects.all()
-    serializer_class = ModuleSerializer
 
 
 class ActivityViewSet(viewsets.ModelViewSet):

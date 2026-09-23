@@ -6,7 +6,7 @@ from django.utils import timezone
 from model_bakery import baker
 
 from activityManagement.models import Atividade, ExecucaoAtividade
-from learning.models import Module
+from trackManagement.models import Modulo
 from questionsManagement.models import Questao
 
 
@@ -22,7 +22,7 @@ def student(django_user_model):
 def atividade():
     return baker.make(
         Atividade,
-        modulo=baker.make(Module),
+        modulo=baker.make(Modulo),
         conteudo=None,
         contexto_avaliacao='FIXACAO_CONCEITO',
         xp_recompensa=50,

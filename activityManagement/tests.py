@@ -2,13 +2,13 @@ import pytest
 from model_bakery import baker
 
 from .models import Atividade, Conteudo, ExecucaoAtividade
-from learning.models import Module
 from learning.serializers import ActivityCreateSerializer
+from trackManagement.models import Modulo
 
 
 @pytest.mark.django_db
 def test_atividade_pertence_a_modulo():
-    modulo = baker.make(Module)
+    modulo = baker.make(Modulo)
     atividade = baker.make(Atividade, modulo=modulo)
 
     assert atividade.modulo == modulo
@@ -31,7 +31,7 @@ def test_execucao_atividade_relaciona_com_atividade():
 
 @pytest.mark.django_db
 def test_excluir_modulo_exclui_atividades_em_cascata():
-    modulo = baker.make(Module)
+    modulo = baker.make(Modulo)
     atividade = baker.make(Atividade, modulo=modulo)
 
     modulo.delete()
@@ -41,7 +41,7 @@ def test_excluir_modulo_exclui_atividades_em_cascata():
 
 @pytest.mark.django_db
 def test_atividade_respeita_ordem():
-    modulo = baker.make(Module)
+    modulo = baker.make(Modulo)
     segunda = baker.make(Atividade, modulo=modulo, ordem=2)
     primeira = baker.make(Atividade, modulo=modulo, ordem=1)
 
@@ -50,14 +50,14 @@ def test_atividade_respeita_ordem():
 
 @pytest.mark.django_db
 def test_atividade_pode_ser_criada_sem_conteudo():
-    modulo = baker.make(Module)
+    modulo = baker.make(Modulo)
     atividade = baker.make(Atividade, modulo=modulo, conteudo=None)
     assert atividade.conteudo is None
 
 
 @pytest.mark.django_db
 def test_excluir_conteudo_preserva_atividade():
-    modulo = baker.make(Module)
+    modulo = baker.make(Modulo)
     conteudo = baker.make(Conteudo)
     atividade = baker.make(Atividade, modulo=modulo, conteudo=conteudo)
     conteudo.delete()
@@ -67,7 +67,7 @@ def test_excluir_conteudo_preserva_atividade():
 
 @pytest.mark.django_db
 def test_serializer_de_atividade_nao_exige_conteudo_id():
-    modulo = baker.make(Module)
+    modulo = baker.make(Modulo)
     serializer = ActivityCreateSerializer(data={
         'modulo_id': modulo.pk,
         'titulo': 'Atividade sem conteudo',
