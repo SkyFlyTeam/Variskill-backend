@@ -1,145 +1,99 @@
 import pytest
-from django.urls import reverse
-from model_bakery import baker
+from rest_framework.test import APIClient
 
-from trackManagement.models import Modulo, Trilha
-
-
-pytestmark = [pytest.mark.integration, pytest.mark.django_db]
+from activityManagement.models import Atividade, Conteudo
+from trackManagement.models import Matricula, Modulo, ProgressoModulo, Trilha
 
 
-@pytest.fixture
-def trilha():
-    return baker.make(Trilha, titulo='Javascript', habilidade='Frontend')
+pytestmark = pytest.mark.django_db
 
 
-@pytest.fixture
-def admin(django_user_model):
-    return baker.make(django_user_model, is_staff=True, is_superuser=True)
-
-
-@pytest.fixture
-def regular_user(django_user_model):
-    return baker.make(django_user_model)
-
-
-def modulo_payload(trilha, **overrides):
-    payload = {
-        'trilha_id': str(trilha.id),
-        'titulo': 'Módulo 1 - Fundamentos',
-        'descricao': 'Sintaxe elementar, variáveis e operações básicas.',
-        'nivel': 'INICIANTE',
-        'ordem_modulo': 1,
-    }
-    payload.update(overrides)
-    return payload
-
-
-def test_list_is_public(client, trilha):
-    baker.make(Modulo, trilha=trilha, titulo='M1', ordem_modulo=1)
-
-    response = client.get(reverse('modulo-list'))
-
-    assert response.status_code == 200
-    assert [item['titulo'] for item in response.data] == ['M1']
-
-
-def test_list_filters_by_trilha_id(client):
-    trilha_a = baker.make(Trilha, titulo='Python', habilidade='Backend')
-    trilha_b = baker.make(Trilha, titulo='Go', habilidade='Backend')
-    baker.make(Modulo, trilha=trilha_a, ordem_modulo=1)
-    baker.make(Modulo, trilha=trilha_a, ordem_modulo=2)
-    baker.make(Modulo, trilha=trilha_b, ordem_modulo=1)
-
-    response = client.get(reverse('modulo-list'), {'trilha_id': str(trilha_a.id)})
-
-    assert response.status_code == 200
-    assert len(response.data) == 2
-    assert {item['trilha_id'] for item in response.data} == {str(trilha_a.id)}
-
-
-def test_list_orders_by_ordem_modulo(client, trilha):
-    baker.make(Modulo, trilha=trilha, titulo='Terceiro', ordem_modulo=3)
-    baker.make(Modulo, trilha=trilha, titulo='Primeiro', ordem_modulo=1)
-    baker.make(Modulo, trilha=trilha, titulo='Segundo', ordem_modulo=2)
-
-    response = client.get(reverse('modulo-list'))
-
-    assert [item['ordem_modulo'] for item in response.data] == [1, 2, 3]
-
-
-def test_retrieve_is_public(client, trilha):
-    modulo = baker.make(Modulo, trilha=trilha, ordem_modulo=1)
-
-    response = client.get(reverse('modulo-detail', args=[modulo.id]))
-
-    assert response.status_code == 200
-    assert set(response.data) == {'id', 'trilha_id', 'titulo', 'descricao', 'nivel', 'ordem_modulo'}
-
-
-def test_anonymous_cannot_create(client, trilha):
-    response = client.post(reverse('modulo-list'), modulo_payload(trilha), format='json')
-
-    assert response.status_code == 403
-    assert not Modulo.objects.exists()
-
-
-def test_regular_user_cannot_create(client, regular_user, trilha):
-    client.force_login(regular_user)
-
-    response = client.post(reverse('modulo-list'), modulo_payload(trilha), format='json')
-
-    assert response.status_code == 403
-    assert not Modulo.objects.exists()
-
-
-def test_regular_user_cannot_delete(client, regular_user, trilha):
-    client.force_login(regular_user)
-    modulo = baker.make(Modulo, trilha=trilha, ordem_modulo=1)
-
-    response = client.delete(reverse('modulo-detail', args=[modulo.id]))
-
-    assert response.status_code == 403
-    assert Modulo.objects.exists()
-
-
-def test_admin_can_create_modulo(client, admin, trilha):
-    client.force_login(admin)
-
-    response = client.post(reverse('modulo-list'), modulo_payload(trilha), format='json')
-
-    assert response.status_code == 201
-    modulo = Modulo.objects.get()
-    assert response.data == {
-        'id': str(modulo.id),
-        'trilha_id': str(trilha.id),
-        'titulo': 'Módulo 1 - Fundamentos',
-        'descricao': 'Sintaxe elementar, variáveis e operações básicas.',
-        'nivel': 'INICIANTE',
-        'ordem_modulo': 1,
-    }
-
-
-def test_admin_can_update_modulo(client, admin, trilha):
-    client.force_login(admin)
-    modulo = baker.make(Modulo, trilha=trilha, titulo='Antigo', ordem_modulo=1)
-
-    response = client.patch(
-        reverse('modulo-detail', args=[modulo.id]),
-        {'titulo': 'Novo título'},
-        format='json',
+def make_user(django_user_model, apelido='roadmap-user'):
+    return django_user_model.objects.create_user(
+        apelido=apelido,
+        nome='Roadmap User',
+        email=f'{apelido}@example.com',
     )
 
+
+def make_module(trilha, **kwargs):
+    return Modulo.objects.create(trilha=trilha, **kwargs)
+
+
+def make_activity(module, **kwargs):
+    return Atividade.objects.create(modulo=module, **kwargs)
+
+
+def test_roadmap_returns_progress_and_next_activity(django_user_model):
+    user = make_user(django_user_model)
+    trilha = Trilha.objects.create(titulo='Javascript', habilidade='Frontend')
+    modulo = make_module(trilha, titulo='Fundamentos', nivel='INICIANTE', ordem_modulo=1)
+    conteudo = Conteudo.objects.create(titulo='Variáveis')
+    concluida = make_activity(
+        modulo, titulo='Variáveis', contexto_avaliacao='FIXACAO_CONCEITO',
+        xp_recompensa=50, ordem=1, conteudo=conteudo,
+    )
+    proxima = make_activity(
+        modulo, titulo='Operadores', contexto_avaliacao='FIXACAO_CONCEITO',
+        xp_recompensa=50, ordem=2,
+    )
+    matricula = Matricula.objects.create(usuario=user, trilha=trilha)
+    ProgressoModulo.objects.create(matricula=matricula, modulo=modulo, status='EM_ANDAMENTO')
+    concluida.execucoes.create(
+        usuario=user, resposta={}, pontuacao_obtida=10, aprovado=True,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+    response = client.get(f'/api/trilhas/{trilha.pk}/roadmap/')
+
     assert response.status_code == 200
-    modulo.refresh_from_db()
-    assert modulo.titulo == 'Novo título'
+    body = response.json()
+    assert body['percentual_conclusao'] == 50.0
+    assert body['modulos'][0]['status'] == 'EM_ANDAMENTO'
+    assert body['modulos'][0]['atividades'][0]['status'] == 'CONCLUIDO'
+    assert body['modulos'][0]['atividades'][0]['conteudo_teorico'] == {
+        'id': str(conteudo.pk), 'titulo': 'Variáveis',
+    }
+    assert body['modulos'][0]['atividades'][1]['status'] == 'EM_ANDAMENTO'
+    assert body['proxima_atividade_recomendada'] == {
+        'id': str(proxima.pk), 'titulo': 'Operadores', 'modulo_id': str(modulo.pk),
+    }
 
 
-def test_admin_can_delete_modulo(client, admin, trilha):
-    client.force_login(admin)
-    modulo = baker.make(Modulo, trilha=trilha, ordem_modulo=1)
+def test_roadmap_does_not_return_inactive_activities(django_user_model):
+    user = make_user(django_user_model, 'roadmap-inactive')
+    trilha = Trilha.objects.create(titulo='Python', habilidade='Backend')
+    modulo = make_module(trilha, titulo='Base', nivel='INICIANTE')
+    make_activity(
+        modulo, titulo='Ativa', contexto_avaliacao='CODIGO', ordem=1, ativo=True,
+    )
+    make_activity(
+        modulo, titulo='Inativa', contexto_avaliacao='CODIGO', ordem=2, ativo=False,
+    )
+    matricula = Matricula.objects.create(usuario=user, trilha=trilha)
+    ProgressoModulo.objects.create(matricula=matricula, modulo=modulo, status='EM_ANDAMENTO')
 
-    response = client.delete(reverse('modulo-detail', args=[modulo.id]))
+    client = APIClient()
+    client.force_authenticate(user=user)
+    response = client.get(f'/api/trilhas/{trilha.pk}/roadmap/')
 
-    assert response.status_code == 204
-    assert not Modulo.objects.exists()
+    assert response.status_code == 200
+    assert [item['titulo'] for item in response.json()['modulos'][0]['atividades']] == ['Ativa']
+
+
+def test_roadmap_without_active_enrollment_locks_all_nodes(django_user_model):
+    user = make_user(django_user_model, 'roadmap-no-enrollment')
+    trilha = Trilha.objects.create(titulo='CSS', habilidade='Frontend')
+    modulo = make_module(trilha, titulo='Seletores', nivel='INICIANTE')
+    make_activity(modulo, titulo='Classes', contexto_avaliacao='CONCEITO', ordem=1)
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+    response = client.get(f'/api/trilhas/{trilha.pk}/roadmap/')
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['modulos'][0]['status'] == 'BLOQUEADO'
+    assert body['modulos'][0]['atividades'][0]['status'] == 'BLOQUEADO'
+    assert body['proxima_atividade_recomendada'] is None
