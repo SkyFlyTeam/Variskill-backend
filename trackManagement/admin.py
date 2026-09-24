@@ -18,10 +18,10 @@ class ModuloAdmin(admin.ModelAdmin):
 @admin.register(Matricula)
 class MatriculaAdmin(admin.ModelAdmin):
     list_display = ('usuario', 'trilha', 'status', 'criado_em')
-    search_fields = ('usuario__nickName', 'trilha__titulo')
+    search_fields = ('usuario__apelido', 'trilha__titulo')
 
 
 @admin.register(ProgressoModulo)
 class ProgressoModuloAdmin(admin.ModelAdmin):
     list_display = ('matricula', 'modulo', 'status', 'concluido_em')
-    search_fields = ('matricula__usuario__nickName', 'modulo__titulo')
+    search_fields = ('matricula__usuario__apelido', 'modulo__titulo')
