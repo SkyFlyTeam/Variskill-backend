@@ -1,12 +1,33 @@
 from django.contrib import admin
 
-from activityManagement.models import Atividade, Conteudo
-from questionsManagement.models import Questao, QuestaoOpcao
+from .models import Activity, Content, Module, Option, Question
 
-from .models import Module
 
-admin.site.register(Module)
-admin.site.register(Conteudo)
-admin.site.register(Atividade)
-admin.site.register(Questao)
-admin.site.register(QuestaoOpcao)
+@admin.register(Module)
+class ModuleAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title')
+    search_fields = ('title',)
+
+
+@admin.register(Content)
+class ContentAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title', 'estimated_minutes')
+    search_fields = ('title',)
+
+
+@admin.register(Activity)
+class ActivityAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title', 'module', 'content', 'order', 'active')
+    list_filter = ('active', 'module')
+    search_fields = ('title',)
+
+
+@admin.register(Question)
+class QuestionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'activity', 'exercise_type', 'order')
+    list_filter = ('activity',)
+
+
+@admin.register(Option)
+class OptionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'question', 'text', 'order')
