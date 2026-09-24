@@ -1,8 +1,3 @@
-from rest_framework.routers import DefaultRouter
-
-from .views import ModuloViewSet
-
-router = DefaultRouter()
-router.register('modulos', ModuloViewSet, basename='modulo')
-
-urlpatterns = router.urls
+from django.urls import path
+from .views import RoadmapView
+urlpatterns = [path('trilhas/<uuid:trilha_id>/roadmap/', RoadmapView.as_view(), name='trilha-roadmap')]
