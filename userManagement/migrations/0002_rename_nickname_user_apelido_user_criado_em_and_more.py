@@ -2,14 +2,12 @@
 
 import django.utils.timezone
 import uuid
-import uuid
 from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('admin', '0001_initial'),
         ('userManagement', '0001_initial'),
     ]
 
@@ -147,14 +145,5 @@ class Migration(migrations.Migration):
                     DEFERRABLE INITIALLY DEFERRED;
             """,
             reverse_sql=migrations.RunSQL.noop,
-        ),
-        migrations.SeparateDatabaseAndState(
-            state_operations=[
-                migrations.AlterField(
-                    model_name='user',
-                    name='id',
-                    field=models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False),
-                ),
-            ],
         ),
     ]
