@@ -6,7 +6,6 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from activityManagement.models import Atividade, ExecucaoAtividade
-from learning.models import Module
 from questionsManagement.models import Questao
 from trackManagement.models import Matricula, Modulo, ProgressoModulo, Trilha
 
@@ -26,11 +25,6 @@ def auth_user(django_user_model):
 @pytest.fixture
 def other_user(django_user_model):
     return baker.make(django_user_model, apelido='outro_estudante')
-
-
-@pytest.fixture
-def learning_module():
-    return Module.objects.create(title='Modulo Base')
 
 
 @pytest.fixture
@@ -88,9 +82,9 @@ def trilha_completa():
 
 
 @pytest.fixture
-def atividade_diagnostica(learning_module):
+def atividade_diagnostica(trilha_completa):
     return Atividade.objects.create(
-        modulo=learning_module,
+        modulo_id=trilha_completa['m_ini1'].id,
         titulo='Diagnóstico Inicial de Python',
         descricao='Avaliação para nivelamento',
         contexto_avaliacao='DIAGNOSTICO_INICIAL',
@@ -113,11 +107,11 @@ def test_posicionar_nivel_atividade_inexistente(api_client, auth_user):
 
 
 def test_posicionar_nivel_rejeita_atividade_que_nao_e_diagnostico_inicial(
-    api_client, auth_user, learning_module, trilha_completa
+    api_client, auth_user, trilha_completa
 ):
     api_client.force_login(auth_user)
     atividade_comum = Atividade.objects.create(
-        modulo=learning_module,
+        modulo_id=trilha_completa['m_ini1'].id,
         titulo='Exercício de Fixação',
         descricao='Atividade normal',
         contexto_avaliacao='FIXACAO',

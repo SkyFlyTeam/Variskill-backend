@@ -36,25 +36,6 @@ def _is_correct(questao, answer):
     return ResponseValidatorContext.for_questao(questao).validar(questao, payload)
 
 
-def _next_streak(user):
-    last_approved_at = (
-        ExecucaoAtividade.objects.filter(usuario=user, aprovado=True)
-        .order_by('-executado_em')
-        .values_list('executado_em', flat=True)
-        .first()
-    )
-    if last_approved_at is None:
-        return 1
-
-    today = timezone.localdate()
-    last_day = timezone.localtime(last_approved_at).date()
-    if last_day == today:
-        return user.streak_dias
-    if last_day == today - timedelta(days=1):
-        return user.streak_dias + 1
-    return 1
-
-
 @transaction.atomic
 def submit_activity(user, atividade, answers):
     questoes = list(atividade.questoes.all())
