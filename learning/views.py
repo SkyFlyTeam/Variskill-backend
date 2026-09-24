@@ -17,7 +17,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.action in ('list', 'retrieve') and not self.request.user.is_staff:
+        if self.action == 'list' and not self.request.user.is_staff:
             queryset = queryset.filter(active=True)
         return queryset
 
