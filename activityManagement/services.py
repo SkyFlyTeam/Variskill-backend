@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from grading.validators import ResponseValidatorContext
 
+from userManagement.services import GamificationService
 from .models import ExecucaoAtividade
 
 APPROVAL_THRESHOLD_PERCENT = 70
@@ -78,9 +79,15 @@ def submit_activity(user, atividade, answers):
     locked_user = get_user_model().objects.select_for_update().get(pk=user.pk)
     xp_granted = atividade.xp_recompensa if approved else 0
     if approved:
-        locked_user.streak_dias = _next_streak(locked_user)
-        locked_user.xp_total += xp_granted
-        locked_user.save(update_fields=['xp_total', 'streak_dias'])
+        last_approved_at = (
+            ExecucaoAtividade.objects.filter(usuario=locked_user, aprovado=True)
+            .order_by('-executado_em')
+            .values_list('executado_em', flat=True)
+            .first()
+        )
+        gamification = GamificationService()
+        gamification.atualizar_streak(locked_user, data_referencia=last_approved_at)
+        gamification.creditar_xp(locked_user, atividade)
 
     execution = ExecucaoAtividade.objects.create(
         usuario=locked_user,
