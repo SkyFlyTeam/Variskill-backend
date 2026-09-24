@@ -86,26 +86,3 @@ class ModuleSerializer(serializers.ModelSerializer):
         model = Module
         fields = ('id', 'titulo')
         read_only_fields = ('id',)
-
-
-class ActivitySubmissionSerializer(serializers.Serializer):
-    respostas = serializers.DictField(
-        child=serializers.ListField(child=serializers.CharField(allow_blank=True)),
-    )
-
-
-class QuestionFeedbackSerializer(serializers.Serializer):
-    questao_id = serializers.UUIDField()
-    correta = serializers.BooleanField()
-    explicacao = serializers.CharField(allow_blank=True)
-
-
-class SubmissionResultSerializer(serializers.Serializer):
-    execucao_id = serializers.UUIDField(source='execution.id')
-    aprovado = serializers.BooleanField(source='approved')
-    taxa_acerto = serializers.FloatField(source='hit_rate')
-    pontuacao_obtida = serializers.IntegerField(source='score_obtained')
-    xp_concedido = serializers.IntegerField(source='xp_granted')
-    novo_xp_total = serializers.IntegerField(source='new_xp_total')
-    executado_em = serializers.DateTimeField(source='execution.executado_em')
-    questoes_feedback = QuestionFeedbackSerializer(source='feedback', many=True)
