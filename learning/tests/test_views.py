@@ -3,7 +3,7 @@ from django.urls import reverse
 from model_bakery import baker
 
 from activityManagement.models import Atividade, Conteudo
-from trackManagement.models import Modulo
+from learning.models import Module
 from questionsManagement.models import Questao, QuestaoOpcao
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
@@ -21,7 +21,7 @@ def regular_user(django_user_model):
 
 @pytest.fixture
 def module():
-    return baker.make(Modulo)
+    return baker.make(Module)
 
 
 @pytest.fixture
