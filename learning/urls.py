@@ -1,9 +1,8 @@
 from rest_framework.routers import DefaultRouter
 
-from .views import ActivityViewSet, ContentViewSet
+from .views import ActivityViewSet
 
 router = DefaultRouter()
 router.register('atividades', ActivityViewSet, basename='atividade')
-router.register('conteudos', ContentViewSet, basename='conteudo')
 
 urlpatterns = router.urls

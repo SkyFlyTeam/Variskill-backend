@@ -30,13 +30,13 @@ class QuestionPublicSerializer(serializers.ModelSerializer):
 
 class ContentSerializer(serializers.ModelSerializer):
     titulo = serializers.CharField(source='title')
-    texto_explicativo = serializers.CharField(source='explanatory_text', trim_whitespace=False)
+    texto_explicativo = serializers.CharField(source='explanatory_text')
     tempo_estimado_minutos = serializers.IntegerField(source='estimated_minutes')
 
     class Meta:
         model = Content
-        fields = ('id', 'titulo', 'texto_explicativo', 'tempo_estimado_minutos', 'criado_em')
-        read_only_fields = ('id', 'criado_em')
+        fields = ('id', 'titulo', 'texto_explicativo', 'tempo_estimado_minutos')
+        read_only_fields = ('id',)
 
 
 class ActivitySerializer(serializers.ModelSerializer):

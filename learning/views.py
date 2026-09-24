@@ -2,9 +2,9 @@ from rest_framework import permissions, viewsets
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.response import Response
 
-from .models import Activity, Content
+from .models import Activity
 from .permissions import IsAdminForUnsafeMethods
-from .serializers import ActivityCreateSerializer, ActivitySerializer, ContentSerializer
+from .serializers import ActivityCreateSerializer, ActivitySerializer
 
 
 class ActivityViewSet(viewsets.ModelViewSet):
@@ -28,9 +28,3 @@ class ActivityViewSet(viewsets.ModelViewSet):
         activity.active = False
         activity.save(update_fields=['active'])
         return Response({'mensagem': 'Atividade desativada com sucesso.'})
-
-
-class ContentViewSet(viewsets.ModelViewSet):
-    permission_classes = (permissions.IsAuthenticated, IsAdminForUnsafeMethods)
-    queryset = Content.objects.all().order_by('id')
-    serializer_class = ContentSerializer
