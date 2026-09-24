@@ -7,9 +7,7 @@ from trackManagement.serializers import (
 )
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.django_db]
-
-
+@pytest.mark.django_db
 def test_trilha_serializer_create():
     data = {"titulo": "NodeJS", "descricao": "desc", "habilidade": "Backend", "ativo": True}
     ser = TrilhaSerializer(data=data)
@@ -18,6 +16,7 @@ def test_trilha_serializer_create():
     assert trilha.titulo == "NodeJS"
 
 
+@pytest.mark.django_db
 def test_modulo_serializer_create(trilha=None):
     # create trilha via serializer
     trilha_data = {"titulo": "Go", "descricao": "desc", "habilidade": "Backend", "ativo": True}
@@ -32,8 +31,9 @@ def test_modulo_serializer_create(trilha=None):
     assert modulo.titulo == "Módulo X"
 
 
+@pytest.mark.django_db
 def test_matricula_serializer_duplicate_prevent(django_user_model):
-    user = django_user_model.objects.create_user(apelido='srl')
+    user = django_user_model.objects.create_user(nickName='srl')
     trilha_data = {"titulo": "Rust", "descricao": "desc", "habilidade": "Backend", "ativo": True}
     trilha_ser = TrilhaSerializer(data=trilha_data)
     trilha_ser.is_valid(raise_exception=True)
@@ -50,8 +50,9 @@ def test_matricula_serializer_duplicate_prevent(django_user_model):
     assert 'non_field_errors' in ser2.errors
 
 
+@pytest.mark.django_db
 def test_progresso_modulo_serializer_create(django_user_model):
-    user = django_user_model.objects.create_user(apelido='srl2')
+    user = django_user_model.objects.create_user(nickName='srl2')
     trilha = TrilhaSerializer(data={"titulo": "TS", "descricao": "d", "habilidade": "Frontend", "ativo": True})
     trilha.is_valid(raise_exception=True)
     trilha = trilha.save()

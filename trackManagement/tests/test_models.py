@@ -5,9 +5,7 @@ from trackManagement.models import Trilha, Modulo, Matricula, ProgressoModulo
 from django.conf import settings
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.django_db]
-
-
+@pytest.mark.django_db
 def test_trilha_and_modulo_str_and_ordering():
     trilha = Trilha.objects.create(titulo='Javascript', descricao='Desc', habilidade='Frontend')
     m1 = Modulo.objects.create(trilha=trilha, titulo='Módulo 2', nivel='INTERMEDIARIO', ordem_modulo=2)
@@ -20,9 +18,10 @@ def test_trilha_and_modulo_str_and_ordering():
     assert modulos[0].titulo == 'Módulo 1'
 
 
+@pytest.mark.django_db
 def test_matricula_unique_constraint_and_progresso_defaults(django_user_model):
     # create user
-    user = django_user_model.objects.create_user(apelido='testuser')
+    user = django_user_model.objects.create_user(nickName='testuser')
     trilha = Trilha.objects.create(titulo='Python', descricao='Py', habilidade='Backend')
 
     # first matricula ok
