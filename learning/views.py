@@ -1,5 +1,4 @@
 from rest_framework import permissions, viewsets
-from rest_framework.authentication import SessionAuthentication
 from rest_framework.response import Response
 
 from .models import Activity
@@ -8,7 +7,6 @@ from .serializers import ActivityCreateSerializer, ActivitySerializer
 
 
 class ActivityViewSet(viewsets.ModelViewSet):
-    authentication_classes = (SessionAuthentication,)
     permission_classes = (permissions.IsAuthenticated, IsAdminForUnsafeMethods)
     queryset = Activity.objects.select_related('content').prefetch_related('questions__options')
 
