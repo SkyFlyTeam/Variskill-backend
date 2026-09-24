@@ -10,12 +10,12 @@ pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
 @pytest.fixture
 def admin_user(django_user_model):
-    return baker.make(django_user_model, apelido='admin', is_staff=True)
+    return baker.make(django_user_model, nickName='admin', is_staff=True)
 
 
 @pytest.fixture
 def regular_user(django_user_model):
-    return baker.make(django_user_model, apelido='student', is_staff=False)
+    return baker.make(django_user_model, nickName='student', is_staff=False)
 
 
 @pytest.fixture

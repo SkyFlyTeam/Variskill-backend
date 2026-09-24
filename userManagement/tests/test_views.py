@@ -11,7 +11,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 def user(django_user_model):
     return baker.make(
         django_user_model,
-        apelido='alice',
+        nickName='alice',
         password=make_password('test-password-123'),
     )
 
@@ -19,22 +19,22 @@ def user(django_user_model):
 def test_register_creates_user_and_session(client, django_user_model):
     response = client.post(
         reverse('register'),
-        {'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123'},
+        {'nickName': 'alice', 'password': 'test-password-123'},
         format='json',
     )
 
     assert response.status_code == 201
-    user = django_user_model.objects.get(apelido='alice')
+    user = django_user_model.objects.get(nickName='alice')
     assert user.check_password('test-password-123')
-    assert response.data == {'id': str(user.pk), 'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'xp_total': 0, 'streak_dias': 0}
+    assert response.data == {'id': user.pk, 'nickName': 'alice'}
     assert client.session['_auth_user_id'] == str(user.pk)
     assert client.get(reverse('user-list')).status_code == 200
 
 
 @pytest.mark.parametrize('payload, field', [
-    ({'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com'}, 'password'),
-    ({'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123'}, 'apelido'),
-    ({'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': ''}, 'password'),
+    ({'nickName': 'alice'}, 'password'),
+    ({'password': 'test-password-123'}, 'nickName'),
+    ({'nickName': 'alice', 'password': ''}, 'password'),
 ])
 def test_register_rejects_invalid_data(client, django_user_model, payload, field):
     response = client.post(reverse('register'), payload, format='json')
@@ -45,40 +45,39 @@ def test_register_rejects_invalid_data(client, django_user_model, payload, field
     assert '_auth_user_id' not in client.session
 
 
-def test_register_rejects_duplicate_apelido(client, user, django_user_model):
+def test_register_rejects_duplicate_nickname(client, user, django_user_model):
     response = client.post(
         reverse('register'),
-        {'apelido': user.apelido, 'nome': user.nome, 'email': user.email, 'password': 'another-password'},
+        {'nickName': user.nickName, 'password': 'another-password'},
         format='json',
     )
 
     assert response.status_code == 400
-    assert 'apelido' in response.data
+    assert 'nickName' in response.data
     assert django_user_model.objects.count() == 1
 
 
 def test_login_creates_session(client, user):
     response = client.post(
         reverse('login'),
-        {'apelido': user.apelido, 'password': 'test-password-123'},
+        {'nickName': user.nickName, 'password': 'test-password-123'},
         format='json',
     )
 
     assert response.status_code == 200
-    assert response.data['id'] == str(user.pk)
-    assert response.data['apelido'] == user.apelido
+    assert response.data == {'id': user.pk, 'nickName': user.nickName}
     assert client.session['_auth_user_id'] == str(user.pk)
     assert client.get(reverse('user-list')).status_code == 200
 
 
-@pytest.mark.parametrize('apelido, password', [
+@pytest.mark.parametrize('nickname, password', [
     ('alice', 'wrong-password'),
     ('unknown', 'test-password-123'),
 ])
-def test_login_rejects_invalid_credentials(client, user, apelido, password):
+def test_login_rejects_invalid_credentials(client, user, nickname, password):
     response = client.post(
         reverse('login'),
-        {'apelido': apelido, 'password': password},
+        {'nickName': nickname, 'password': password},
         format='json',
     )
 
@@ -88,8 +87,8 @@ def test_login_rejects_invalid_credentials(client, user, apelido, password):
 
 
 @pytest.mark.parametrize('payload, field', [
-    ({'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com'}, 'password'),
-    ({'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123'}, 'apelido'),
+    ({'nickName': 'alice'}, 'password'),
+    ({'password': 'test-password-123'}, 'nickName'),
 ])
 def test_login_requires_credentials(client, payload, field):
     response = client.post(reverse('login'), payload, format='json')
@@ -114,18 +113,19 @@ def test_users_require_authentication(client, user, method, route):
 
 
 def test_authenticated_user_can_list_and_retrieve_users(client, user, django_user_model):
-    second_user = baker.make(django_user_model, apelido='bob')
+    second_user = baker.make(django_user_model, nickName='bob')
     client.force_login(user)
 
     response = client.get(reverse('user-list'))
 
     assert response.status_code == 200
-    assert [item['id'] for item in response.data] == sorted([str(user.pk), str(second_user.pk)])
-    assert [item['apelido'] for item in response.data] == [user.apelido if str(user.pk) < str(second_user.pk) else second_user.apelido, second_user.apelido if str(user.pk) < str(second_user.pk) else user.apelido]
+    assert response.data == [
+        {'id': user.pk, 'nickName': user.nickName},
+        {'id': second_user.pk, 'nickName': second_user.nickName},
+    ]
     response = client.get(reverse('user-detail', args=[second_user.pk]))
     assert response.status_code == 200
-    assert response.data['id'] == str(second_user.pk)
-    assert response.data['apelido'] == 'bob'
+    assert response.data == {'id': second_user.pk, 'nickName': 'bob'}
 
 
 def test_authenticated_user_can_create_user(client, user, django_user_model):
@@ -133,15 +133,14 @@ def test_authenticated_user_can_create_user(client, user, django_user_model):
 
     response = client.post(
         reverse('user-list'),
-        {'apelido': 'bob', 'nome': 'Bob', 'email': 'bob@example.com', 'password': 'new-password'},
+        {'nickName': 'bob', 'password': 'new-password'},
         format='json',
     )
 
     assert response.status_code == 201
-    created = django_user_model.objects.get(apelido='bob')
+    created = django_user_model.objects.get(nickName='bob')
     assert created.check_password('new-password')
-    assert response.data['id'] == str(created.pk)
-    assert response.data['apelido'] == 'bob'
+    assert response.data == {'id': created.pk, 'nickName': 'bob'}
 
 
 @pytest.mark.parametrize('method', ['put', 'patch'])
@@ -150,16 +149,15 @@ def test_authenticated_user_can_update_user(client, user, method):
 
     response = getattr(client, method)(
         reverse('user-detail', args=[user.pk]),
-        {'apelido': 'updated', 'nome': user.nome, 'email': user.email, 'password': 'updated-password'},
+        {'nickName': 'updated', 'password': 'updated-password'},
         format='json',
     )
 
     assert response.status_code == 200
     user.refresh_from_db()
-    assert user.apelido == 'updated'
+    assert user.nickName == 'updated'
     assert user.check_password('updated-password')
-    assert response.data['id'] == str(user.pk)
-    assert response.data['apelido'] == 'updated'
+    assert response.data == {'id': user.pk, 'nickName': 'updated'}
 
 
 def test_partial_update_preserves_password(client, user):
@@ -167,13 +165,13 @@ def test_partial_update_preserves_password(client, user):
 
     response = client.patch(
         reverse('user-detail', args=[user.pk]),
-        {'apelido': 'updated'},
+        {'nickName': 'updated'},
         format='json',
     )
 
     assert response.status_code == 200
     user.refresh_from_db()
-    assert user.apelido == 'updated'
+    assert user.nickName == 'updated'
     assert user.check_password('test-password-123')
 
 
