@@ -1,9 +1,7 @@
 from dataclasses import dataclass
-from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.utils import timezone
 
 from grading.validators import ResponseValidatorContext
 
@@ -60,14 +58,8 @@ def submit_activity(user, atividade, answers):
     locked_user = get_user_model().objects.select_for_update().get(pk=user.pk)
     xp_granted = atividade.xp_recompensa if approved else 0
     if approved:
-        last_approved_at = (
-            ExecucaoAtividade.objects.filter(usuario=locked_user, aprovado=True)
-            .order_by('-executado_em')
-            .values_list('executado_em', flat=True)
-            .first()
-        )
         gamification = GamificationService()
-        gamification.atualizar_streak(locked_user, data_referencia=last_approved_at)
+        gamification.atualizar_streak(locked_user)
         gamification.creditar_xp(locked_user, atividade)
 
     execution = ExecucaoAtividade.objects.create(
