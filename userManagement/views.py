@@ -1,4 +1,4 @@
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from rest_framework import generics, permissions, status, viewsets, decorators
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.response import Response
@@ -56,9 +56,13 @@ class LoginView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        identifier = serializer.validated_data.get(
+            'apelido'
+        ) or serializer.validated_data.get('email')
+
         user = authenticate(
             request,
-            username=serializer.validated_data['apelido'],
+            username=identifier,
             password=serializer.validated_data['password'],
         )
         if user is None:
@@ -69,3 +73,12 @@ class LoginView(generics.GenericAPIView):
 
         login(request, user)
         return Response(UserSerializer(user).data)
+
+
+class LogoutView(generics.GenericAPIView):
+    authentication_classes = ()
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request):
+        logout(request)
+        return Response(status=status.HTTP_204_NO_CONTENT)

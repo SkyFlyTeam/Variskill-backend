@@ -43,5 +43,11 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class AuthSerializer(serializers.Serializer):
-    apelido = serializers.CharField(max_length=150)
+    apelido = serializers.CharField(max_length=150, required=False)
+    email = serializers.EmailField(required=False)
     password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if not attrs.get('apelido') and not attrs.get('email'):
+            raise serializers.ValidationError('Informe o apelido ou o email.')
+        return attrs

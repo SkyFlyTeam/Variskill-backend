@@ -12,6 +12,8 @@ def user(django_user_model):
     return baker.make(
         django_user_model,
         apelido='alice',
+        nome='Alice',
+        email='alice@example.com',
         password=make_password('test-password-123'),
     )
 
@@ -87,16 +89,69 @@ def test_login_rejects_invalid_credentials(client, user, apelido, password):
     assert '_auth_user_id' not in client.session
 
 
-@pytest.mark.parametrize('payload, field', [
-    ({'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com'}, 'password'),
-    ({'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123'}, 'apelido'),
-])
-def test_login_requires_credentials(client, payload, field):
-    response = client.post(reverse('login'), payload, format='json')
+def test_login_requires_password(client, user):
+    response = client.post(
+        reverse('login'),
+        {'apelido': user.apelido},
+        format='json',
+    )
 
     assert response.status_code == 400
-    assert field in response.data
+    assert 'password' in response.data
     assert '_auth_user_id' not in client.session
+
+
+def test_login_requires_an_identifier(client, user):
+    response = client.post(
+        reverse('login'),
+        {'password': 'test-password-123'},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'non_field_errors' in response.data
+    assert '_auth_user_id' not in client.session
+
+
+def test_login_with_email_creates_session(client, user):
+    response = client.post(
+        reverse('login'),
+        {'email': user.email, 'password': 'test-password-123'},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    assert response.data['id'] == str(user.pk)
+    assert response.data['apelido'] == user.apelido
+    assert client.session['_auth_user_id'] == str(user.pk)
+    assert client.get(reverse('user-list')).status_code == 200
+
+
+def test_login_with_email_is_case_insensitive(client, user):
+    response = client.post(
+        reverse('login'),
+        {'email': user.email.upper(), 'password': 'test-password-123'},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    assert client.session['_auth_user_id'] == str(user.pk)
+
+
+def test_logout_clears_session(client, user):
+    client.force_login(user)
+
+    response = client.post(reverse('logout'))
+
+    assert response.status_code == 204
+    assert '_auth_user_id' not in client.session
+    assert client.get(reverse('user-list')).status_code == 403
+
+
+def test_logout_without_session_is_idempotent(client):
+    response = client.post(reverse('logout'))
+
+    assert response.status_code == 204
 
 
 @pytest.mark.parametrize('method, route', [
