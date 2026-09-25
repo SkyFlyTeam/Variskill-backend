@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'questionsManagement',
     'assistantManagement',
     'trackManagement',
+    'semanticSearch',
 ]
 
 AUTH_USER_MODEL = 'userManagement.User'
