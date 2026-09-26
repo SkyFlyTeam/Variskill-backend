@@ -5,7 +5,7 @@ from model_bakery import baker
 
 from intents.models import Intention
 
-from .models import Mensagem, Sessao
+from assistantManagement.models import Mensagem, Sessao
 
 
 @pytest.mark.django_db
@@ -78,3 +78,4 @@ def test_mensagem_possui_indice_por_sessao():
     index_names = {index.name for index in Mensagem._meta.indexes}
 
     assert 'mensagem_sessao_idx' in index_names
+
