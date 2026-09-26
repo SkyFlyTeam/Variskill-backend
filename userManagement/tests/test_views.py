@@ -28,7 +28,8 @@ def test_register_creates_user_and_session(client, django_user_model):
     assert response.status_code == 201
     user = django_user_model.objects.get(apelido='alice')
     assert user.check_password('test-password-123')
-    assert response.data == {'id': str(user.pk), 'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'xp_total': 0, 'streak_dias': 0}
+    assert response.data == {'id': str(user.pk), 'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'xp_total': 0, 'streak_dias': 0, 'is_primeiro_acesso': True}
+    assert user.is_primeiro_acesso is True
     assert client.session['_auth_user_id'] == str(user.pk)
     assert client.get(reverse('user-list')).status_code == 200
 
@@ -230,6 +231,21 @@ def test_partial_update_preserves_password(client, user):
     user.refresh_from_db()
     assert user.apelido == 'updated'
     assert user.check_password('test-password-123')
+
+
+def test_first_access_flag_can_be_updated(client, user):
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-detail', args=[user.pk]),
+        {'is_primeiro_acesso': False},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    user.refresh_from_db()
+    assert user.is_primeiro_acesso is False
+    assert response.data['is_primeiro_acesso'] is False
 
 
 def test_authenticated_user_can_delete_user(client, user, django_user_model):
