@@ -14,6 +14,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     xp_total = models.IntegerField(default=0)
     streak_dias = models.IntegerField(default=0)
+    is_primeiro_acesso = models.BooleanField(default=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     USERNAME_FIELD = 'apelido'
