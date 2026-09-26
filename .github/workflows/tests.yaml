@@ -33,7 +33,7 @@ jobs:
       - name: Run unit tests
         run: |
           test_status=0
-          docker compose -f docker-compose-test.yaml run --rm tests uv run --locked pytest --strict-markers -m unit || test_status=$?
+          docker compose -f docker-compose-test.yaml run --rm tests uv run pytest --strict-markers -m unit || test_status=$?
           if [ "$test_status" -eq 5 ]; then
             echo "No unit tests collected; skipping this category."
           else
@@ -44,7 +44,7 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: >-
           docker compose -f docker-compose-test.yaml run --rm tests
-          uv run --locked pytest --strict-markers -m integration
+          uv run pytest --strict-markers -m integration
 
       - name: Show logs on failure
         if: failure()
