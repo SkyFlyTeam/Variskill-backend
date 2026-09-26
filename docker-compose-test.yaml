@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: uv run --locked pytest --strict-markers
+    command: uv run pytest --strict-markers
     depends_on:
       database:
         condition: service_healthy
