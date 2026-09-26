@@ -8,12 +8,15 @@ from rest_framework.response import Response
 from activityManagement.models import Atividade, Conteudo
 from activityManagement.services import submit_activity
 
+from .hint_service import HintService
 from .permissions import IsAdminForUnsafeMethods
 from .serializers import (
     ActivityCreateSerializer,
     ActivitySerializer,
     ActivitySubmissionSerializer,
     ContentSerializer,
+    HintRequestSerializer,
+    HintResponseSerializer,
     SubmissionResultSerializer,
 )
 
@@ -30,9 +33,36 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.action in ('list', 'retrieve', 'submit') and not self.request.user.is_staff:
+        if self.action in ('list', 'retrieve', 'submit', 'ask_hint') and not self.request.user.is_staff:
             queryset = queryset.filter(ativo=True)
         return queryset
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='pedir-dica',
+        permission_classes=(permissions.IsAuthenticated,),
+    )
+    def ask_hint(self, request, pk=None):
+        atividade = self.get_object()
+        serializer = HintRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        sessao_id = str(serializer.validated_data['sessao_id'])
+        questao_id = str(serializer.validated_data['questao_id'])
+        pergunta = serializer.validated_data['pergunta']
+
+        try:
+            result = HintService.pedir_dica(
+                user=request.user,
+                atividade_id=str(atividade.id),
+                sessao_id=sessao_id,
+                questao_id=questao_id,
+                pergunta=pergunta,
+            )
+            return Response(HintResponseSerializer(result).data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(
         detail=True,

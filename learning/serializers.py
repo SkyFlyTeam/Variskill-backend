@@ -99,3 +99,16 @@ class SubmissionResultSerializer(serializers.Serializer):
     novo_xp_total = serializers.IntegerField(source='new_xp_total')
     executado_em = serializers.DateTimeField(source='execution.executado_em')
     questoes_feedback = QuestionFeedbackSerializer(source='feedback', many=True)
+
+
+class HintRequestSerializer(serializers.Serializer):
+    sessao_id = serializers.UUIDField()
+    questao_id = serializers.UUIDField()
+    pergunta = serializers.CharField()
+
+
+class HintResponseSerializer(serializers.Serializer):
+    resposta_coach = serializers.CharField()
+    origem_resposta = serializers.CharField()
+    questao_id = serializers.UUIDField()
+
