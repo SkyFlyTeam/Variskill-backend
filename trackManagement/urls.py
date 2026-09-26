@@ -1,8 +1,10 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
-from .views import PosicionarNivelView, RoadmapView
+from .views import MatriculaViewSet, PosicionarNivelView, RoadmapView, TrilhaViewSet
 
 router = DefaultRouter()
+router.register('trilhas', TrilhaViewSet, basename='trilha')
+router.register('matriculas', MatriculaViewSet, basename='matricula')
 
 urlpatterns = [
     path(

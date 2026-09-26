@@ -69,3 +69,47 @@ class PosicionarNivelOutputSerializer(serializers.Serializer):
     modulos_liberados = ModuloLiberadoSerializer(many=True)
     mensagem_assistente = serializers.CharField()
 
+
+class TrilhaListaSerializer(serializers.ModelSerializer):
+    total_modulos = serializers.IntegerField(read_only=True)
+    total_atividades = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Trilha
+        fields = (
+            'id', 'titulo', 'descricao', 'habilidade', 'ativo',
+            'total_modulos', 'total_atividades',
+        )
+
+
+class MatriculaCriarSerializer(serializers.Serializer):
+    trilha_id = serializers.UUIDField(required=True)
+
+
+class MatriculaSaidaSerializer(serializers.ModelSerializer):
+    trilha_id = serializers.UUIDField(source='trilha.id', read_only=True)
+    trilha_titulo = serializers.CharField(source='trilha.titulo', read_only=True)
+    modulo_atual = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Matricula
+        fields = (
+            'id', 'trilha_id', 'trilha_titulo', 'status', 'criado_em',
+            'modulo_atual',
+        )
+
+    def get_modulo_atual(self, obj):
+        progresso = (
+            obj.progresso_modulos.select_related('modulo')
+            .filter(status='EM_ANDAMENTO')
+            .order_by('modulo__ordem_modulo')
+            .first()
+        )
+        if progresso is None:
+            return None
+        return {
+            'id': progresso.modulo.id,
+            'titulo': progresso.modulo.titulo,
+            'status': progresso.status,
+        }
+
