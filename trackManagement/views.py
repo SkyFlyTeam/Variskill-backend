@@ -1,7 +1,8 @@
 import uuid
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
-from rest_framework import permissions, status
+from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,10 +10,13 @@ from rest_framework.views import APIView
 from activityManagement.models import Atividade
 from .models import Matricula, ProgressoModulo, Trilha
 from .serializers import (
+    MatriculaCriarSerializer,
+    MatriculaSaidaSerializer,
     PosicionarNivelInputSerializer,
     PosicionarNivelOutputSerializer,
+    TrilhaListaSerializer,
 )
-from .services import posicionar_nivel_pos_diagnostico
+from .services import efetivar_matricula, posicionar_nivel_pos_diagnostico
 
 
 class RoadmapView(APIView):
@@ -100,3 +104,56 @@ class PosicionarNivelView(APIView):
         output_serializer.is_valid(raise_exception=True)
 
         return Response(output_serializer.data, status=status.HTTP_200_OK)
+
+
+class TrilhaViewSet(viewsets.ReadOnlyModelViewSet):
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = TrilhaListaSerializer
+    queryset = (
+        Trilha.objects.filter(ativo=True)
+        .annotate(
+            total_modulos=Count('modulos', distinct=True),
+            total_atividades=Count(
+                'modulos__atividades',
+                filter=Q(modulos__atividades__ativo=True),
+                distinct=True,
+            ),
+        )
+        .order_by('titulo')
+    )
+
+
+class MatriculaViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = MatriculaSaidaSerializer
+
+    def get_queryset(self):
+        return Matricula.objects.filter(
+            usuario=self.request.user,
+        ).select_related('trilha')
+
+    def create(self, request, *args, **kwargs):
+        serializer = MatriculaCriarSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        trilha = get_object_or_404(
+            Trilha,
+            pk=serializer.validated_data['trilha_id'],
+            ativo=True,
+        )
+        matricula = efetivar_matricula(request.user, trilha)
+
+        return Response(
+            {
+                'mensagem': 'Matrícula realizada com sucesso',
+                'matricula': MatriculaSaidaSerializer(matricula).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )

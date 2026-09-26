@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from activityManagement.models import Atividade, ExecucaoAtividade
-from trackManagement.models import Matricula, Modulo, ProgressoModulo
+from trackManagement.models import Matricula, Modulo, ProgressoModulo, Trilha
 
 LEVEL_INICIANTE = 'INICIANTE'
 LEVEL_INTERMEDIARIO = 'INTERMEDIARIO'
@@ -160,4 +160,39 @@ def posicionar_nivel_pos_diagnostico(user, atividade_id: uuid.UUID, matricula_id
         modulos_liberados=modulos_liberados,
         mensagem_assistente=mensagem_assistente,
     )
+
+
+@transaction.atomic
+def efetivar_matricula(usuario, trilha: Trilha) -> Matricula:
+    """Efetiva a matrícula e inicializa o PROGRESSO_MODULO (módulo 1 EM_ANDAMENTO, demais BLOQUEADO)."""
+    if Matricula.objects.filter(usuario=usuario, trilha=trilha).exists():
+        raise ValidationError({
+            'detail': (
+                f'Já existe uma matrícula de {usuario.apelido} ({usuario.email}) '
+                f'na trilha "{trilha.titulo}".'
+            )
+        })
+
+    matricula = Matricula.objects.create(
+        usuario=usuario,
+        trilha=trilha,
+        status='EM_ANDAMENTO',
+    )
+
+    modulos = list(trilha.modulos.all().order_by('ordem_modulo'))
+    if not modulos:
+        raise ValidationError({
+            'detail': 'A trilha não possui módulos cadastrados.'
+        })
+
+    ProgressoModulo.objects.bulk_create([
+        ProgressoModulo(
+            matricula=matricula,
+            modulo=modulo,
+            status='EM_ANDAMENTO' if indice == 0 else 'BLOQUEADO',
+        )
+        for indice, modulo in enumerate(modulos)
+    ])
+
+    return matricula
 
