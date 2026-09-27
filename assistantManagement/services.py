@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework.exceptions import NotFound, ValidationError
 from assistantManagement.models import Mensagem, Sessao
 from trackManagement.models import Trilha, Modulo, Matricula, ProgressoModulo
@@ -55,14 +56,7 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo):
     if not sessao:
         raise NotFound("Sessão do assistente não encontrada para este usuário.")
 
-    # 1. Salva mensagem do usuário
-    Mensagem.objects.create(
-        sessao=sessao,
-        remetente=Mensagem.Remetente.USUARIO,
-        conteudo=conteudo,
-    )
-
-    # 2. Pipeline local de PLN
+    # 1. Pipeline local de PLN
     preprocessor = TextPreprocessor.get_instance()
     texto_processado = preprocessor.processar(conteudo)
 
@@ -71,13 +65,27 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo):
     texto_para_embedding = texto_processado if texto_processado.strip() else conteudo
     vetor = embedding_service.gerar_embedding(texto_para_embedding)
 
+    # Pré-carrega trilhas ativas para enriquecer contexto se necessário
+    trilhas_ativas = list(Trilha.objects.filter(ativo=True))
+    lista_trilhas_formatada = "\n".join(
+        f"{idx}. **{t.titulo}** ({t.habilidade})"
+        for idx, t in enumerate(trilhas_ativas, start=1)
+    )
+
     classifier = IntentClassifier()
-    contexto = {"nome": usuario.nome or usuario.apelido or "Estudante"}
+    contexto = {
+        "nome": usuario.nome or usuario.apelido or "Estudante",
+        "lista_trilhas": lista_trilhas_formatada,
+    }
     classificacao = classifier.classificar(vetor, contexto=contexto)
 
     intencao_codigo = classificacao.get("intencao", "FALLBACK")
     similaridade = classificacao.get("similaridade", 0.0)
     resposta_texto = classificacao.get("resposta_texto", "")
+
+    # Se a resposta contiver {lista_trilhas} por ventura não substituída
+    if "{lista_trilhas}" in resposta_texto:
+        resposta_texto = resposta_texto.replace("{lista_trilhas}", lista_trilhas_formatada)
 
     # Distância = 1.0 - similaridade
     distancia = max(0.0, 1.0 - similaridade)
@@ -88,24 +96,30 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo):
 
     opcoes_trilhas = []
     if intencao_codigo == "LISTAR_TRILHAS":
-        trilhas = Trilha.objects.filter(ativo=True)
         opcoes_trilhas = [
             {
                 "id": str(trilha.id),
                 "titulo": trilha.titulo,
                 "habilidade": trilha.habilidade,
             }
-            for trilha in trilhas
+            for trilha in trilhas_ativas
         ]
 
-    # 3. Salva mensagem de resposta do assistente
-    mensagem_assistente = Mensagem.objects.create(
-        sessao=sessao,
-        remetente=Mensagem.Remetente.ASSISTENTE,
-        conteudo=resposta_texto,
-        intencao=intencao_obj,
-        distancia=distancia,
-    )
+    # 2. Persistência atômica das mensagens (usuário e assistente juntas para evitar mensagens órfãs)
+    with transaction.atomic():
+        Mensagem.objects.create(
+            sessao=sessao,
+            remetente=Mensagem.Remetente.USUARIO,
+            conteudo=conteudo,
+        )
+
+        mensagem_assistente = Mensagem.objects.create(
+            sessao=sessao,
+            remetente=Mensagem.Remetente.ASSISTENTE,
+            conteudo=resposta_texto,
+            intencao=intencao_obj,
+            distancia=distancia,
+        )
 
     return {
         "resposta_assistente": {
