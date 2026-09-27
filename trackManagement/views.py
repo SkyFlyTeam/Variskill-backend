@@ -19,13 +19,15 @@ from .serializers import (
 from .services import efetivar_matricula, posicionar_nivel_pos_diagnostico
 
 
+from django.utils import timezone
+
 class RoadmapView(APIView):
     authentication_classes = (TokenAuthentication, SessionAuthentication)
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request, trilha_id):
         trilha = get_object_or_404(Trilha, pk=trilha_id, ativo=True)
-        matricula = Matricula.objects.filter(usuario=request.user, trilha=trilha, status='EM_ANDAMENTO').first()
+        matricula = Matricula.objects.filter(usuario=request.user, trilha=trilha).first()
         progress = {p.modulo_id: p.status for p in ProgressoModulo.objects.filter(matricula=matricula)} if matricula else {}
         modules = list(trilha.modulos.all().order_by('ordem_modulo'))
         activities = Atividade.objects.filter(modulo_id__in=[m.pk for m in modules], ativo=True).select_related('conteudo').order_by('ordem')
@@ -78,6 +80,12 @@ class RoadmapView(APIView):
             is_all_completed = bool(output) and all(a['status'] == 'CONCLUIDO' for a in output)
             if is_all_completed:
                 module_status = 'CONCLUIDO'
+                if matricula and progress.get(module.pk) != 'CONCLUIDO':
+                    ProgressoModulo.objects.update_or_create(
+                        matricula=matricula,
+                        modulo=module,
+                        defaults={'status': 'CONCLUIDO', 'concluido_em': timezone.now()}
+                    )
             elif module_accessible:
                 module_status = 'EM_ANDAMENTO'
             else:
@@ -85,6 +93,12 @@ class RoadmapView(APIView):
 
             previous_module_completed = is_all_completed
             result.append({'id': module.pk, 'titulo': module.titulo, 'nivel': module.nivel, 'status': module_status, 'atividades': output})
+
+        if matricula and total > 0 and completed == total and matricula.status != 'CONCLUIDO':
+            matricula.status = 'CONCLUIDO'
+            matricula.concluido_em = timezone.now()
+            matricula.save(update_fields=['status', 'concluido_em'])
+
         return Response({
             'trilha': {'id': trilha.pk, 'titulo': trilha.titulo, 'habilidade': trilha.habilidade},
             'percentual_conclusao': round(completed * 100 / total, 1) if total else 0.0,
