@@ -93,16 +93,25 @@ class ActivityViewSet(viewsets.ModelViewSet):
     )
     def concluir(self, request, pk=None):
         atividade = self.get_object()
-        # Se for conteudo teorico (sem questoes ou com conteudo associado), conclui direto
-        ExecucaoAtividade.objects.get_or_create(
-            usuario=request.user,
-            atividade=atividade,
-            defaults={
-                'resposta': {},
-                'pontuacao_obtida': 0,
-                'aprovado': True,
-            },
-        )
+        from django.contrib.auth import get_user_model
+        from userManagement.services import GamificationService
+
+        with transaction.atomic():
+            locked_user = get_user_model().objects.select_for_update().get(pk=request.user.pk)
+            _, created = ExecucaoAtividade.objects.get_or_create(
+                usuario=locked_user,
+                atividade=atividade,
+                defaults={
+                    'resposta': {},
+                    'pontuacao_obtida': 0,
+                    'aprovado': True,
+                },
+            )
+            gamification = GamificationService()
+            gamification.atualizar_streak(locked_user)
+            if created and getattr(atividade, 'xp_recompensa', 0) > 0:
+                gamification.creditar_xp(locked_user, atividade)
+
         return Response({'status': 'CONCLUIDO', 'atividade_id': str(atividade.id)})
 
     @transaction.atomic

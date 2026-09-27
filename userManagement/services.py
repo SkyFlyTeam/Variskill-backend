@@ -54,9 +54,9 @@ class GamificationService:
                 data_referencia = data_referencia.astimezone(tz).date()
 
             if data_referencia == hoje:
-                novo_streak = usuario.streak_dias
+                novo_streak = max(usuario.streak_dias, 1)
             elif data_referencia == hoje - timedelta(days=1):
-                novo_streak = usuario.streak_dias + 1
+                novo_streak = (usuario.streak_dias if usuario.streak_dias > 0 else 0) + 1
             else:
                 novo_streak = 1
 
