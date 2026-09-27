@@ -57,7 +57,9 @@ class HintEndpointTestCase(APITestCase):
         self.sessao = Sessao.objects.create(usuario=self.user)
         self.url = f'/api/atividades/{self.atividade.id}/pedir-dica/'
 
-    def test_pedir_dica_local_sucesso(self):
+    @patch('learning.hint_service.HintService._dica_corresponde')
+    def test_pedir_dica_local_sucesso(self, mock_corresponde):
+        mock_corresponde.return_value = True
         payload = {
             'sessao_id': str(self.sessao.id),
             'questao_id': str(self.questao_local.id),
@@ -101,9 +103,11 @@ class HintEndpointTestCase(APITestCase):
         self.assertEqual(response.data['origem_resposta'], 'CONTINGENCIA')
         self.assertIn('instabilidade momentânea', response.data['resposta_coach'])
 
+    @patch('learning.hint_service.HintService._dica_corresponde')
     @patch('learning.hint_service.HintService._call_external_ai')
-    def test_pedir_dica_duvida_aberta_aciona_ia_mesmo_com_dica_cadastrada(self, mock_ai):
-        # A questão possui dica_conceitual sobre "constante", mas o aluno pergunta sobre outro assunto
+    def test_pedir_dica_duvida_aberta_aciona_ia_mesmo_com_dica_cadastrada(self, mock_ai, mock_corresponde):
+        # A questão possui dica_conceitual sobre "constante", mas a correspondência semântica é False
+        mock_corresponde.return_value = False
         mock_ai.return_value = 'Para criar um loop condicional, você pode usar a estrutura while.'
         payload = {
             'sessao_id': str(self.sessao.id),
