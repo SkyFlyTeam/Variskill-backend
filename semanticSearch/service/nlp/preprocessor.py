@@ -6,7 +6,7 @@ import threading
 import unicodedata
 
 import spacy
-import nltk
+from nltk.corpus import stopwords
 
 PALAVRAS_PRESERVADAS = {"nao", "como", "onde", "qual", "quais", "oque", "quando", "porque", "ajuda", "quero", "preciso", "sim"}
 
@@ -24,20 +24,8 @@ class TextPreprocessor:
         return cls._instance
 
     def __init__(self) -> None:
-        try:
-            self.nlp = spacy.load("pt_core_news_sm", disable=["parser", "ner"])
-        except OSError:
-            from spacy.cli import download
-            download("pt_core_news_sm")
-            self.nlp = spacy.load("pt_core_news_sm", disable=["parser", "ner"])
-
-        try:
-            from nltk.corpus import stopwords
-            self.stopwords_pt = set(stopwords.words("portuguese")) - PALAVRAS_PRESERVADAS
-        except LookupError:
-            nltk.download("stopwords", quiet=True)
-            from nltk.corpus import stopwords
-            self.stopwords_pt = set(stopwords.words("portuguese")) - PALAVRAS_PRESERVADAS
+        self.nlp = spacy.load("pt_core_news_sm", disable=["parser", "ner"])
+        self.stopwords_pt = set(stopwords.words("portuguese")) - PALAVRAS_PRESERVADAS
 
     def processar(self, texto: str | None) -> str:
         if not texto or not isinstance(texto, str):
