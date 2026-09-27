@@ -56,11 +56,18 @@ def submit_activity(user, atividade, answers):
     hit_rate = round(correct_count * 100 / len(questoes), 1)
 
     locked_user = get_user_model().objects.select_for_update().get(pk=user.pk)
-    xp_granted = atividade.xp_recompensa if approved else 0
+    already_approved = ExecucaoAtividade.objects.filter(
+        usuario=locked_user,
+        atividade=atividade,
+        aprovado=True,
+    ).exists()
+
+    xp_granted = (atividade.xp_recompensa if approved and not already_approved else 0)
     if approved:
         gamification = GamificationService()
         gamification.atualizar_streak(locked_user)
-        gamification.creditar_xp(locked_user, atividade)
+        if not already_approved:
+            gamification.creditar_xp(locked_user, atividade)
 
     execution = ExecucaoAtividade.objects.create(
         usuario=locked_user,

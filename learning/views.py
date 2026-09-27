@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from activityManagement.models import Atividade, Conteudo
+from activityManagement.models import Atividade, Conteudo, ExecucaoAtividade
 from activityManagement.services import submit_activity
 
 from .hint_service import HintService
@@ -33,7 +33,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.action in ('list', 'retrieve', 'submit', 'ask_hint') and not self.request.user.is_staff:
+        if self.action in ('list', 'retrieve', 'submit', 'ask_hint', 'concluir') and not self.request.user.is_staff:
             queryset = queryset.filter(ativo=True)
         return queryset
 
@@ -84,6 +84,26 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
         result = submit_activity(request.user, atividade, answers)
         return Response(SubmissionResultSerializer(result).data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='concluir',
+        permission_classes=(permissions.IsAuthenticated,),
+    )
+    def concluir(self, request, pk=None):
+        atividade = self.get_object()
+        # Se for conteudo teorico (sem questoes ou com conteudo associado), conclui direto
+        ExecucaoAtividade.objects.get_or_create(
+            usuario=request.user,
+            atividade=atividade,
+            defaults={
+                'resposta': {},
+                'pontuacao_obtida': 0,
+                'aprovado': True,
+            },
+        )
+        return Response({'status': 'CONCLUIDO', 'atividade_id': str(atividade.id)})
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
