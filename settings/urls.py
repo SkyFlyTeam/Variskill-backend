@@ -16,7 +16,20 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.views.decorators.csrf import ensure_csrf_cookie
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from django.middleware.csrf import get_token
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
+
+@method_decorator(ensure_csrf_cookie, name='dispatch')
+class SwaggerView(SpectacularSwaggerView):
+    template_name_js = 'swagger_ui_csrf.js'
+
+    def get(self, request, *args, **kwargs):
+        response = super().get(request, *args, **kwargs)
+        response["X-CSRFToken"] = get_token(request)
+        return response
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,7 +42,7 @@ urlpatterns = [
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path(
         'api/docs/',
-        SpectacularSwaggerView.as_view(url_name='schema'),
+        SwaggerView.as_view(url_name='schema'),
         name='swagger-ui',
     ),
 ]
