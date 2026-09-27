@@ -204,6 +204,48 @@ class ChatEndpointsTests(APITestCase):
         response = self.client.post(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_enviar_mensagem_tamanho_maximo_excedido(self):
+        sessao = Sessao.objects.create(usuario=self.user)
+        url = f"/api/chat/sessao/{sessao.id}/mensagem/"
+        payload = {"conteudo": "a" * 1001}
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("conteudo", response.data)
+
+    @patch("assistantManagement.services.IntentClassifier")
+    @patch("assistantManagement.services.EmbeddingService")
+    @patch("assistantManagement.services.TextPreprocessor")
+    def test_enviar_mensagem_com_placeholder_lista_trilhas(
+        self, mock_preprocessor_cls, mock_embedding_cls, mock_classifier_cls
+    ):
+        mock_preprocessor = MagicMock()
+        mock_preprocessor.processar.return_value = "listar trilhas"
+        mock_preprocessor_cls.get_instance.return_value = mock_preprocessor
+
+        mock_embedding = MagicMock()
+        mock_embedding.gerar_embedding.return_value = [0.1] * 384
+        mock_embedding_cls.get_instance.return_value = mock_embedding
+
+        mock_classifier = MagicMock()
+        mock_classifier.classificar.return_value = {
+            "intencao": "LISTAR_TRILHAS",
+            "similaridade": 0.92,
+            "resposta_texto": "Aqui estão as trilhas:\n{lista_trilhas}\nQual deseja?",
+            "dados_extras": {},
+        }
+        mock_classifier_cls.return_value = mock_classifier
+
+        sessao = Sessao.objects.create(usuario=self.user)
+        url = f"/api/chat/sessao/{sessao.id}/mensagem/"
+        payload = {"conteudo": "quero ver as trilhas"}
+        response = self.client.post(url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        conteudo = response.data["resposta_assistente"]["conteudo"]
+        self.assertNotIn("{lista_trilhas}", conteudo)
+        self.assertIn("1. **Javascript** (Frontend)", conteudo)
+        self.assertIn("2. **Introdução a Ciência de Dados** (Dados)", conteudo)
+
     # 3. GET /api/chat/sessao/{sessao_id}/historico/
     def test_obter_historico_sessao_sucesso(self):
         sessao = Sessao.objects.create(usuario=self.user)

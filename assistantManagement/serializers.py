@@ -10,7 +10,12 @@ class DecisaoNivelSerializer(serializers.Serializer):
 
 
 class EnviarMensagemInputSerializer(serializers.Serializer):
-    conteudo = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
+    conteudo = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        trim_whitespace=True,
+        max_length=1000,
+    )
 
 
 class OpcaoTrilhaSerializer(serializers.Serializer):
