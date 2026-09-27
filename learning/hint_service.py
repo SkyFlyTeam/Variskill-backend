@@ -18,7 +18,7 @@ CONTINGENCY_RESPONSE = (
     "Estou com uma pequena instabilidade momentânea para consultar o assistente avançado. "
     "Por favor, revise o enunciado e tente novamente em instantes!"
 )
-HINT_SIMILARITY_THRESHOLD = 0.50
+HINT_SIMILARITY_THRESHOLD = 0.40
 
 
 @dataclass

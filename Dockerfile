@@ -12,6 +12,9 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync
 
+RUN uv run python -c "import nltk; nltk.download('stopwords', download_dir='/usr/local/share/nltk_data')"
+RUN uv run python -m spacy download pt_core_news_sm
+
 COPY . .
 
 EXPOSE 8000
