@@ -17,6 +17,22 @@ INTENCOES_CANONICAS = [
         "responses": [
             "Excelente desafio! Vamos realizar uma avaliação rápida para calibrar seu nível."
         ]
+    },
+    {
+        "code": "LISTAR_TRILHAS",
+        "system_action": "LISTAR_TRILHAS",
+        "description": "Estudante solicita lista de trilhas ou cursos abertos.",
+        "examples": [
+            "quais trilhas estão disponíveis?",
+            "ver trilhas disponíveis",
+            "quero ver as trilhas",
+            "listar as trilhas",
+            "que trilhas vocês têm",
+            "quais cursos estão disponíveis?"
+        ],
+        "responses": [
+            "Aqui estão as nossas trilhas de formação abertas para você:\n\n{lista_trilhas}\n\nQual delas você deseja iniciar?"
+        ]
     }
 ]
 

@@ -18,4 +18,15 @@ dependencies = [
     "nltk>=3.8",
     "sentence-transformers>=6.1.0",
     "spacy>=3.7",
+    "pt-core-news-sm",
+    "torch>=2.2.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+pt-core-news-sm = { url = "https://github.com/explosion/spacy-models/releases/download/pt_core_news_sm-3.8.0/pt_core_news_sm-3.8.0-py3-none-any.whl" }
+torch = { index = "pytorch-cpu" }
