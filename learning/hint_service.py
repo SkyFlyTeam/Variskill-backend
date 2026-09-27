@@ -10,7 +10,6 @@ from rest_framework.exceptions import NotFound
 
 from assistantManagement.models import Mensagem, Sessao
 from questionsManagement.models import Questao
-from semanticSearch.service.nlp.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +36,7 @@ class HintService:
         Usa o EmbeddingService singleton com similaridade de cosseno (produto escalar de vetores normalizados).
         """
         try:
+            from semanticSearch.service.nlp.embedding_service import EmbeddingService
             service = EmbeddingService.get_instance()
             vetor_p = service.gerar_embedding(pergunta)
             vetor_d = service.gerar_embedding(dica)
