@@ -78,7 +78,7 @@ ROOT_URLCONF = 'settings.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -103,7 +103,7 @@ DATABASES = {
         'USER': os.environ['POSTGRES_USER'],
         'PASSWORD': os.environ['POSTGRES_PASSWORD'],
         'HOST': os.environ.get('POSTGRES_HOST', 'database'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),    
     }
 }
 
@@ -161,6 +161,11 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API documentation for the Cookie Cutter application.',
     'VERSION': '1.0.0',
     'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
+    # This API uses Django sessions. Do not expose unused token/basic auth
+    # schemes in Swagger's Authorize dialog.
+    'AUTHENTICATION_WHITELIST': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
 }
 
 

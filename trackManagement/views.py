@@ -34,20 +34,38 @@ class RoadmapView(APIView):
             by_module.setdefault(a.modulo_id, []).append(a)
         done = set(Atividade.objects.filter(execucoes__usuario=request.user, execucoes__aprovado=True, modulo_id__in=by_module).values_list('pk', flat=True)) if matricula else set()
         result, recommended, completed, total = [], None, 0, 0
+        previous_module_completed = True
+
         for module in modules:
             module_status = progress.get(module.pk, 'BLOQUEADO') if matricula else 'BLOQUEADO'
-            unlocked, output = module_status != 'BLOQUEADO' and matricula is not None, []
-            for a in by_module.get(module.pk, []):
+            module_activities = by_module.get(module.pk, [])
+            output = []
+            
+            # Um módulo está acessível se a matrícula existe e:
+            # 1. Seu status no ProgressoModulo não é BLOQUEADO, OU
+            # 2. O módulo anterior foi 100% concluído
+            module_accessible = (
+                matricula is not None and 
+                (module_status != 'BLOQUEADO' or previous_module_completed)
+            )
+
+            # Uma atividade pode ser iniciada se a anterior estiver concluída
+            # O primeiro item do módulo acessível fica desbloqueado
+            unlocked_next = module_accessible
+
+            for a in module_activities:
                 total += 1
                 if a.pk in done:
                     status_activity = 'CONCLUIDO'
                     completed += 1
-                elif unlocked:
-                    status_activity, unlocked = 'EM_ANDAMENTO', False
+                elif unlocked_next:
+                    status_activity = 'EM_ANDAMENTO'
+                    unlocked_next = False
                     if recommended is None:
                         recommended = {'id': a.pk, 'titulo': a.titulo, 'modulo_id': module.pk}
                 else:
                     status_activity = 'BLOQUEADO'
+
                 output.append({
                     'id': a.pk,
                     'titulo': a.titulo,
@@ -56,8 +74,16 @@ class RoadmapView(APIView):
                     'xp_recompensa': a.xp_recompensa,
                     'conteudo_teorico': ({'id': a.conteudo.pk, 'titulo': a.conteudo.titulo} if a.conteudo else None)
                 })
-            if module_status == 'CONCLUIDO' or (output and all(a['status'] == 'CONCLUIDO' for a in output)):
+
+            is_all_completed = bool(output) and all(a['status'] == 'CONCLUIDO' for a in output)
+            if is_all_completed:
                 module_status = 'CONCLUIDO'
+            elif module_accessible:
+                module_status = 'EM_ANDAMENTO'
+            else:
+                module_status = 'BLOQUEADO'
+
+            previous_module_completed = is_all_completed
             result.append({'id': module.pk, 'titulo': module.titulo, 'nivel': module.nivel, 'status': module_status, 'atividades': output})
         return Response({
             'trilha': {'id': trilha.pk, 'titulo': trilha.titulo, 'habilidade': trilha.habilidade},
