@@ -6,8 +6,11 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Optional
 
+from rest_framework.exceptions import NotFound
+
 from assistantManagement.models import Mensagem, Sessao
 from questionsManagement.models import Questao
+from semanticSearch.service.nlp.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +19,7 @@ CONTINGENCY_RESPONSE = (
     "Estou com uma pequena instabilidade momentânea para consultar o assistente avançado. "
     "Por favor, revise o enunciado e tente novamente em instantes!"
 )
+HINT_SIMILARITY_THRESHOLD = 0.50
 
 
 @dataclass
@@ -26,6 +30,22 @@ class HintResult:
 
 
 class HintService:
+    @staticmethod
+    def _dica_corresponde(pergunta: str, dica: str) -> bool:
+        """
+        Verifica se a dúvida do aluno possui correspondência semântica com a dica conceitual.
+        Usa o EmbeddingService singleton com similaridade de cosseno (produto escalar de vetores normalizados).
+        """
+        try:
+            service = EmbeddingService.get_instance()
+            vetor_p = service.gerar_embedding(pergunta)
+            vetor_d = service.gerar_embedding(dica)
+            similaridade = sum(p * d for p, d in zip(vetor_p, vetor_d))
+            return similaridade >= HINT_SIMILARITY_THRESHOLD
+        except Exception as e:
+            logger.warning(f"Falha ao calcular similaridade semântica da dica local: {e}")
+            return False
+
     @staticmethod
     def _call_external_ai(questao: Questao, pergunta: str) -> Optional[str]:
         api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("EXTERNAL_AI_API_KEY")
@@ -77,9 +97,16 @@ class HintService:
         questao_id: str,
         pergunta: str,
     ) -> HintResult:
-        # 1. Validar e recuperar Sessão & Questão
-        sessao = Sessao.objects.get(pk=sessao_id, usuario=user)
-        questao = Questao.objects.get(pk=questao_id, atividade_id=atividade_id)
+        # 1. Validar e recuperar Sessão & Questão com mensagens claras
+        try:
+            sessao = Sessao.objects.get(pk=sessao_id, usuario=user)
+        except (Sessao.DoesNotExist, ValueError):
+            raise NotFound("Sessão não encontrada para este usuário.")
+
+        try:
+            questao = Questao.objects.get(pk=questao_id, atividade_id=atividade_id)
+        except (Questao.DoesNotExist, ValueError):
+            raise NotFound("Questão não encontrada nesta atividade.")
 
         # Registrar a mensagem do usuário no histórico do chat
         Mensagem.objects.create(
@@ -88,14 +115,16 @@ class HintService:
             conteudo=pergunta,
         )
 
-        # 2. Etapa 1: Consulta Local (dica_conceitual)
+        # 2. Etapa 1: Consulta Local (dica_conceitual preenchida e correspondente)
         resposta_text = None
         origem = "PLN_LOCAL"
 
         if questao.dica_conceitual and questao.dica_conceitual.strip():
-            resposta_text = questao.dica_conceitual.strip()
+            dica_limpa = questao.dica_conceitual.strip()
+            if cls._dica_corresponde(pergunta, dica_limpa):
+                resposta_text = dica_limpa
 
-        # 3. Etapa 2: Fallback para IA Externa se não houver dica local
+        # 3. Etapa 2: Fallback para IA Externa se a dúvida for aberta / não coberta pela dica local
         if not resposta_text:
             origem = "IA_EXTERNA"
             resposta_text = cls._call_external_ai(questao, pergunta)

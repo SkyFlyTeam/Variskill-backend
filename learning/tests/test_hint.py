@@ -101,4 +101,42 @@ class HintEndpointTestCase(APITestCase):
         self.assertEqual(response.data['origem_resposta'], 'CONTINGENCIA')
         self.assertIn('instabilidade momentânea', response.data['resposta_coach'])
 
+    @patch('learning.hint_service.HintService._call_external_ai')
+    def test_pedir_dica_duvida_aberta_aciona_ia_mesmo_com_dica_cadastrada(self, mock_ai):
+        # A questão possui dica_conceitual sobre "constante", mas o aluno pergunta sobre outro assunto
+        mock_ai.return_value = 'Para criar um loop condicional, você pode usar a estrutura while.'
+        payload = {
+            'sessao_id': str(self.sessao.id),
+            'questao_id': str(self.questao_local.id),
+            'pergunta': 'Como funciona um loop while?',
+        }
+        response = self.client.post(self.url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['origem_resposta'], 'IA_EXTERNA')
+        self.assertEqual(response.data['resposta_coach'], 'Para criar um loop condicional, você pode usar a estrutura while.')
+        mock_ai.assert_called_once()
+
+    def test_pedir_dica_sessao_inexistente_retorna_404(self):
+        import uuid
+        payload = {
+            'sessao_id': str(uuid.uuid4()),
+            'questao_id': str(self.questao_local.id),
+            'pergunta': 'Como declaro?',
+        }
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn('Sessão não encontrada', response.data['detail'])
+
+    def test_pedir_dica_questao_inexistente_retorna_404(self):
+        import uuid
+        payload = {
+            'sessao_id': str(self.sessao.id),
+            'questao_id': str(uuid.uuid4()),
+            'pergunta': 'Como declaro?',
+        }
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn('Questão não encontrada', response.data['detail'])
+
 

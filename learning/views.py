@@ -52,17 +52,14 @@ class ActivityViewSet(viewsets.ModelViewSet):
         questao_id = str(serializer.validated_data['questao_id'])
         pergunta = serializer.validated_data['pergunta']
 
-        try:
-            result = HintService.pedir_dica(
-                user=request.user,
-                atividade_id=str(atividade.id),
-                sessao_id=sessao_id,
-                questao_id=questao_id,
-                pergunta=pergunta,
-            )
-            return Response(HintResponseSerializer(result).data, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        result = HintService.pedir_dica(
+            user=request.user,
+            atividade_id=str(atividade.id),
+            sessao_id=sessao_id,
+            questao_id=questao_id,
+            pergunta=pergunta,
+        )
+        return Response(HintResponseSerializer(result).data, status=status.HTTP_200_OK)
 
     @action(
         detail=True,
