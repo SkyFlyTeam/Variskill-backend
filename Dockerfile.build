@@ -1,0 +1,55 @@
+# Production-style image: dependencies are resolved in a builder stage and the
+# app is served by uvicorn through the ASGI entrypoint (settings.asgi).
+
+FROM python:3.13-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    NLTK_DATA=/opt/nltk_data \
+    HF_HOME=/opt/hf_cache
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project \
+    && uv pip install --python /opt/venv/bin/python "uvicorn[standard]>=0.30"
+
+# Bake NLP assets into the image so the container does not download them at runtime.
+RUN /opt/venv/bin/python -c "import nltk; nltk.download('stopwords', download_dir='$NLTK_DATA')" \
+    && /opt/venv/bin/python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
+
+FROM python:3.13-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    NLTK_DATA=/opt/nltk_data \
+    HF_HOME=/opt/hf_cache \
+    HF_HUB_OFFLINE=1 \
+    UVICORN_HOST=0.0.0.0 \
+    UVICORN_PORT=8000 \
+    UVICORN_WORKERS=2
+
+RUN groupadd --system app && useradd --system --gid app --home-dir /app app
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder --chown=app:app /opt/nltk_data /opt/nltk_data
+COPY --from=builder --chown=app:app /opt/hf_cache /opt/hf_cache
+COPY --chown=app:app . .
+
+# Mount point for the volume shared with the frontend (collectstatic output).
+RUN mkdir -p /app/staticfiles && chown app:app /app/staticfiles
+
+USER app
+
+EXPOSE 8000
+
+CMD ["uvicorn", "settings.asgi:application"]
