@@ -2,7 +2,10 @@ name: django-cookiecutter-build
 
 x-app-environment: &app-environment
   DJANGO_SETTINGS_MODULE: settings.settings
-  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
+  # Separate from DJANGO_ALLOWED_HOSTS so the dev value in .env doesn't leak in.
+  # "*" accepts whatever IP/domain the server is reached by (nginx forwards the
+  # browser's Host). Set it to the real domain(s) to restrict it.
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_BUILD_ALLOWED_HOSTS:-*}
   POSTGRES_DB: ${POSTGRES_DB:-cookie_cutter}
   POSTGRES_USER: ${POSTGRES_USER:-cookie_cutter}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cookie_cutter}

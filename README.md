@@ -53,11 +53,11 @@ um arquivo `.env` na raiz de cada repositório. As principais são:
 | --- | --- | --- | --- |
 | `OPENAI_API_KEY` / `EXTERNAL_AI_API_KEY` | backend | vazio | Chaves do assistente de IA |
 | `EXTERNAL_AI_MODEL` | backend | `gpt-4o-mini` | Modelo usado pelo assistente |
-| `DJANGO_ALLOWED_HOSTS` | backend | `localhost,127.0.0.1,0.0.0.0` | Hosts aceitos pelo Django; inclua o domínio usado para acessar o frontend |
+| `DJANGO_BUILD_ALLOWED_HOSTS` | backend | `*` | Hosts aceitos pelo Django no build. `*` aceita qualquer IP/domínio; para restringir, informe o domínio (ex.: `variskill.com.br`). O `DJANGO_ALLOWED_HOSTS` do `.env` vale apenas para o ambiente de desenvolvimento |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | backend | `cookie_cutter` | Credenciais do banco |
 | `UVICORN_WORKERS` | backend | `2` | Processos do uvicorn; cada um carrega o modelo de embeddings na memória |
 | `APP_PORT` | backend | `8000` | Porta do Django no host |
-| `WEB_PORT` | frontend | `8080` | Porta do nginx no host |
+| `WEB_PORT` | frontend | `80` | Porta do nginx no host |
 | `IMAGE_TAG` | ambas | `latest` | Tag das imagens geradas |
 
 > O `BACKEND_URL` do `.env` do frontend é usado apenas pelo `npm run dev` e não
@@ -108,12 +108,12 @@ docker compose -f docker-compose-build.yaml up -d --build
 
 | Endereço | Conteúdo |
 | --- | --- |
-| <http://localhost:8080> | Aplicação (frontend) |
-| <http://localhost:8080/api/docs/> | Documentação da API (Swagger) |
-| <http://localhost:8080/admin/> | Admin do Django |
-| <http://localhost:8080/healthz> | Healthcheck do nginx |
+| <http://localhost> | Aplicação (frontend) |
+| <http://localhost/api/docs/> | Documentação da API (Swagger) |
+| <http://localhost/admin/> | Admin do Django |
+| <http://localhost/healthz> | Healthcheck do nginx |
 
-Acesse sempre pelo frontend (porta `8080`). A porta `8000` expõe o Django
+Acesse sempre pelo frontend (porta `80`). Em outra máquina, troque `localhost` pelo IP ou domínio do servidor. A porta `8000` expõe o Django
 diretamente, sem o rate limit e os cabeçalhos configurados no nginx.
 
 ### Atualizar após alterações no código
