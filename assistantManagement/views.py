@@ -43,7 +43,7 @@ class EnviarMensagemView(APIView):
 
     @extend_schema(
         summary="Enviar mensagem do estudante para o assistente",
-        description="Recebe a mensagem do estudante, executa pré-processamento de texto e embedding via pipeline local de PLN, classifica a intenção via pgvector e salva ambas as mensagens na sessão.",
+        description="Recebe a mensagem do estudante, executa pré-processamento de texto e embedding via pipeline local de PLN, classifica a intenção via pgvector, executa a ação de sistema da intenção (listar trilhas, matrícula, diagnóstico, nível básico ou dica) e salva ambas as mensagens na sessão. Os campos opcionais trilha_id, atividade_id e questao_id fornecem contexto à ação.",
         request=EnviarMensagemInputSerializer,
         responses={
             200: OpenApiResponse(
@@ -60,6 +60,9 @@ class EnviarMensagemView(APIView):
             usuario=request.user,
             sessao_id=sessao_id,
             conteudo=serializer.validated_data["conteudo"],
+            trilha_id=serializer.validated_data.get("trilha_id"),
+            atividade_id=serializer.validated_data.get("atividade_id"),
+            questao_id=serializer.validated_data.get("questao_id"),
         )
         response_serializer = EnviarMensagemResponseSerializer(result)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
