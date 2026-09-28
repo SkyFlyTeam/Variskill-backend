@@ -1,0 +1,635 @@
+[
+    {
+        "topico": "Variáveis",
+        "pergunta": "Como definir uma variável em Python?",
+        "variacoes": [
+            "Como criar uma variável em Python?",
+            "Como declarar variável no Python?",
+            "O que é uma variável?",
+            "Como atribuir um valor a uma variável?",
+            "Como criar variável",
+            "Pra que serve uma variável?",
+            "Como guardar um valor em Python?",
+            "Variável em Python"
+        ],
+        "resposta": "Em Python você cria uma variável simplesmente atribuindo um valor a um nome com o sinal de igual. Não é preciso declarar o tipo: ele é definido pelo valor.\n\nnome = \"Ana\"\nidade = 20\naltura = 1.65\n\nUse nomes descritivos em snake_case (ex.: total_de_alunos) e lembre que Python diferencia maiúsculas de minúsculas: idade e Idade são variáveis diferentes."
+    },
+    {
+        "topico": "Tipos de dados",
+        "pergunta": "Quais são os tipos de dados básicos do Python?",
+        "variacoes": [
+            "Quais os tipos primitivos em Python?",
+            "O que é int, float, str e bool?",
+            "Como saber o tipo de uma variável?",
+            "Para que serve a função type?",
+            "Como sei se é inteiro ou string?",
+            "Qual o tipo de uma variável?",
+            "O que é bool?",
+            "O que é float?",
+            "Qual tipo usar para número decimal?",
+            "Qual a diferença entre int e float?"
+        ],
+        "resposta": "Os tipos básicos são:\n- int: números inteiros (10)\n- float: números com casas decimais (3.14)\n- str: textos (\"olá\")\n- bool: valores lógicos (True ou False)\n\nPara descobrir o tipo de um valor use type():\n\ntype(10)      # <class 'int'>\ntype(\"oi\")    # <class 'str'>"
+    },
+    {
+        "topico": "Tipos de dados",
+        "pergunta": "Como converter tipos em Python?",
+        "variacoes": [
+            "Como transformar texto em número?",
+            "Como converter string para inteiro?",
+            "Como converter número para string?",
+            "O que é casting em Python?",
+            "Como transformar string em int?",
+            "Como converter para float?",
+            "Como transformar número em texto?"
+        ],
+        "resposta": "Use as funções com o nome do tipo desejado:\n\nint(\"42\")     # 42\nfloat(\"3.5\") # 3.5\nstr(10)       # \"10\"\nbool(0)       # False\n\nSe o texto não representar um número válido (ex.: int(\"abc\")), o Python lança um ValueError."
+    },
+    {
+        "topico": "Entrada e saída",
+        "pergunta": "Como mostrar algo na tela e ler dados do usuário em Python?",
+        "variacoes": [
+            "Como usar o print?",
+            "Como ler uma entrada do teclado?",
+            "Para que serve a função input?",
+            "Como pedir um valor para o usuário?",
+            "Como ler o que o usuário digitou?",
+            "Como imprimir na tela?",
+            "Como exibir uma mensagem?",
+            "Como pegar o que o usuário digitou?",
+            "Como usar o input?"
+        ],
+        "resposta": "print() exibe valores na tela e input() lê um texto digitado pelo usuário:\n\nnome = input(\"Qual é o seu nome? \")\nprint(\"Olá,\", nome)\n\nAtenção: input() sempre devolve uma string. Para números, converta: idade = int(input(\"Idade: \"))."
+    },
+    {
+        "topico": "Strings",
+        "pergunta": "Como usar f-strings para formatar texto?",
+        "variacoes": [
+            "Como colocar uma variável dentro de um texto?",
+            "Como formatar strings em Python?",
+            "O que é f-string?",
+            "Como concatenar texto e número?",
+            "Como colocar variável no meio do texto?",
+            "Como formatar número com duas casas decimais?"
+        ],
+        "resposta": "Coloque um f antes das aspas e escreva as variáveis entre chaves:\n\nnome = \"Ana\"\nnota = 9.5\nprint(f\"{nome} tirou {nota}\")\nprint(f\"Média: {nota:.1f}\")  # formata com 1 casa decimal\n\nÉ a forma mais legível de montar textos com valores, sem precisar converter números com str()."
+    },
+    {
+        "topico": "Operadores",
+        "pergunta": "Quais são os operadores aritméticos em Python?",
+        "variacoes": [
+            "Como fazer contas em Python?",
+            "Qual a diferença entre / e //?",
+            "Como calcular o resto da divisão?",
+            "Como fazer potência em Python?",
+            "Como somar dois números?",
+            "Como fazer divisão inteira?",
+            "Como fazer contas?",
+            "Como elevar ao quadrado?",
+            "Como saber se um número é par?",
+            "Como verificar se um número é par ou ímpar?"
+        ],
+        "resposta": "Operadores aritméticos:\n+ soma, - subtração, * multiplicação\n/ divisão (sempre float): 7 / 2 == 3.5\n// divisão inteira: 7 // 2 == 3\n% resto da divisão: 7 % 2 == 1\n** potência: 2 ** 3 == 8"
+    },
+    {
+        "topico": "Operadores",
+        "pergunta": "Como funcionam os operadores lógicos and, or e not?",
+        "variacoes": [
+            "Como combinar condições em Python?",
+            "Qual o operador E e OU em Python?",
+            "Posso usar && e || em Python?",
+            "O que faz o not?",
+            "Como usar and e or?",
+            "Como fazer duas condições no if?",
+            "Como fazer mais de uma condição?",
+            "Como juntar duas condições?"
+        ],
+        "resposta": "Python usa palavras em inglês em vez de símbolos:\n- and: verdadeiro se as duas condições forem verdadeiras\n- or: verdadeiro se pelo menos uma for verdadeira\n- not: inverte o valor lógico\n\nif idade >= 18 and tem_documento:\n    print(\"Pode entrar\")\n\n&& e || não existem em Python."
+    },
+    {
+        "topico": "Condicionais",
+        "pergunta": "Como usar if, elif e else em Python?",
+        "variacoes": [
+            "Como fazer uma condição em Python?",
+            "Como funciona o if?",
+            "O que é elif?",
+            "Como fazer estrutura condicional?",
+            "Como usar if",
+            "Como usar o if?",
+            "Como usar else?",
+            "Como testar uma condição?",
+            "Como fazer um if?"
+        ],
+        "resposta": "O if executa um bloco quando a condição é verdadeira; elif testa outra condição; else cobre os demais casos. O bloco é definido pela indentação (4 espaços):\n\nif nota >= 7:\n    print(\"Aprovado\")\nelif nota >= 5:\n    print(\"Recuperação\")\nelse:\n    print(\"Reprovado\")"
+    },
+    {
+        "topico": "Laços de repetição",
+        "pergunta": "Como funciona o laço for em Python?",
+        "variacoes": [
+            "Como repetir um código várias vezes?",
+            "Como percorrer uma lista?",
+            "Como fazer um loop for?",
+            "Como iterar sobre elementos?",
+            "Como fazer um loop?",
+            "Como usar o for?",
+            "Como usar for"
+        ],
+        "resposta": "O for percorre cada item de uma sequência (lista, string, range...):\n\nfrutas = [\"maçã\", \"banana\"]\nfor fruta in frutas:\n    print(fruta)\n\nPara repetir um número fixo de vezes, combine com range():\n\nfor i in range(3):\n    print(i)  # 0, 1, 2"
+    },
+    {
+        "topico": "Laços de repetição",
+        "pergunta": "Para que serve a função range?",
+        "variacoes": [
+            "Como gerar uma sequência de números?",
+            "Como usar range com início e passo?",
+            "Como contar de 1 até 10?",
+            "Como usar range?",
+            "Como fazer contagem regressiva?",
+            "Como repetir 10 vezes?",
+            "Como repetir um código N vezes?"
+        ],
+        "resposta": "range() gera uma sequência de inteiros, muito usada com for:\n\nrange(5)         # 0, 1, 2, 3, 4\nrange(1, 11)     # 1 até 10 (o fim não é incluído)\nrange(0, 10, 2)  # 0, 2, 4, 6, 8\n\nO valor final nunca entra na sequência."
+    },
+    {
+        "topico": "Laços de repetição",
+        "pergunta": "Como funciona o laço while em Python?",
+        "variacoes": [
+            "Como usar o while?",
+            "Como repetir enquanto uma condição for verdadeira?",
+            "Qual a diferença entre for e while?",
+            "Como parar um loop com break?",
+            "O que faz o continue?",
+            "Como parar um loop?",
+            "Como fazer loop infinito?",
+            "Como repetir até o usuário digitar sair?"
+        ],
+        "resposta": "O while repete o bloco enquanto a condição for verdadeira. Lembre de atualizar a variável da condição, senão o loop nunca termina:\n\ncontador = 0\nwhile contador < 3:\n    print(contador)\n    contador += 1\n\nbreak encerra o loop imediatamente e continue pula para a próxima repetição. Use for quando souber quantas vezes repetir e while quando depender de uma condição."
+    },
+    {
+        "topico": "Listas",
+        "pergunta": "Como criar e manipular listas em Python?",
+        "variacoes": [
+            "O que é uma lista em Python?",
+            "Como adicionar um item em uma lista?",
+            "Como acessar um elemento da lista?",
+            "Como remover item de uma lista?",
+            "Como saber o tamanho de uma lista?",
+            "Como juntar duas listas?",
+            "Como adicionar item na lista?",
+            "Como criar uma lista?",
+            "Como pegar o último item da lista?",
+            "Como usar append?"
+        ],
+        "resposta": "Listas guardam vários valores em ordem e podem ser alteradas:\n\nnumeros = [10, 20, 30]\nnumeros.append(40)   # adiciona no final\nnumeros[0]           # 10 (índices começam em 0)\nnumeros[-1]          # 40 (último item)\nnumeros.remove(20)   # remove pelo valor\nlen(numeros)         # 3\n\nPara juntar listas use +: [1, 2] + [3, 4] == [1, 2, 3, 4], ou numeros.extend(outra_lista) para estender a própria lista."
+    },
+    {
+        "topico": "Listas",
+        "pergunta": "O que é list comprehension?",
+        "variacoes": [
+            "Como criar uma lista em uma linha?",
+            "Como filtrar uma lista de forma curta?",
+            "Como transformar todos os itens de uma lista?",
+            "Como usar list comprehension?",
+            "Compreensão de listas"
+        ],
+        "resposta": "List comprehension cria uma nova lista a partir de outra em uma única linha:\n\nquadrados = [n ** 2 for n in range(5)]        # [0, 1, 4, 9, 16]\npares = [n for n in range(10) if n % 2 == 0]  # [0, 2, 4, 6, 8]\n\nA estrutura é [expressão for item in sequência if condição]."
+    },
+    {
+        "topico": "Tuplas",
+        "pergunta": "Qual a diferença entre lista e tupla?",
+        "variacoes": [
+            "O que é uma tupla?",
+            "Quando usar tupla em vez de lista?",
+            "Tupla pode ser alterada?",
+            "Como criar uma tupla?",
+            "Tupla em Python"
+        ],
+        "resposta": "Ambas guardam sequências, mas a tupla é imutável: depois de criada não pode ser alterada.\n\nlista = [1, 2, 3]   # colchetes, mutável\ntupla = (1, 2, 3)   # parênteses, imutável\n\nUse tupla para dados que não devem mudar, como coordenadas (x, y), e lista quando precisar adicionar ou remover itens."
+    },
+    {
+        "topico": "Dicionários",
+        "pergunta": "Como usar dicionários em Python?",
+        "variacoes": [
+            "O que é um dicionário?",
+            "Como guardar chave e valor?",
+            "Como acessar um valor pela chave?",
+            "Como percorrer um dicionário?",
+            "Como criar um dicionário?",
+            "Como pegar as chaves de um dicionário?"
+        ],
+        "resposta": "Dicionários guardam pares chave: valor:\n\naluno = {\"nome\": \"Ana\", \"idade\": 20}\naluno[\"nome\"]              # \"Ana\"\naluno[\"curso\"] = \"Python\"  # adiciona ou altera\naluno.get(\"nota\", 0)       # devolve 0 se a chave não existir\n\nfor chave, valor in aluno.items():\n    print(chave, valor)"
+    },
+    {
+        "topico": "Funções",
+        "pergunta": "Como criar uma função em Python?",
+        "variacoes": [
+            "Como definir uma função?",
+            "Para que serve o def?",
+            "Como passar parâmetros para uma função?",
+            "O que faz o return?",
+            "Como criar uma função que retorna um valor?",
+            "Como criar função",
+            "Como criar uma função?",
+            "Como chamar uma função?",
+            "Como uma função devolve um valor?",
+            "Função com parâmetro padrão"
+        ],
+        "resposta": "Use def, o nome da função, os parâmetros entre parênteses e dois-pontos. O return devolve o resultado:\n\ndef somar(a, b):\n    return a + b\n\nresultado = somar(2, 3)  # 5\n\nParâmetros podem ter valor padrão: def saudar(nome=\"estudante\"). Sem return, a função devolve None."
+    },
+    {
+        "topico": "Funções",
+        "pergunta": "O que é uma função lambda?",
+        "variacoes": [
+            "Como criar uma função anônima?",
+            "Quando usar lambda?",
+            "Como ordenar uma lista com lambda?",
+            "Como usar lambda?",
+            "O que é lambda?",
+            "Função sem nome",
+            "Função anônima em uma linha"
+        ],
+        "resposta": "Lambda é uma função pequena e anônima, escrita em uma linha:\n\ndobro = lambda x: x * 2\ndobro(4)  # 8\n\nÉ comum como argumento de outras funções, por exemplo para ordenar:\n\nalunos.sort(key=lambda a: a[\"nota\"])"
+    },
+    {
+        "topico": "Tratamento de erros",
+        "pergunta": "Como tratar erros com try e except?",
+        "variacoes": [
+            "O que é uma exceção em Python?",
+            "Como evitar que o programa quebre com erro?",
+            "Para que serve o try except?",
+            "O que faz o finally?",
+            "Como tratar erro quando o usuário digita um valor inválido?",
+            "Como tratar erro quando o usuário digita letra em vez de número?",
+            "Como usar try except?",
+            "Como capturar um erro?",
+            "Como lançar uma exceção com raise?"
+        ],
+        "resposta": "Coloque o código que pode falhar dentro do try e trate o erro no except:\n\ntry:\n    idade = int(input(\"Idade: \"))\nexcept ValueError:\n    print(\"Digite apenas números!\")\nelse:\n    print(\"Tudo certo\")\nfinally:\n    print(\"Sempre executa\")\n\nCapture exceções específicas (ValueError, ZeroDivisionError...) em vez de um except genérico."
+    },
+    {
+        "topico": "Módulos",
+        "pergunta": "Como importar módulos e bibliotecas em Python?",
+        "variacoes": [
+            "Como usar o import?",
+            "Como usar uma biblioteca externa?",
+            "Como instalar um pacote com pip?",
+            "Como usar import?",
+            "Como importar uma função de outro arquivo?"
+        ],
+        "resposta": "Use import para trazer módulos da biblioteca padrão ou instalados:\n\nimport math\nmath.sqrt(16)          # 4.0\n\nfrom random import randint\nrandint(1, 6)\n\nPacotes externos são instalados com pip no terminal, por exemplo: pip install requests."
+    },
+    {
+        "topico": "Orientação a objetos",
+        "pergunta": "Como criar uma classe em Python?",
+        "variacoes": [
+            "O que é uma classe e um objeto?",
+            "Para que serve o __init__?",
+            "O que é o self?",
+            "Como funciona orientação a objetos em Python?",
+            "O que é um objeto?",
+            "Como criar um objeto?",
+            "O que é um atributo?",
+            "O que é um método?"
+        ],
+        "resposta": "Uma classe é um molde; objetos são instâncias criadas a partir dela. O __init__ inicializa os atributos e self representa o próprio objeto:\n\nclass Aluno:\n    def __init__(self, nome):\n        self.nome = nome\n\n    def apresentar(self):\n        return f\"Olá, sou {self.nome}\"\n\nana = Aluno(\"Ana\")\nana.apresentar()"
+    },
+    {
+        "topico": "Strings",
+        "pergunta": "Quais são os principais métodos de string?",
+        "variacoes": [
+            "Como deixar o texto em maiúsculo?",
+            "Como deixar tudo minúsculo?",
+            "Como separar uma frase em palavras?",
+            "Como usar split?",
+            "Como juntar palavras com join?",
+            "Como remover espaços do texto?",
+            "Como substituir uma palavra no texto?",
+            "Métodos de string",
+            "Como trocar uma letra por outra na string?",
+            "Como deixar só a primeira letra maiúscula?"
+        ],
+        "resposta": "Strings têm métodos prontos. Eles não alteram a string original: devolvem uma nova.\n\ntexto = \"  Olá, Mundo  \"\ntexto.upper()              # \"  OLÁ, MUNDO  \"\ntexto.lower()              # \"  olá, mundo  \"\ntexto.strip()              # \"Olá, Mundo\" (remove espaços das pontas)\ntexto.replace(\"Mundo\", \"Python\")\n\"a,b,c\".split(\",\")         # [\"a\", \"b\", \"c\"]\n\"-\".join([\"a\", \"b\", \"c\"])  # \"a-b-c\"\n\"python\".startswith(\"py\")  # True\nlen(\"python\")              # 6"
+    },
+    {
+        "topico": "Strings",
+        "pergunta": "Como funciona o fatiamento (slicing) em Python?",
+        "variacoes": [
+            "Como pegar só uma parte da string?",
+            "Como pegar os primeiros caracteres?",
+            "Como inverter uma string?",
+            "Como inverter uma lista?",
+            "O que é slicing?",
+            "Como usar [::-1]?",
+            "Como pegar um pedaço da lista?"
+        ],
+        "resposta": "O fatiamento usa sequencia[início:fim:passo] e funciona em strings, listas e tuplas. O fim não é incluído.\n\ntexto = \"Python\"\ntexto[0:2]    # \"Py\"\ntexto[:3]     # \"Pyt\" (do começo até o índice 2)\ntexto[2:]     # \"thon\" (do índice 2 até o fim)\ntexto[-2:]    # \"on\" (os dois últimos)\ntexto[::-1]   # \"nohtyP\" (invertido)\n\nnumeros = [1, 2, 3, 4, 5]\nnumeros[::2]  # [1, 3, 5]"
+    },
+    {
+        "topico": "Operadores",
+        "pergunta": "Qual a diferença entre == e is?",
+        "variacoes": [
+            "Quando usar is em vez de ==?",
+            "O que faz o operador is?",
+            "Como comparar dois valores?",
+            "Quais são os operadores de comparação?"
+        ],
+        "resposta": "== compara se os valores são iguais; is compara se são o mesmo objeto na memória.\n\na = [1, 2]\nb = [1, 2]\na == b   # True (mesmo conteúdo)\na is b   # False (objetos diferentes)\n\nUse is apenas para comparar com None (if valor is None). Para o resto, use os operadores de comparação: ==, !=, <, >, <=, >=."
+    },
+    {
+        "topico": "Operadores",
+        "pergunta": "Como verificar se um valor está em uma coleção?",
+        "variacoes": [
+            "Como verificar se um item está na lista?",
+            "Como usar o operador in?",
+            "Como saber se uma chave existe no dicionário?",
+            "Como saber se uma palavra está no texto?",
+            "Como checar se um elemento existe?",
+            "Como ver se a lista tem um valor?",
+            "Como saber se a lista contém um número?"
+        ],
+        "resposta": "Use o operador in (ou not in). Ele funciona com listas, tuplas, strings, conjuntos e dicionários:\n\n3 in [1, 2, 3]          # True\n\"py\" in \"python\"        # True\n\"nome\" in {\"nome\": \"Ana\"}  # True (em dicionários, verifica as chaves)\n5 not in [1, 2, 3]      # True"
+    },
+    {
+        "topico": "Condicionais",
+        "pergunta": "O que é o operador ternário em Python?",
+        "variacoes": [
+            "Como fazer if em uma linha?",
+            "Como escrever um if curto?",
+            "If ternário em Python",
+            "Como atribuir valor com condição?"
+        ],
+        "resposta": "É um if/else em uma linha, no formato valor_se_verdadeiro if condição else valor_se_falso:\n\nsituacao = \"Aprovado\" if nota >= 7 else \"Reprovado\"\n\nUse para escolhas simples entre dois valores. Para lógicas maiores, prefira o if tradicional, que é mais legível."
+    },
+    {
+        "topico": "Condicionais",
+        "pergunta": "Existe switch case em Python?",
+        "variacoes": [
+            "Como fazer switch case?",
+            "Como usar match case?",
+            "O que é match em Python?",
+            "Alternativa ao switch em Python"
+        ],
+        "resposta": "Desde o Python 3.10 existe o match/case, que cumpre o papel do switch:\n\nmatch opcao:\n    case 1:\n        print(\"Cadastrar\")\n    case 2:\n        print(\"Listar\")\n    case _:\n        print(\"Opção inválida\")  # _ é o caso padrão\n\nEm versões anteriores, use uma sequência de if/elif ou um dicionário que mapeia opções para valores."
+    },
+    {
+        "topico": "Laços de repetição",
+        "pergunta": "Para que servem enumerate e zip?",
+        "variacoes": [
+            "Como pegar o índice no for?",
+            "Como percorrer duas listas juntas?",
+            "Como usar enumerate?",
+            "Como usar zip?",
+            "Como saber a posição do item no loop?"
+        ],
+        "resposta": "enumerate() devolve o índice junto com cada item; zip() percorre várias sequências ao mesmo tempo:\n\nfrutas = [\"maçã\", \"banana\"]\nfor indice, fruta in enumerate(frutas):\n    print(indice, fruta)   # 0 maçã / 1 banana\n\nnomes = [\"Ana\", \"Bia\"]\nnotas = [9, 8]\nfor nome, nota in zip(nomes, notas):\n    print(nome, nota)\n\nzip para quando a menor sequência acaba."
+    },
+    {
+        "topico": "Listas",
+        "pergunta": "Como ordenar uma lista em Python?",
+        "variacoes": [
+            "Como ordenar uma lista?",
+            "Qual a diferença entre sort e sorted?",
+            "Como ordenar em ordem decrescente?",
+            "Como organizar números em ordem crescente?",
+            "Como ordenar por um critério?"
+        ],
+        "resposta": "lista.sort() ordena a própria lista (e devolve None); sorted(lista) devolve uma nova lista ordenada, sem alterar a original:\n\nnumeros = [3, 1, 2]\nsorted(numeros)               # [1, 2, 3]\nnumeros.sort(reverse=True)    # numeros vira [3, 2, 1]\n\nPara ordenar por um critério, use key:\npalavras.sort(key=len)        # pelo tamanho"
+    },
+    {
+        "topico": "Conjuntos",
+        "pergunta": "O que é um set (conjunto) em Python?",
+        "variacoes": [
+            "O que é um conjunto?",
+            "Como remover itens repetidos de uma lista?",
+            "Como tirar duplicados?",
+            "Como usar set?",
+            "Como fazer união e interseção?"
+        ],
+        "resposta": "Um set guarda valores sem repetição e sem ordem. É ótimo para remover duplicados e fazer operações de conjuntos:\n\nnumeros = [1, 2, 2, 3, 3]\nunicos = set(numeros)       # {1, 2, 3}\nlist(unicos)                # volta a ser lista\n\na = {1, 2, 3}\nb = {2, 3, 4}\na | b   # união: {1, 2, 3, 4}\na & b   # interseção: {2, 3}\na - b   # diferença: {1}\n\nAtenção: {} cria um dicionário vazio; para um set vazio use set()."
+    },
+    {
+        "topico": "Funções",
+        "pergunta": "O que são *args e **kwargs?",
+        "variacoes": [
+            "Como receber vários argumentos em uma função?",
+            "Para que serve o asterisco no parâmetro?",
+            "O que é kwargs?",
+            "O que é args?",
+            "Função com número variável de parâmetros"
+        ],
+        "resposta": "Permitem que uma função receba uma quantidade variável de argumentos:\n- *args junta os argumentos posicionais extras em uma tupla\n- **kwargs junta os argumentos nomeados extras em um dicionário\n\ndef exemplo(*args, **kwargs):\n    print(args)    # (1, 2)\n    print(kwargs)  # {'cor': 'azul'}\n\nexemplo(1, 2, cor=\"azul\")\n\nOs nomes args e kwargs são convenção; o que importa são * e **."
+    },
+    {
+        "topico": "Funções",
+        "pergunta": "O que é escopo de variáveis em Python?",
+        "variacoes": [
+            "Qual a diferença entre variável global e local?",
+            "O que faz a palavra global?",
+            "Por que minha variável não existe fora da função?",
+            "Variável local em Python"
+        ],
+        "resposta": "Escopo é onde uma variável pode ser usada. Variáveis criadas dentro de uma função são locais: só existem ali. Variáveis criadas fora de funções são globais.\n\ncontador = 0          # global\n\ndef incrementar():\n    global contador   # necessário para ALTERAR a global\n    contador += 1\n\nEvite global sempre que possível: prefira receber valores por parâmetro e devolver com return."
+    },
+    {
+        "topico": "Funções",
+        "pergunta": "O que é recursão?",
+        "variacoes": [
+            "O que é uma função recursiva?",
+            "Como uma função chama ela mesma?",
+            "Como calcular fatorial com recursão?",
+            "Recursividade em Python"
+        ],
+        "resposta": "Recursão é quando uma função chama a si mesma para resolver um problema menor. Toda função recursiva precisa de um caso base, que encerra as chamadas:\n\ndef fatorial(n):\n    if n <= 1:          # caso base\n        return 1\n    return n * fatorial(n - 1)\n\nfatorial(5)  # 120\n\nSem caso base, a função se chama para sempre e o Python lança RecursionError."
+    },
+    {
+        "topico": "Funções",
+        "pergunta": "Para que servem map e filter?",
+        "variacoes": [
+            "O que é map e filter?",
+            "Como usar map?",
+            "Como usar filter?",
+            "Como aplicar uma função em todos os itens de uma lista?"
+        ],
+        "resposta": "map() aplica uma função a cada item; filter() mantém só os itens para os quais a função devolve True. Ambos devolvem iteradores, por isso costumam ser convertidos com list():\n\nnumeros = [1, 2, 3, 4]\nlist(map(lambda n: n * 2, numeros))        # [2, 4, 6, 8]\nlist(filter(lambda n: n % 2 == 0, numeros)) # [2, 4]\n\nNa maioria dos casos, list comprehension fica mais legível: [n * 2 for n in numeros]."
+    },
+    {
+        "topico": "Funções",
+        "pergunta": "Quais funções embutidas são mais usadas em Python?",
+        "variacoes": [
+            "Como arredondar um número?",
+            "Como achar o maior valor de uma lista?",
+            "Como somar todos os itens de uma lista?",
+            "Como usar min e max?",
+            "Como pegar o valor absoluto?",
+            "Funções nativas do Python"
+        ],
+        "resposta": "Algumas funções embutidas muito usadas:\n\nlen([1, 2, 3])     # 3 (tamanho)\nsum([1, 2, 3])     # 6 (soma)\nmax([4, 9, 2])     # 9\nmin([4, 9, 2])     # 2\nabs(-5)            # 5 (valor absoluto)\nround(3.14159, 2)  # 3.14 (arredonda)\nsorted([3, 1, 2])  # [1, 2, 3]\n\nA lista completa está na documentação oficial, em \"Funções embutidas\"."
+    },
+    {
+        "topico": "Funções",
+        "pergunta": "Para que serve o pass em Python?",
+        "variacoes": [
+            "O que é pass?",
+            "Como deixar uma função vazia?",
+            "Como criar um bloco que não faz nada?"
+        ],
+        "resposta": "pass é uma instrução que não faz nada. Serve para deixar um bloco vazio, já que Python não aceita blocos sem conteúdo:\n\ndef funcao_futura():\n    pass  # implementar depois\n\nclass Aluno:\n    pass"
+    },
+    {
+        "topico": "Arquivos",
+        "pergunta": "Como ler e escrever arquivos em Python?",
+        "variacoes": [
+            "Como ler um arquivo?",
+            "Como salvar dados em um arquivo txt?",
+            "Como abrir um arquivo?",
+            "Como usar with open?",
+            "Como escrever em um arquivo?",
+            "Como ler um arquivo linha por linha?"
+        ],
+        "resposta": "Use open() dentro de um bloco with, que fecha o arquivo automaticamente:\n\n# escrever (\"w\" sobrescreve, \"a\" adiciona ao final)\nwith open(\"notas.txt\", \"w\", encoding=\"utf-8\") as arquivo:\n    arquivo.write(\"Ana;9\\n\")\n\n# ler linha por linha\nwith open(\"notas.txt\", encoding=\"utf-8\") as arquivo:\n    for linha in arquivo:\n        print(linha.strip())\n\nSe o arquivo não existir na leitura, o Python lança FileNotFoundError."
+    },
+    {
+        "topico": "Arquivos",
+        "pergunta": "Como trabalhar com JSON em Python?",
+        "variacoes": [
+            "Como ler um JSON?",
+            "Como salvar um dicionário em JSON?",
+            "Como converter dicionário para JSON?",
+            "Como usar o módulo json?"
+        ],
+        "resposta": "Use o módulo json da biblioteca padrão:\n\nimport json\n\ndados = {\"nome\": \"Ana\", \"notas\": [9, 8]}\n\ntexto = json.dumps(dados)          # dicionário -> string JSON\nde_volta = json.loads(texto)       # string JSON -> dicionário\n\nwith open(\"dados.json\", \"w\", encoding=\"utf-8\") as f:\n    json.dump(dados, f)            # salva em arquivo\nwith open(\"dados.json\", encoding=\"utf-8\") as f:\n    dados = json.load(f)           # lê de arquivo"
+    },
+    {
+        "topico": "Módulos",
+        "pergunta": "O que significa if __name__ == \"__main__\"?",
+        "variacoes": [
+            "O que é __name__?",
+            "Para que serve if __name__ main?",
+            "O que é __main__?",
+            "Como executar código só quando rodo o arquivo direto?"
+        ],
+        "resposta": "Todo arquivo Python tem a variável __name__. Ela vale \"__main__\" quando o arquivo é executado diretamente e vale o nome do módulo quando ele é importado. Assim, o bloco abaixo só roda na execução direta, não na importação:\n\ndef main():\n    print(\"Executando o programa\")\n\nif __name__ == \"__main__\":\n    main()"
+    },
+    {
+        "topico": "Módulos",
+        "pergunta": "O que é um ambiente virtual (venv)?",
+        "variacoes": [
+            "Como criar ambiente virtual?",
+            "Para que serve o venv?",
+            "Como ativar o venv?",
+            "Como isolar as bibliotecas do projeto?"
+        ],
+        "resposta": "Um ambiente virtual isola as bibliotecas de cada projeto, evitando conflitos de versões. No terminal:\n\npython -m venv .venv            # cria\nsource .venv/bin/activate       # ativa no Linux/macOS\n.venv\\Scripts\\activate          # ativa no Windows\npip install requests            # instala só neste ambiente\ndeactivate                      # sai do ambiente"
+    },
+    {
+        "topico": "Módulos",
+        "pergunta": "Como gerar números aleatórios em Python?",
+        "variacoes": [
+            "Como gerar número aleatório?",
+            "Como sortear um número?",
+            "Como escolher um item aleatório da lista?",
+            "Como usar random?",
+            "Como embaralhar uma lista?",
+            "Como sortear um nome da lista?",
+            "Como sortear um item?"
+        ],
+        "resposta": "Use o módulo random:\n\nimport random\n\nrandom.randint(1, 6)          # inteiro de 1 a 6 (inclui os dois)\nrandom.random()               # float entre 0 e 1\nrandom.choice([\"a\", \"b\"])     # item aleatório da lista\nrandom.shuffle(lista)         # embaralha a própria lista"
+    },
+    {
+        "topico": "Módulos",
+        "pergunta": "Como trabalhar com datas em Python?",
+        "variacoes": [
+            "Como pegar a data de hoje?",
+            "Como usar datetime?",
+            "Como formatar uma data?",
+            "Como calcular diferença entre datas?",
+            "Como pegar a hora atual?",
+            "Como pegar o dia de hoje?",
+            "Como trabalhar com datas?"
+        ],
+        "resposta": "Use o módulo datetime:\n\nfrom datetime import date, datetime, timedelta\n\nhoje = date.today()\nagora = datetime.now()\nagora.strftime(\"%d/%m/%Y %H:%M\")          # formata: \"27/09/2026 14:30\"\ndatetime.strptime(\"27/09/2026\", \"%d/%m/%Y\")  # texto -> data\namanha = hoje + timedelta(days=1)\n(date(2026, 12, 25) - hoje).days           # dias até a data"
+    },
+    {
+        "topico": "Orientação a objetos",
+        "pergunta": "Como funciona herança em Python?",
+        "variacoes": [
+            "O que é herança?",
+            "Como uma classe herda de outra?",
+            "Para que serve o super()?",
+            "O que é classe filha?"
+        ],
+        "resposta": "Herança permite criar uma classe a partir de outra, reaproveitando atributos e métodos. A classe filha indica a classe mãe entre parênteses e usa super() para chamar os métodos dela:\n\nclass Pessoa:\n    def __init__(self, nome):\n        self.nome = nome\n\nclass Aluno(Pessoa):\n    def __init__(self, nome, matricula):\n        super().__init__(nome)\n        self.matricula = matricula\n\nA classe filha também pode sobrescrever métodos da mãe, redefinindo-os com o mesmo nome."
+    },
+    {
+        "topico": "Orientação a objetos",
+        "pergunta": "O que são métodos especiais (dunder) em Python?",
+        "variacoes": [
+            "Para que serve o __str__?",
+            "O que é __init__?",
+            "O que são métodos mágicos?",
+            "O que é dunder?",
+            "Como personalizar o print de um objeto?"
+        ],
+        "resposta": "São métodos com dois sublinhados no início e no fim, chamados automaticamente pelo Python em certas operações:\n- __init__: ao criar o objeto\n- __str__: ao usar print() ou str()\n- __len__: ao usar len()\n- __eq__: ao comparar com ==\n\nclass Aluno:\n    def __init__(self, nome):\n        self.nome = nome\n\n    def __str__(self):\n        return f\"Aluno: {self.nome}\"\n\nprint(Aluno(\"Ana\"))  # Aluno: Ana"
+    },
+    {
+        "topico": "Iteradores",
+        "pergunta": "O que são geradores (yield) em Python?",
+        "variacoes": [
+            "O que é yield?",
+            "O que é um gerador?",
+            "Qual a diferença entre return e yield?",
+            "O que é um iterador?"
+        ],
+        "resposta": "Um gerador é uma função que usa yield para produzir valores um de cada vez, sob demanda, em vez de montar tudo na memória:\n\ndef contar_ate(n):\n    i = 1\n    while i <= n:\n        yield i\n        i += 1\n\nfor numero in contar_ate(3):\n    print(numero)  # 1, 2, 3\n\nreturn encerra a função; yield pausa e continua de onde parou na próxima iteração."
+    },
+    {
+        "topico": "Sintaxe",
+        "pergunta": "O que é indentação e por que ela importa em Python?",
+        "variacoes": [
+            "O que é indentação?",
+            "Deu IndentationError",
+            "O que significa IndentationError?",
+            "Quantos espaços usar na indentação?",
+            "Por que o Python usa espaços no começo da linha?"
+        ],
+        "resposta": "Em Python a indentação (os espaços no início da linha) define os blocos de código, no lugar das chaves { } de outras linguagens. Tudo que pertence a um if, for, função ou classe deve ficar recuado no mesmo nível:\n\nif idade >= 18:\n    print(\"Maior de idade\")  # dentro do if\nprint(\"Fim\")                 # fora do if\n\nUse 4 espaços por nível e não misture tabs com espaços. Blocos desalinhados geram IndentationError."
+    },
+    {
+        "topico": "Sintaxe",
+        "pergunta": "Como escrever comentários em Python?",
+        "variacoes": [
+            "Como fazer comentário?",
+            "Como comentar várias linhas?",
+            "O que é uma docstring?",
+            "Como comentar o código?",
+            "Como documentar uma função?",
+            "Como documentar o código?"
+        ],
+        "resposta": "Use # para comentários de uma linha. Para documentar funções e classes, use uma docstring (texto entre aspas triplas logo no início):\n\n# isto é um comentário\n\ndef somar(a, b):\n    \"\"\"Devolve a soma de a e b.\"\"\"\n    return a + b\n\nPython não tem comentário de bloco: para várias linhas, coloque # em cada uma."
+    },
+    {
+        "topico": "Tipos de dados",
+        "pergunta": "O que é None em Python?",
+        "variacoes": [
+            "O que é None?",
+            "Como verificar se uma variável é None?",
+            "Por que minha função retornou None?",
+            "O que significa valor nulo em Python?"
+        ],
+        "resposta": "None representa a ausência de valor (como null em outras linguagens). Funções sem return devolvem None.\n\nresultado = None\nif resultado is None:\n    print(\"Ainda sem valor\")\n\nPara testar, use is None e não == None. Se uma função devolveu None sem você esperar, verifique se esqueceu o return."
+    },
+    {
+        "topico": "Tratamento de erros",
+        "pergunta": "Quais são os erros mais comuns em Python?",
+        "variacoes": [
+            "O que significa NameError?",
+            "O que significa TypeError?",
+            "O que é SyntaxError?",
+            "O que é IndexError?",
+            "O que é KeyError?",
+            "Como entender uma mensagem de erro?"
+        ],
+        "resposta": "Os erros mais comuns e suas causas:\n- SyntaxError: código escrito fora das regras (faltou dois-pontos, parêntese...)\n- IndentationError: blocos desalinhados\n- NameError: usou uma variável ou função que não existe (confira a grafia)\n- TypeError: operação com tipo errado, como \"a\" + 1\n- ValueError: tipo certo, valor inválido, como int(\"abc\")\n- IndexError: índice fora da lista\n- KeyError: chave inexistente no dicionário\n\nLeia a mensagem de baixo para cima: a última linha diz o tipo do erro e as anteriores mostram a linha onde ele aconteceu."
+    }
+]

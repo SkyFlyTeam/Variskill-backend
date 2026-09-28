@@ -7,6 +7,8 @@ from django.db import models
 class Sessao(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='sessoes_assistente', db_column='usuario_id', on_delete=models.CASCADE)
+    # Última trilha discutida na conversa; permite que mensagens seguintes ("confirmo", "começar do zero") herdem o contexto.
+    trilha_contexto = models.ForeignKey('trackManagement.Trilha', related_name='sessoes_assistente', db_column='trilha_contexto_id', on_delete=models.SET_NULL, null=True, blank=True)
     criada_em = models.DateTimeField(auto_now_add=True)
     atualizada_em = models.DateTimeField(auto_now=True)
 
