@@ -1,0 +1,82 @@
+name: django-cookiecutter-build
+
+x-app-environment: &app-environment
+  DJANGO_SETTINGS_MODULE: settings.settings
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
+  POSTGRES_DB: ${POSTGRES_DB:-cookie_cutter}
+  POSTGRES_USER: ${POSTGRES_USER:-cookie_cutter}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cookie_cutter}
+  POSTGRES_HOST: database
+  POSTGRES_PORT: 5432
+  NLP_SIMILARITY_THRESHOLD: ${NLP_SIMILARITY_THRESHOLD:-0.70}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  EXTERNAL_AI_API_KEY: ${EXTERNAL_AI_API_KEY:-}
+  EXTERNAL_AI_MODEL: ${EXTERNAL_AI_MODEL:-gpt-4o-mini}
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.build
+    image: django-cookiecutter:${IMAGE_TAG:-latest}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *app-environment
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    networks:
+      default:
+      cookiecutter-shared:
+        aliases:
+          - backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/admin/login/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.build
+    image: django-cookiecutter:${IMAGE_TAG:-latest}
+    command: sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput --clear"
+    depends_on:
+      database:
+        condition: service_healthy
+    environment: *app-environment
+    volumes:
+      - cookiecutter-static:/app/staticfiles
+    restart: "no"
+
+  database:
+    image: pgvector/pgvector:pg15-trixie
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cookie_cutter}
+      POSTGRES_USER: ${POSTGRES_USER:-cookie_cutter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cookie_cutter}
+    volumes:
+      - postgres15_build_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres15_build_data:
+  # Shared with the frontend compose (vite-cookiecutter/docker-compose-build.yaml),
+  # which mounts it read-only and serves it at /static/.
+  cookiecutter-static:
+    name: cookiecutter-static
+
+networks:
+  # Shared with the frontend compose so nginx can proxy /api to the "backend" alias.
+  cookiecutter-shared:
+    name: cookiecutter-shared
