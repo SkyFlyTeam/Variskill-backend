@@ -16,6 +16,10 @@ class EnviarMensagemInputSerializer(serializers.Serializer):
         trim_whitespace=True,
         max_length=1000,
     )
+    # Contexto opcional enviado pelo cliente para desambiguar a ação da intenção.
+    trilha_id = serializers.UUIDField(required=False, allow_null=True)
+    atividade_id = serializers.UUIDField(required=False, allow_null=True)
+    questao_id = serializers.UUIDField(required=False, allow_null=True)
 
 
 class OpcaoTrilhaSerializer(serializers.Serializer):
@@ -43,6 +47,10 @@ class RespostaAssistenteSerializer(serializers.Serializer):
     conteudo = serializers.CharField()
     intencao_detectada = serializers.CharField(allow_null=True)
     opcoes_trilhas = OpcaoTrilhaSerializer(many=True, required=False)
+    sugestoes_rapidas = serializers.ListField(child=serializers.CharField(), required=False)
+    acao = serializers.CharField(allow_null=True, required=False)
+    redirecionar_para = serializers.CharField(allow_null=True, required=False)
+    dados_acao = serializers.DictField(required=False)
     criada_em = serializers.DateTimeField(required=False)
 
 
