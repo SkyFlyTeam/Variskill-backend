@@ -51,3 +51,16 @@ class ExecucaoAtividade(models.Model):
 
     class Meta:
         db_table = 'EXECUCAO_ATIVIDADE'
+
+
+class RespostaQuestao(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    execucao = models.ForeignKey(ExecucaoAtividade, on_delete=models.CASCADE, related_name='respostas_questoes')
+    questao = models.ForeignKey('questionsManagement.Questao', on_delete=models.CASCADE, related_name='respostas_submetidas')
+    resposta_fornecida = models.TextField(null=True, blank=True)
+    correta = models.BooleanField(null=False)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'RESPOSTA_QUESTAO'
+        indexes = [models.Index(fields=['execucao', 'correta'])]
