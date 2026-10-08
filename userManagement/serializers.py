@@ -1,16 +1,30 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from .services import GamificationService
+
 User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
+    nivel = serializers.SerializerMethodField()
+    progresso_nivel = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'apelido', 'nome', 'email', 'password', 'xp_total', 'streak_dias', 'is_primeiro_acesso')
-        read_only_fields = ('id', 'criado_em')
+        fields = (
+            'id', 'apelido', 'nome', 'email', 'password',
+            'xp_total', 'streak_dias', 'is_primeiro_acesso',
+            'nivel', 'progresso_nivel',
+        )
+        read_only_fields = ('id', 'criado_em', 'nivel', 'progresso_nivel')
+
+    def get_nivel(self, obj) -> int:
+        return GamificationService.calcular_nivel(obj.xp_total)
+
+    def get_progresso_nivel(self, obj) -> dict:
+        return GamificationService.obter_progresso_nivel(obj.xp_total)
         extra_kwargs = {
             'apelido': {'required': True},
             'nome': {'required': True},

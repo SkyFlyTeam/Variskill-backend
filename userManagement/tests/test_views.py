@@ -28,7 +28,24 @@ def test_register_creates_user_and_session(client, django_user_model):
     assert response.status_code == 201
     user = django_user_model.objects.get(apelido='alice')
     assert user.check_password('test-password-123')
-    assert response.data == {'id': str(user.pk), 'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'xp_total': 0, 'streak_dias': 0, 'is_primeiro_acesso': True}
+    assert response.data == {
+        'id': str(user.pk),
+        'apelido': 'alice',
+        'nome': 'Alice',
+        'email': 'alice@example.com',
+        'xp_total': 0,
+        'streak_dias': 0,
+        'is_primeiro_acesso': True,
+        'nivel': 1,
+        'progresso_nivel': {
+            'nivel': 1,
+            'xp_atual': 0,
+            'xp_min_faixa': 0,
+            'xp_proximo_nivel': 100,
+            'xp_restante': 100,
+            'progresso_pct': 0.0,
+        },
+    }
     assert user.is_primeiro_acesso is True
     assert client.session['_auth_user_id'] == str(user.pk)
     assert client.get(reverse('user-list')).status_code == 200
@@ -255,3 +272,24 @@ def test_authenticated_user_can_delete_user(client, user, django_user_model):
 
     assert response.status_code == 204
     assert not django_user_model.objects.filter(pk=user.pk).exists()
+
+
+def test_me_returns_level_and_progress(client, user):
+    user.xp_total = 250
+    user.save()
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.status_code == 200
+    assert response.data['id'] == str(user.pk)
+    assert response.data['xp_total'] == 250
+    assert response.data['nivel'] == 2
+    assert response.data['progresso_nivel'] == {
+        'nivel': 2,
+        'xp_atual': 250,
+        'xp_min_faixa': 100,
+        'xp_proximo_nivel': 300,
+        'xp_restante': 50,
+        'progresso_pct': 75.0,
+    }
