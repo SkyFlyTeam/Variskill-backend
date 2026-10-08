@@ -10,6 +10,62 @@ from .models import User
 
 
 class GamificationService:
+    @staticmethod
+    def calcular_nivel(xp_total: int) -> int:
+        """Calcula o nível do usuário baseado nas faixas de XP:
+        - Nível 1: 0 a 99 XP (faixa de 100 XP)
+        - Nível 2: 100 a 299 XP (faixa de 200 XP)
+        - Nível 3: 300 a 599 XP (faixa de 300 XP)
+        - Nível 4: 600 a 999 XP (faixa de 400 XP)
+        - Nível 5+: 1000+ XP (a cada 500 XP adicionais, +1 nível)
+        """
+        xp = max(0, xp_total or 0)
+        if xp < 100:
+            return 1
+        elif xp < 300:
+            return 2
+        elif xp < 600:
+            return 3
+        elif xp < 1000:
+            return 4
+        return 5 + ((xp - 1000) // 500)
+
+    @staticmethod
+    def obter_progresso_nivel(xp_total: int) -> dict:
+        """Retorna detalhes do progresso atual do usuário na sua faixa de nível."""
+        xp = max(0, xp_total or 0)
+        nivel = GamificationService.calcular_nivel(xp)
+
+        if nivel == 1:
+            xp_min_faixa = 0
+            xp_proximo_nivel = 100
+        elif nivel == 2:
+            xp_min_faixa = 100
+            xp_proximo_nivel = 300
+        elif nivel == 3:
+            xp_min_faixa = 300
+            xp_proximo_nivel = 600
+        elif nivel == 4:
+            xp_min_faixa = 600
+            xp_proximo_nivel = 1000
+        else:
+            xp_min_faixa = 1000 + ((nivel - 5) * 500)
+            xp_proximo_nivel = xp_min_faixa + 500
+
+        faixa_total = xp_proximo_nivel - xp_min_faixa
+        xp_na_faixa = xp - xp_min_faixa
+        progresso_pct = round((xp_na_faixa / faixa_total) * 100, 1)
+        xp_restante = max(0, xp_proximo_nivel - xp)
+
+        return {
+            "nivel": nivel,
+            "xp_atual": xp,
+            "xp_min_faixa": xp_min_faixa,
+            "xp_proximo_nivel": xp_proximo_nivel,
+            "xp_restante": xp_restante,
+            "progresso_pct": progresso_pct,
+        }
+
     @transaction.atomic
     def creditar_xp(self, usuario, atividade) -> int:
         """Soma Atividade.xp_recompensa a Usuario.xp_total de forma atômica.

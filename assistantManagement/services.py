@@ -475,6 +475,48 @@ def _tratar_fallback(ctx: ContextoConversa) -> RespostaIntencao:
     return RespostaIntencao(ctx.resposta_base, sugestoes_rapidas=SUGESTOES_FALLBACK)
 
 
+def _tratar_consultar_xp(ctx: ContextoConversa) -> RespostaIntencao:
+    from userManagement.services import GamificationService
+
+    xp = getattr(ctx.usuario, "xp_total", 0) or 0
+    streak = getattr(ctx.usuario, "streak_dias", 0) or 0
+    progresso = GamificationService.obter_progresso_nivel(xp)
+    nivel = progresso["nivel"]
+    xp_restante = progresso["xp_restante"]
+
+    conteudo = _preencher(
+        ctx.resposta_base,
+        xp_total=xp,
+        streak_dias=streak,
+        nivel=nivel,
+        xp_restante=xp_restante,
+    )
+    return RespostaIntencao(
+        conteudo=conteudo,
+        sugestoes_rapidas=["Ver trilhas disponíveis", "Como funciona a plataforma?"],
+        acao="CONSULTA_XP",
+        dados_acao={
+            "xp_total": xp,
+            "streak_dias": streak,
+            "nivel": nivel,
+            "xp_restante": xp_restante,
+        },
+    )
+
+
+def _tratar_consultar_conquistas(ctx: ContextoConversa) -> RespostaIntencao:
+    lista_conquistas = (
+        "- 🚀 **Primeiros Passos**: Inscreveu-se na plataforma\n"
+        "- 🔥 **Foco Total**: Mantenha seu streak diário ativo!"
+    )
+    conteudo = _preencher(ctx.resposta_base, lista_conquistas=lista_conquistas)
+    return RespostaIntencao(
+        conteudo=conteudo,
+        sugestoes_rapidas=["Ver trilhas disponíveis", "Como funciona a plataforma?"],
+        acao="CONSULTA_CONQUISTAS",
+    )
+
+
 HANDLERS_INTENCAO = {
     "SAUDACAO": _tratar_saudacao,
     "AJUDA_COMANDOS": _tratar_ajuda,
@@ -484,6 +526,8 @@ HANDLERS_INTENCAO = {
     "INICIAR_DO_ZERO": _tratar_iniciar_do_zero,
     "PEDIR_DICA": _tratar_pedir_dica,
     "DUVIDA_CONTEUDO": _tratar_duvida_conteudo,
+    "CONSULTAR_XP": _tratar_consultar_xp,
+    "CONSULTAR_CONQUISTAS": _tratar_consultar_conquistas,
 }
 
 
@@ -577,11 +621,18 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
         atividade_id=atividade_id,
         questao_id=questao_id,
     )
-    handler = HANDLERS_INTENCAO.get(intencao_codigo, _tratar_fallback)
-    resposta = handler(ctx)
-    if resposta.intencao and resposta.intencao != intencao_codigo:
-        intencao_codigo = resposta.intencao
+    # Se a intenção for genérica ou de dúvida, valida se a pergunta está diretamente no corpus de conhecimento (python.json)
+    resultado_corpus = CorpusSearch().buscar(vetor)
+    if resultado_corpus.entrada and (intencao_codigo in ("AJUDA_COMANDOS", "DUVIDA_CONTEUDO", "FALLBACK", "SAUDACAO") or intencao_codigo is None):
+        resposta = _resposta_do_corpus(ctx, resultado_corpus.entrada, resultado_corpus.similaridade)
+        intencao_codigo = "DUVIDA_CONTEUDO"
         intencao_obj = Intention.objects.filter(code=intencao_codigo).first()
+    else:
+        handler = HANDLERS_INTENCAO.get(intencao_codigo, _tratar_fallback)
+        resposta = handler(ctx)
+        if resposta.intencao and resposta.intencao != intencao_codigo:
+            intencao_codigo = resposta.intencao
+            intencao_obj = Intention.objects.filter(code=intencao_codigo).first()
 
     # 3. Persistência atômica das mensagens (usuário e assistente juntas para evitar mensagens órfãs)
     with transaction.atomic():

@@ -27,6 +27,9 @@ class SubmissionResult:
     xp_granted: int
     new_xp_total: int
     feedback: list
+    level_up: bool
+    nivel_anterior: int
+    novo_nivel: int
 
 
 def _is_correct(questao, answer):
@@ -62,12 +65,17 @@ def submit_activity(user, atividade, answers):
         aprovado=True,
     ).exists()
 
+    gamification = GamificationService()
+    nivel_anterior = gamification.calcular_nivel(locked_user.xp_total)
+
     xp_granted = (atividade.xp_recompensa if approved and not already_approved else 0)
     if approved:
-        gamification = GamificationService()
         gamification.atualizar_streak(locked_user)
         if not already_approved:
             gamification.creditar_xp(locked_user, atividade)
+
+    novo_nivel = gamification.calcular_nivel(locked_user.xp_total)
+    level_up = (novo_nivel > nivel_anterior)
 
     execution = ExecucaoAtividade.objects.create(
         usuario=locked_user,
@@ -85,4 +93,7 @@ def submit_activity(user, atividade, answers):
         xp_granted=xp_granted,
         new_xp_total=locked_user.xp_total,
         feedback=feedback,
+        level_up=level_up,
+        nivel_anterior=nivel_anterior,
+        novo_nivel=novo_nivel,
     )
