@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 from model_bakery import baker
 
-from activityManagement.models import Atividade, ExecucaoAtividade
+from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
 from trackManagement.models import Modulo
 from questionsManagement.models import Questao
 
@@ -183,6 +183,64 @@ def test_block_order_answer_must_match_expected_sequence(client, student, ativid
     response = submit(client, atividade, {str(questao.pk): sent})
 
     assert response.data['questoes_feedback'][0]['correta'] is correct
+
+
+def test_submission_persists_a_resposta_questao_row_per_question(client, student, atividade):
+    correct_questao = make_questao(atividade, order=1, expected='A')
+    wrong_questao = make_questao(atividade, order=2, expected='A')
+    client.force_login(student)
+
+    response = submit(client, atividade, {
+        str(correct_questao.pk): ['A'],
+        str(wrong_questao.pk): ['B'],
+    })
+
+    execution = ExecucaoAtividade.objects.get(pk=response.data['execucao_id'])
+    respostas = {r.questao_id: r for r in execution.respostas_questoes.all()}
+    assert set(respostas) == {correct_questao.pk, wrong_questao.pk}
+    assert respostas[correct_questao.pk].correta is True
+    assert respostas[correct_questao.pk].resposta_fornecida == '["A"]'
+    assert respostas[wrong_questao.pk].correta is False
+    assert respostas[wrong_questao.pk].resposta_fornecida == '["B"]'
+
+
+def test_unanswered_question_still_persists_a_wrong_resposta_questao_row(client, student, atividade):
+    questao = make_questao(atividade)
+    client.force_login(student)
+
+    response = submit(client, atividade, {})
+
+    execution = ExecucaoAtividade.objects.get(pk=response.data['execucao_id'])
+    resposta = execution.respostas_questoes.get(questao=questao)
+    assert resposta.correta is False
+    assert resposta.resposta_fornecida == '[]'
+
+
+def test_wrong_answers_are_retrievable_via_respostas_questoes_filter(client, student, atividade):
+    correct_questao = make_questao(atividade, order=1, expected='A')
+    wrong_questao = make_questao(atividade, order=2, expected='A')
+    client.force_login(student)
+
+    response = submit(client, atividade, {
+        str(correct_questao.pk): ['A'],
+        str(wrong_questao.pk): ['B'],
+    })
+
+    execution = ExecucaoAtividade.objects.get(pk=response.data['execucao_id'])
+    wrong_answers = execution.respostas_questoes.filter(correta=False)
+    assert list(wrong_answers.values_list('questao_id', flat=True)) == [wrong_questao.pk]
+
+
+def test_rejected_submission_does_not_persist_any_resposta_questao(client, student, atividade):
+    make_questao(atividade)
+    other_questao = make_questao(baker.make(
+        Atividade, modulo=atividade.modulo, conteudo=None, ordem=2,
+    ))
+    client.force_login(student)
+
+    submit(client, atividade, {str(other_questao.pk): ['A']})
+
+    assert not RespostaQuestao.objects.exists()
 
 
 @pytest.mark.parametrize('days_since_last_approval, streak_before, streak_after', [
