@@ -11,14 +11,18 @@ from rest_framework.exceptions import NotFound
 from assistantManagement.models import Mensagem, Sessao
 from questionsManagement.models import Questao
 
+from .circuit_breaker import CircuitBreaker
+
 logger = logging.getLogger(__name__)
 
-TIMEOUT_SECONDS = 5
+TIMEOUT_SECONDS = 3
 CONTINGENCY_RESPONSE = (
     "Estou com uma pequena instabilidade momentânea para consultar o assistente avançado. "
     "Por favor, revise o enunciado e tente novamente em instantes!"
 )
 HINT_SIMILARITY_THRESHOLD = 0.40
+
+AI_CIRCUIT_BREAKER = CircuitBreaker(failure_threshold=3, recovery_timeout=30.0)
 
 
 @dataclass
@@ -48,6 +52,11 @@ class HintService:
 
     @staticmethod
     def _call_external_ai(questao: Questao, pergunta: str) -> Optional[str]:
+        # Fail-fast: se o circuito está aberto, a IA falhou recentemente; não toca na rede.
+        if not AI_CIRCUIT_BREAKER.allow_request():
+            logger.warning("Circuit breaker da IA aberto; retornando contingência imediata.")
+            return None
+
         api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("EXTERNAL_AI_API_KEY")
         if not api_key:
             logger.warning("Nenhuma chave de API externa configurada.")
@@ -80,12 +89,29 @@ class HintService:
 
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as response:
-                if response.status == 200:
-                    data = json.loads(response.read().decode("utf-8"))
-                    return data["choices"][0]["message"]["content"].strip()
-                return None
+                if response.status != 200:
+                    logger.warning(f"IA externa respondeu status inesperado: {response.status}")
+                    AI_CIRCUIT_BREAKER.record_failure()
+                    return None
+                data = json.loads(response.read().decode("utf-8"))
+                resposta = data["choices"][0]["message"]["content"].strip()
+                AI_CIRCUIT_BREAKER.record_success()
+                return resposta
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                logger.warning("IA externa retornou 429 (cota/rate limit). Acionando contingência.")
+            else:
+                logger.error(f"IA externa retornou HTTP {e.code}. Acionando contingência.")
+            AI_CIRCUIT_BREAKER.record_failure()
+            return None
+        except (urllib.error.URLError, TimeoutError) as e:
+            logger.error(f"Falha de rede/timeout ao conectar com IA externa: {e}")
+            AI_CIRCUIT_BREAKER.record_failure()
+            return None
         except Exception as e:
-            logger.error(f"Falha/Timeout ao conectar com IA externa: {e}")
+            # Rede de segurança: nenhuma falha inesperada deve propagar (evita HTTP 500).
+            logger.error(f"Erro inesperado ao consultar IA externa: {e}")
+            AI_CIRCUIT_BREAKER.record_failure()
             return None
 
     @classmethod
