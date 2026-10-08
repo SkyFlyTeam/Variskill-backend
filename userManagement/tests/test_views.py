@@ -3,6 +3,8 @@ from django.contrib.auth.hashers import make_password
 from django.urls import reverse
 from model_bakery import baker
 
+from userManagement.models import Interesse, UsuarioInteresse
+
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
@@ -18,6 +20,16 @@ def user(django_user_model):
     )
 
 
+@pytest.fixture
+def interesse_python():
+    return Interesse.objects.create(nome='Python')
+
+
+@pytest.fixture
+def interesse_django():
+    return Interesse.objects.create(nome='Django')
+
+
 def test_register_creates_user_and_session(client, django_user_model):
     response = client.post(
         reverse('register'),
@@ -28,7 +40,16 @@ def test_register_creates_user_and_session(client, django_user_model):
     assert response.status_code == 201
     user = django_user_model.objects.get(apelido='alice')
     assert user.check_password('test-password-123')
-    assert response.data == {'id': str(user.pk), 'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'xp_total': 0, 'streak_dias': 0, 'is_primeiro_acesso': True}
+    assert response.data['id'] == str(user.pk)
+    assert response.data['apelido'] == 'alice'
+    assert response.data['nome'] == 'Alice'
+    assert response.data['email'] == 'alice@example.com'
+    assert response.data['xp_total'] == 0
+    assert response.data['streak_dias'] == 0
+    assert response.data['is_primeiro_acesso'] is True
+    assert response.data['sexo'] is None
+    assert response.data['idade'] is None
+    assert response.data['interesses'] == []
     assert user.is_primeiro_acesso is True
     assert client.session['_auth_user_id'] == str(user.pk)
     assert client.get(reverse('user-list')).status_code == 200
@@ -255,3 +276,165 @@ def test_authenticated_user_can_delete_user(client, user, django_user_model):
 
     assert response.status_code == 204
     assert not django_user_model.objects.filter(pk=user.pk).exists()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/users/me/
+# ---------------------------------------------------------------------------
+
+def test_me_requires_authentication(client):
+    response = client.get(reverse('user-me'))
+
+    assert response.status_code == 403
+
+
+def test_me_returns_all_fields(client, user):
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.status_code == 200
+    assert response.data['id'] == str(user.pk)
+    assert response.data['apelido'] == user.apelido
+    assert response.data['sexo'] is None
+    assert response.data['idade'] is None
+    assert response.data['interesses'] == []
+
+
+def test_me_returns_nested_interesses(client, user, interesse_python, interesse_django):
+    UsuarioInteresse.objects.create(usuario=user, interesse=interesse_python)
+    UsuarioInteresse.objects.create(usuario=user, interesse=interesse_django)
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.status_code == 200
+    ids = {str(i['id']) for i in response.data['interesses']}
+    nomes = {i['nome'] for i in response.data['interesses']}
+    assert ids == {str(interesse_python.pk), str(interesse_django.pk)}
+    assert nomes == {'Python', 'Django'}
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/users/me/
+# ---------------------------------------------------------------------------
+
+def test_me_patch_updates_sexo_and_idade(client, user):
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-me'),
+        {'sexo': 'F', 'idade': 25},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    assert response.data['sexo'] == 'F'
+    assert response.data['idade'] == 25
+    user.refresh_from_db()
+    assert user.sexo == 'F'
+    assert user.idade == 25
+
+
+def test_me_patch_invalid_sexo_is_rejected(client, user):
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-me'),
+        {'sexo': 'X'},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'sexo' in response.data
+
+
+def test_me_patch_sets_interesses(client, user, interesse_python, interesse_django):
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-me'),
+        {'interesses_ids': [str(interesse_python.pk), str(interesse_django.pk)]},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    ids = {str(i['id']) for i in response.data['interesses']}
+    assert ids == {str(interesse_python.pk), str(interesse_django.pk)}
+    assert UsuarioInteresse.objects.filter(usuario=user).count() == 2
+
+
+def test_me_patch_replaces_existing_interesses(client, user, interesse_python, interesse_django):
+    UsuarioInteresse.objects.create(usuario=user, interesse=interesse_python)
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-me'),
+        {'interesses_ids': [str(interesse_django.pk)]},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    vinculos = UsuarioInteresse.objects.filter(usuario=user)
+    assert vinculos.count() == 1
+    assert vinculos.first().interesse_id == interesse_django.pk
+
+
+def test_me_patch_clears_interesses_when_empty_list(client, user, interesse_python):
+    UsuarioInteresse.objects.create(usuario=user, interesse=interesse_python)
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-me'),
+        {'interesses_ids': []},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    assert response.data['interesses'] == []
+    assert not UsuarioInteresse.objects.filter(usuario=user).exists()
+
+
+def test_me_patch_omitting_interesses_ids_preserves_existing(client, user, interesse_python):
+    UsuarioInteresse.objects.create(usuario=user, interesse=interesse_python)
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-me'),
+        {'idade': 30},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    assert UsuarioInteresse.objects.filter(usuario=user).count() == 1
+
+
+def test_me_patch_nonexistent_interesse_returns_400(client, user):
+    import uuid
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-me'),
+        {'interesses_ids': [str(uuid.uuid4())]},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'interesses_ids' in response.data
+
+
+def test_me_patch_interesses_sync_is_atomic(client, user, interesse_python):
+    import uuid
+    client.force_login(user)
+    UsuarioInteresse.objects.create(usuario=user, interesse=interesse_python)
+
+    # One valid ID followed by one that doesn't exist — whole transaction must roll back
+    response = client.patch(
+        reverse('user-me'),
+        {'interesses_ids': [str(interesse_python.pk), str(uuid.uuid4())]},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    # Original vinculo must still be there (rollback)
+    assert UsuarioInteresse.objects.filter(usuario=user).count() == 1
