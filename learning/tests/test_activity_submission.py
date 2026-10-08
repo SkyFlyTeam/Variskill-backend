@@ -77,6 +77,9 @@ def test_approved_submission_persists_execution_and_credits_xp(client, student, 
     assert response.data['pontuacao_obtida'] == 10
     assert response.data['xp_concedido'] == 50
     assert response.data['novo_xp_total'] == 200
+    assert response.data['level_up'] is False
+    assert response.data['nivel_anterior'] == 2
+    assert response.data['novo_nivel'] == 2
     execution = ExecucaoAtividade.objects.get(pk=response.data['execucao_id'])
     assert execution.usuario == student
     assert execution.atividade == atividade
@@ -86,6 +89,23 @@ def test_approved_submission_persists_execution_and_credits_xp(client, student, 
     student.refresh_from_db()
     assert student.xp_total == 200
     assert student.streak_dias == 1
+
+
+def test_approved_submission_triggers_level_up(client, student, atividade):
+    student.xp_total = 90  # Falta 10 XP para o Nível 2
+    student.save()
+    questao = make_questao(atividade, weight=10)
+    client.force_login(student)
+
+    response = submit(client, atividade, {str(questao.pk): ['A']})
+
+    assert response.status_code == 200
+    assert response.data['aprovado'] is True
+    assert response.data['xp_concedido'] == 50
+    assert response.data['novo_xp_total'] == 140
+    assert response.data['level_up'] is True
+    assert response.data['nivel_anterior'] == 1
+    assert response.data['novo_nivel'] == 2
 
 
 @pytest.mark.parametrize('correct_count, approved, hit_rate', [

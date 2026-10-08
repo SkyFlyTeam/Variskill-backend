@@ -97,6 +97,9 @@ class SubmissionResultSerializer(serializers.Serializer):
     pontuacao_obtida = serializers.IntegerField(source='score_obtained')
     xp_concedido = serializers.IntegerField(source='xp_granted')
     novo_xp_total = serializers.IntegerField(source='new_xp_total')
+    level_up = serializers.BooleanField()
+    nivel_anterior = serializers.IntegerField()
+    novo_nivel = serializers.IntegerField()
     executado_em = serializers.DateTimeField(source='execution.executado_em')
     questoes_feedback = QuestionFeedbackSerializer(source='feedback', many=True)
 

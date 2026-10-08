@@ -3,6 +3,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from .models import Interesse, UsuarioInteresse
+from .services import GamificationService
 
 User = get_user_model()
 
@@ -19,6 +20,8 @@ class UserSerializer(serializers.ModelSerializer):
     interesses_ids = serializers.ListField(
         child=serializers.UUIDField(), write_only=True, required=False
     )
+    nivel = serializers.SerializerMethodField()
+    progresso_nivel = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -26,13 +29,20 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'apelido', 'nome', 'email', 'password',
             'xp_total', 'streak_dias', 'is_primeiro_acesso',
             'sexo', 'idade', 'interesses', 'interesses_ids',
+            'nivel', 'progresso_nivel',
         )
-        read_only_fields = ('id', 'criado_em')
+        read_only_fields = ('id', 'criado_em', 'nivel', 'progresso_nivel')
         extra_kwargs = {
             'apelido': {'required': True},
             'nome': {'required': True},
             'email': {'required': True},
         }
+
+    def get_nivel(self, obj) -> int:
+        return GamificationService.calcular_nivel(obj.xp_total)
+
+    def get_progresso_nivel(self, obj) -> dict:
+        return GamificationService.obter_progresso_nivel(obj.xp_total)
 
     def get_interesses(self, obj):
         interesses = Interesse.objects.filter(usuarios_interessados__usuario=obj)
