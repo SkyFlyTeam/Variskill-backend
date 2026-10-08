@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 
 from django.contrib.auth import get_user_model
@@ -6,7 +7,7 @@ from django.db import transaction
 from grading.validators import ResponseValidatorContext
 
 from userManagement.services import GamificationService
-from .models import ExecucaoAtividade
+from .models import ExecucaoAtividade, RespostaQuestao
 
 APPROVAL_THRESHOLD_PERCENT = 70
 
@@ -38,11 +39,13 @@ def _is_correct(questao, answer):
 def submit_activity(user, atividade, answers):
     questoes = list(atividade.questoes.all())
     feedback = []
+    respostas_avaliadas = []
     correct_count = 0
     score_obtained = 0
 
     for questao in questoes:
-        correct = _is_correct(questao, answers.get(str(questao.pk), []))
+        answer = answers.get(str(questao.pk), [])
+        correct = _is_correct(questao, answer)
         if correct:
             correct_count += 1
             score_obtained += questao.peso_pontuacao
@@ -51,6 +54,7 @@ def submit_activity(user, atividade, answers):
             'correta': correct,
             'explicacao': questao.explicacao,
         })
+        respostas_avaliadas.append((questao, answer, correct))
 
     approved = correct_count * 100 >= APPROVAL_THRESHOLD_PERCENT * len(questoes)
     hit_rate = round(correct_count * 100 / len(questoes), 1)
@@ -76,6 +80,16 @@ def submit_activity(user, atividade, answers):
         aprovado=approved,
         pontuacao_obtida=score_obtained,
     )
+
+    RespostaQuestao.objects.bulk_create([
+        RespostaQuestao(
+            execucao=execution,
+            questao=questao,
+            resposta_fornecida=json.dumps(answer, ensure_ascii=False),
+            correta=correct,
+        )
+        for questao, answer, correct in respostas_avaliadas
+    ])
 
     return SubmissionResult(
         execution=execution,
