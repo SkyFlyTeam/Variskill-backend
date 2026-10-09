@@ -157,8 +157,12 @@ class HintService:
 
         # 4. Etapa 3: Resiliência em caso de falha da IA
         if not resposta_text:
-            origem = "CONTINGENCIA"
-            resposta_text = CONTINGENCY_RESPONSE
+            if questao.dica_conceitual and questao.dica_conceitual.strip():
+                origem = "PLN_LOCAL"
+                resposta_text = questao.dica_conceitual.strip()
+            else:
+                origem = "CONTINGENCIA"
+                resposta_text = CONTINGENCY_RESPONSE
 
         # Registrar a resposta do assistente no histórico
         Mensagem.objects.create(

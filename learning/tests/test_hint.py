@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from rest_framework import status
@@ -102,6 +103,30 @@ class HintEndpointTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['origem_resposta'], 'CONTINGENCIA')
         self.assertIn('instabilidade momentânea', response.data['resposta_coach'])
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"})
+    @patch('urllib.request.urlopen')
+    def test_contingencia_sem_500_e_rapida(self, mock_urlopen):
+        import time
+        import urllib.error
+        from django.urls import resolve
+
+        mock_urlopen.side_effect = urllib.error.URLError("sem rede")
+        resolve(self.url)
+
+        payload = {
+            'sessao_id': str(self.sessao.id),
+            'questao_id': str(self.questao_sem_dica.id),
+            'pergunta': 'Duvida sem dica local.',
+        }
+
+        inicio = time.perf_counter()
+        response = self.client.post(self.url, payload, format='json')
+        duracao = time.perf_counter() - inicio
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['origem_resposta'], 'CONTINGENCIA')
+        self.assertLess(duracao, 0.5)
 
     @patch('learning.hint_service.HintService._dica_corresponde')
     @patch('learning.hint_service.HintService._call_external_ai')
