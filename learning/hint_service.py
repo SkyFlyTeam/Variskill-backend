@@ -22,6 +22,8 @@ CONTINGENCY_RESPONSE = (
 )
 HINT_SIMILARITY_THRESHOLD = 0.40
 
+# Circuit breaker da IA externa: após 3 falhas seguidas o circuito abre por 30s e as
+# chamadas seguintes falham na hora (< 500ms), sem tocar na rede.
 AI_CIRCUIT_BREAKER = CircuitBreaker(failure_threshold=3, recovery_timeout=30.0)
 
 
