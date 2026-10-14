@@ -45,6 +45,26 @@ INTENCOES_CANONICAS = [
         ],
     },
     {"code": "PEDIR_DICA", "system_action": "FORNECER_DICA_PEDAGOGICA", "description": "Orientação pedagógica durante a atividade, sem entregar o gabarito (RFN06).", "examples": ["Pode me dar uma dica?", "Preciso de uma orientação para resolver", "Não entendi, me ajude sem dar a resposta", "Tem alguma pista para esta atividade?", "Como posso pensar nessa questão?"], "responses": ["Claro! Pense no primeiro passo e observe as informações mais importantes: {texto_dica}.", "Aqui vai uma pista, sem entregar o gabarito: {texto_dica}."]},
+    {
+        "code": "RECOMENDAR_TRILHA",
+        "system_action": "RECOMENDAR_TRILHAS_CONTEXTUAL",
+        "description": "Recomendação inteligente de trilhas com base nos interesses e histórico do estudante.",
+        "examples": [
+            "Qual trilha você me recomenda?",
+            "O que devo estudar agora?",
+            "Me sugira uma trilha",
+            "Qual curso combina comigo?",
+            "Recomende uma trilha complementar",
+            "Não sei por onde começar, me indique um caminho",
+            "Quais trilhas combinam com os meus interesses?",
+            "Me dê uma sugestão de trilha de estudo",
+            "O que você sugere que eu aprenda?",
+        ],
+        "responses": [
+            "Com base no seu perfil e interesses, selecionei estas recomendações para você:",
+            "Preparei uma recomendação especial de trilhas com base no que você mais gosta e no seu progresso:",
+        ],
+    },
 ]
 
 

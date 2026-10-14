@@ -21,12 +21,14 @@ from semanticSearch.service.corpus_search import CorpusSearch
 from semanticSearch.service.nlp.intent_classifier import IntentClassifier
 
 SUGESTOES_INICIAIS = [
+    "Me recomende uma trilha",
     "Ver trilhas disponíveis",
     "Como funciona a plataforma?",
     "Quero me matricular em uma trilha",
 ]
 
 SUGESTOES_AJUDA = [
+    "Me recomende uma trilha",
     "Quais trilhas estão disponíveis?",
     "Quero me matricular em uma trilha",
     "Quero fazer o teste de nivelamento",
@@ -475,6 +477,111 @@ def _tratar_fallback(ctx: ContextoConversa) -> RespostaIntencao:
     return RespostaIntencao(ctx.resposta_base, sugestoes_rapidas=SUGESTOES_FALLBACK)
 
 
+def _obter_interesses_usuario(usuario) -> list[str]:
+    """Recupera lista de nomes de interesses cadastrados do usuário."""
+    if not hasattr(usuario, "interesses_usuario"):
+        return []
+    return list(
+        usuario.interesses_usuario.select_related("interesse").values_list(
+            "interesse__nome", flat=True
+        )
+    )
+
+
+def _recomendar_trilhas_contextual(usuario, trilhas_ativas: list[Trilha]) -> tuple[list[Trilha], list[str], str]:
+    """
+    Avalia os interesses e o histórico de matrículas do estudante para ranquear as trilhas.
+    Retorna uma tupla: (trilhas_ranqueadas, interesses_do_aluno, motivo_texto).
+    """
+    interesses = _obter_interesses_usuario(usuario)
+    interesses_norm = [_normalizar(i) for i in interesses if i]
+
+    matriculas = {m.trilha_id: m.status for m in Matricula.objects.filter(usuario=usuario)}
+
+    scored_trilhas = []
+    for trilha in trilhas_ativas:
+        score = 0
+        status_matricula = matriculas.get(trilha.id)
+
+        # Trilha já concluída tem menor prioridade de recomendação direta
+        if status_matricula == "CONCLUIDO":
+            score -= 10
+        elif status_matricula == "EM_ANDAMENTO":
+            score += 1
+
+        # Match com interesses do estudante
+        habilidade_norm = _normalizar(trilha.habilidade)
+        titulo_norm = _normalizar(trilha.titulo)
+        desc_norm = _normalizar(trilha.descricao or "")
+
+        match_encontrado = False
+        for int_norm in interesses_norm:
+            if not int_norm:
+                continue
+            if int_norm in habilidade_norm or habilidade_norm in int_norm:
+                score += 5
+                match_encontrado = True
+            elif int_norm in titulo_norm or int_norm in desc_norm:
+                score += 3
+                match_encontrado = True
+
+        scored_trilhas.append((score, match_encontrado, trilha))
+
+    # Ordenar por score decrescente
+    scored_trilhas.sort(key=lambda item: item[0], reverse=True)
+    trilhas_ranqueadas = [item[2] for item in scored_trilhas]
+
+    matches_positivos = [item for item in scored_trilhas if item[1]]
+
+    if interesses and matches_positivos:
+        nomes_interesses = ", ".join(interesses[:3])
+        top_trilha = matches_positivos[0][2]
+        motivo = (
+            f"Com base no seu interesse em **{nomes_interesses}**, a trilha "
+            f"**{top_trilha.titulo}** é a mais indicada para você acelerar seus objetivos!"
+        )
+    elif any(st == "EM_ANDAMENTO" for st in matriculas.values()):
+        trilha_andamento = next(
+            (t for t in trilhas_ativas if matriculas.get(t.id) == "EM_ANDAMENTO"),
+            trilhas_ranqueadas[0] if trilhas_ranqueadas else None
+        )
+        if trilha_andamento:
+            motivo = (
+                f"Você já tem a trilha **{trilha_andamento.titulo}** em andamento! "
+                f"Recomendo continuar avançando nela ou explorar uma trilha complementar:"
+            )
+        else:
+            motivo = "Aqui estão as melhores trilhas recomendadas para o seu momento de aprendizado:"
+    else:
+        motivo = (
+            "Com base nas competências fundamentais da plataforma, "
+            "selecionei as trilhas ideais para impulsionar seu aprendizado:"
+        )
+
+    return trilhas_ranqueadas, interesses, motivo
+
+
+def _tratar_recomendar_trilha(ctx: ContextoConversa) -> RespostaIntencao:
+    if not ctx.trilhas_ativas:
+        return RespostaIntencao("No momento não há trilhas ativas disponíveis para recomendação. Volte em breve!")
+
+    trilhas_ranqueadas, interesses, motivo = _recomendar_trilhas_contextual(ctx.usuario, ctx.trilhas_ativas)
+    top_trilhas = trilhas_ranqueadas[:3]
+
+    conteudo = f"{motivo}\n\n{ctx.resposta_base}" if ctx.resposta_base else motivo
+
+    sugestoes = [f"Quero me matricular na trilha {t.titulo}" for t in top_trilhas]
+    if len(sugestoes) < 4:
+        sugestoes.append("Ver trilhas disponíveis")
+
+    return RespostaIntencao(
+        conteudo=conteudo.strip(),
+        opcoes_trilhas=_opcoes_trilhas(top_trilhas),
+        sugestoes_rapidas=sugestoes,
+        acao="RECOMENDACAO_TRILHA",
+    )
+
+
 HANDLERS_INTENCAO = {
     "SAUDACAO": _tratar_saudacao,
     "AJUDA_COMANDOS": _tratar_ajuda,
@@ -484,6 +591,7 @@ HANDLERS_INTENCAO = {
     "INICIAR_DO_ZERO": _tratar_iniciar_do_zero,
     "PEDIR_DICA": _tratar_pedir_dica,
     "DUVIDA_CONTEUDO": _tratar_duvida_conteudo,
+    "RECOMENDAR_TRILHA": _tratar_recomendar_trilha,
 }
 
 
