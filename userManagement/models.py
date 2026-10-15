@@ -35,10 +35,12 @@ class User(AbstractUser):
 
 class Interesse(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    nome = models.CharField(max_length=100, unique=True)
+    nome = models.CharField(max_length=50, unique=True)
+    ativo = models.BooleanField(default=True)
 
     class Meta:
         db_table = 'INTERESSE'
+        ordering = ['nome']
 
     def __str__(self):
         return self.nome

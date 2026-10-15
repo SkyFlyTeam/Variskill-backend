@@ -469,3 +469,50 @@ def test_me_patch_interesses_sync_is_atomic(client, user, interesse_python):
     assert response.status_code == 400
     # Original vinculo must still be there (rollback)
     assert UsuarioInteresse.objects.filter(usuario=user).count() == 1
+
+
+# ---------------------------------------------------------------------------
+# GET /api/interesses/
+# ---------------------------------------------------------------------------
+
+def test_interesse_list_requires_authentication(client):
+    response = client.get(reverse('interesse-list'))
+
+    assert response.status_code == 403
+
+
+def test_interesse_list_returns_active_only(client, user, interesse_python):
+    inativo = Interesse.objects.create(nome='Rust', ativo=False)
+    client.force_login(user)
+
+    response = client.get(reverse('interesse-list'))
+
+    assert response.status_code == 200
+    ids = {str(i['id']) for i in response.data}
+    assert str(interesse_python.pk) in ids
+    assert str(inativo.pk) not in ids
+
+
+def test_interesse_list_is_ordered_by_nome(client, user):
+    Interesse.objects.create(nome='Zython')
+    Interesse.objects.create(nome='Algoritmos')
+    Interesse.objects.create(nome='Machine Learning')
+    client.force_login(user)
+
+    response = client.get(reverse('interesse-list'))
+
+    assert response.status_code == 200
+    nomes = [i['nome'] for i in response.data]
+    assert nomes == sorted(nomes)
+
+
+def test_interesse_list_response_shape(client, user, interesse_python):
+    client.force_login(user)
+
+    response = client.get(reverse('interesse-list'))
+
+    assert response.status_code == 200
+    assert len(response.data) == 1
+    assert set(response.data[0].keys()) == {'id', 'nome'}
+    assert response.data[0]['id'] == str(interesse_python.pk)
+    assert response.data[0]['nome'] == 'Python'

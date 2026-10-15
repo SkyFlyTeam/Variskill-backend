@@ -3,7 +3,8 @@ from rest_framework import generics, permissions, status, viewsets, decorators
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.response import Response
 
-from .serializers import AuthSerializer, UserSerializer
+from .models import Interesse
+from .serializers import AuthSerializer, InteresseSerializer, UserSerializer
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -82,3 +83,10 @@ class LogoutView(generics.GenericAPIView):
     def post(self, request):
         logout(request)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InteresseListView(generics.ListAPIView):
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = InteresseSerializer
+    queryset = Interesse.objects.filter(ativo=True)
