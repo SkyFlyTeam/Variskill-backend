@@ -15,16 +15,16 @@ from .circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
-TIMEOUT_SECONDS = 3
+TIMEOUT_SECONDS = float(os.environ.get("EXTERNAL_AI_TIMEOUT_SECONDS", "3"))
 CONTINGENCY_RESPONSE = (
     "Estou com uma pequena instabilidade momentânea para consultar o assistente avançado. "
     "Por favor, revise o enunciado e tente novamente em instantes!"
 )
 HINT_SIMILARITY_THRESHOLD = 0.40
 
-# Circuit breaker da IA externa: após 3 falhas seguidas o circuito abre por 30s e as
-# chamadas seguintes falham na hora (< 500ms), sem tocar na rede.
-AI_CIRCUIT_BREAKER = CircuitBreaker(failure_threshold=3, recovery_timeout=30.0)
+# Circuit breaker da IA externa: após N falhas seguidas o circuito abre por X segundos e as
+# chamadas seguintes falham na hora (< 500ms), sem tocar na rede. N e X vêm do ambiente (.env).
+AI_CIRCUIT_BREAKER = CircuitBreaker()
 
 
 @dataclass
