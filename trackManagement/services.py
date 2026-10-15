@@ -6,8 +6,11 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
-from activityManagement.models import Atividade, ExecucaoAtividade
+from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
+from questionsManagement.models import Questao
 from trackManagement.models import Matricula, Modulo, ProgressoModulo, Trilha
+
+DIAGNOSTICO_ERROS_THRESHOLD_PERCENT = 70.0
 
 LEVEL_INICIANTE = 'INICIANTE'
 LEVEL_INTERMEDIARIO = 'INTERMEDIARIO'
@@ -195,4 +198,91 @@ def efetivar_matricula(usuario, trilha: Trilha) -> Matricula:
     ])
 
     return matricula
+
+
+@dataclass
+class DiagnosticoErrosResult:
+    modulo_id: uuid.UUID
+    total_respondidas: int
+    total_acertos: int
+    taxa_acerto: float
+    questoes_erradas: List[Questao]
+    parecer: str
+
+
+def _conceito_da_questao(questao: Questao) -> str:
+    """Texto conceitual mais específico disponível para citar no parecer formativo."""
+    if questao.dica_conceitual and questao.dica_conceitual.strip():
+        return questao.dica_conceitual.strip()
+    if questao.explicacao and questao.explicacao.strip():
+        return questao.explicacao.strip()
+    return questao.enunciado.strip()
+
+
+def _gerar_parecer_formativo(total_respondidas: int, taxa_acerto: float, questoes_erradas: List[Questao]) -> str:
+    if total_respondidas == 0:
+        return (
+            'Você ainda não respondeu questões neste módulo. '
+            'Realize as atividades para receber seu diagnóstico.'
+        )
+
+    if taxa_acerto >= DIAGNOSTICO_ERROS_THRESHOLD_PERCENT:
+        parecer = (
+            f'Você demonstra domínio sólido do conteúdo deste módulo, '
+            f'com {taxa_acerto}% de acerto nas questões já respondidas.'
+        )
+        if questoes_erradas:
+            conceitos = '; '.join(_conceito_da_questao(q) for q in questoes_erradas)
+            parecer += f' Como ponto de atenção secundário, vale revisar: {conceitos}.'
+        else:
+            parecer += ' Continue assim!'
+        return parecer
+
+    conceitos = '; '.join(_conceito_da_questao(q) for q in questoes_erradas)
+    return (
+        f'Sua taxa de acerto neste módulo foi de {taxa_acerto}%, '
+        f'abaixo do esperado ({DIAGNOSTICO_ERROS_THRESHOLD_PERCENT:.0f}%). '
+        f'Recomendamos revisar os seguintes conceitos antes de prosseguir: {conceitos}.'
+    )
+
+
+def obter_diagnostico_erros(usuario, modulo_id: uuid.UUID) -> DiagnosticoErrosResult:
+    """Consolida, a partir de RESPOSTA_QUESTAO, o diagnóstico de erros do usuário
+    na última execução de cada atividade do módulo informado, com parecer formativo
+    determinístico (>= 70% de acerto: domínio; < 70%: revisão dos conceitos errados).
+    """
+    try:
+        modulo = Modulo.objects.get(pk=modulo_id)
+    except (Modulo.DoesNotExist, ValueError):
+        raise NotFound('Módulo não encontrado.')
+
+    ultimas_execucoes_ids = (
+        ExecucaoAtividade.objects.filter(usuario=usuario, atividade__modulo=modulo)
+        .order_by('atividade_id', '-executado_em')
+        .distinct('atividade_id')
+        .values_list('id', flat=True)
+    )
+
+    respostas = list(
+        RespostaQuestao.objects.filter(execucao_id__in=list(ultimas_execucoes_ids))
+        .select_related('questao')
+    )
+
+    total_respondidas = len(respostas)
+    total_acertos = sum(1 for resposta in respostas if resposta.correta)
+    taxa_acerto = (
+        round(total_acertos * 100.0 / total_respondidas, 1) if total_respondidas else 0.0
+    )
+    questoes_erradas = [resposta.questao for resposta in respostas if not resposta.correta]
+
+    parecer = _gerar_parecer_formativo(total_respondidas, taxa_acerto, questoes_erradas)
+
+    return DiagnosticoErrosResult(
+        modulo_id=modulo.id,
+        total_respondidas=total_respondidas,
+        total_acertos=total_acertos,
+        taxa_acerto=taxa_acerto,
+        questoes_erradas=questoes_erradas,
+        parecer=parecer,
+    )
 

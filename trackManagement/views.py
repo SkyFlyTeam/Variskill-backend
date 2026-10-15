@@ -1,7 +1,7 @@
 import uuid
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.response import Response
@@ -10,13 +10,15 @@ from rest_framework.views import APIView
 from activityManagement.models import Atividade
 from .models import Matricula, ProgressoModulo, Trilha
 from .serializers import (
+    DiagnosticoErrosOutputSerializer,
+    DiagnosticoErrosQuerySerializer,
     MatriculaCriarSerializer,
     MatriculaSaidaSerializer,
     PosicionarNivelInputSerializer,
     PosicionarNivelOutputSerializer,
     TrilhaListaSerializer,
 )
-from .services import efetivar_matricula, posicionar_nivel_pos_diagnostico
+from .services import efetivar_matricula, obter_diagnostico_erros, posicionar_nivel_pos_diagnostico
 
 
 from django.utils import timezone
@@ -143,6 +145,40 @@ class PosicionarNivelView(APIView):
         output_serializer = PosicionarNivelOutputSerializer(data=response_data)
         output_serializer.is_valid(raise_exception=True)
 
+        return Response(output_serializer.data, status=status.HTTP_200_OK)
+
+
+class DiagnosticoErrosView(APIView):
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='modulo_id',
+                type=uuid.UUID,
+                location=OpenApiParameter.QUERY,
+                required=True,
+            ),
+        ],
+        responses={200: DiagnosticoErrosOutputSerializer},
+        summary='Diagnóstico de erros e feedback formativo do usuário em um módulo',
+        description=(
+            'Consolida, a partir de RESPOSTA_QUESTAO, a última execução de cada atividade '
+            'do módulo para o usuário autenticado, e devolve um parecer formativo '
+            'determinístico conforme a taxa de acerto.'
+        ),
+    )
+    def get(self, request):
+        query_serializer = DiagnosticoErrosQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+
+        result = obter_diagnostico_erros(
+            usuario=request.user,
+            modulo_id=query_serializer.validated_data['modulo_id'],
+        )
+
+        output_serializer = DiagnosticoErrosOutputSerializer(result)
         return Response(output_serializer.data, status=status.HTTP_200_OK)
 
 
