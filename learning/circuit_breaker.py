@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 
@@ -17,7 +18,14 @@ class CircuitBreaker:
     OPEN = "open"
     HALF_OPEN = "half_open"
 
-    def __init__(self, failure_threshold: int = 3, recovery_timeout: float = 30.0):
+    def __init__(self, failure_threshold: int | None = None, recovery_timeout: float | None = None):
+        # Sem argumentos, os valores vêm do ambiente (.env):
+        # EXTERNAL_AI_CIRCUIT_FAILURE_THRESHOLD e EXTERNAL_AI_CIRCUIT_RECOVERY_TIMEOUT.
+        if failure_threshold is None:
+            failure_threshold = int(os.environ.get("EXTERNAL_AI_CIRCUIT_FAILURE_THRESHOLD", "3"))
+        if recovery_timeout is None:
+            recovery_timeout = float(os.environ.get("EXTERNAL_AI_CIRCUIT_RECOVERY_TIMEOUT", "30"))
+
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self._state = self.CLOSED
