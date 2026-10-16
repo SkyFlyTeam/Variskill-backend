@@ -50,6 +50,15 @@ def test_register_creates_user_and_session(client, django_user_model):
     assert response.data['sexo'] is None
     assert response.data['idade'] is None
     assert response.data['interesses'] == []
+    assert response.data['nivel'] == 1
+    assert response.data['progresso_nivel'] == {
+        'nivel': 1,
+        'xp_atual': 0,
+        'xp_min_faixa': 0,
+        'xp_proximo_nivel': 100,
+        'xp_restante': 100,
+        'progresso_pct': 0.0,
+    }
     assert user.is_primeiro_acesso is True
     assert client.session['_auth_user_id'] == str(user.pk)
     assert client.get(reverse('user-list')).status_code == 200
@@ -299,7 +308,29 @@ def test_me_returns_all_fields(client, user):
     assert response.data['sexo'] is None
     assert response.data['idade'] is None
     assert response.data['interesses'] == []
+    assert response.data['nivel'] == 1
+    assert 'progresso_nivel' in response.data
 
+
+def test_me_returns_level_and_progress(client, user):
+    user.xp_total = 250
+    user.save()
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.status_code == 200
+    assert response.data['id'] == str(user.pk)
+    assert response.data['xp_total'] == 250
+    assert response.data['nivel'] == 2
+    assert response.data['progresso_nivel'] == {
+        'nivel': 2,
+        'xp_atual': 250,
+        'xp_min_faixa': 100,
+        'xp_proximo_nivel': 300,
+        'xp_restante': 50,
+        'progresso_pct': 75.0,
+    }
 
 def test_me_returns_nested_interesses(client, user, interesse_python, interesse_django):
     UsuarioInteresse.objects.create(usuario=user, interesse=interesse_python)
