@@ -56,6 +56,26 @@ class PosicionarNivelInputSerializer(serializers.Serializer):
     matricula_id = serializers.UUIDField(required=True)
 
 
+class DiagnosticoErrosQuerySerializer(serializers.Serializer):
+    modulo_id = serializers.UUIDField(required=True)
+
+
+class QuestaoErradaSerializer(serializers.Serializer):
+    questao_id = serializers.UUIDField(source='id')
+    enunciado = serializers.CharField()
+    explicacao = serializers.CharField()
+    dica_conceitual = serializers.CharField()
+
+
+class DiagnosticoErrosOutputSerializer(serializers.Serializer):
+    modulo_id = serializers.UUIDField()
+    total_respondidas = serializers.IntegerField()
+    total_acertos = serializers.IntegerField()
+    taxa_acerto = serializers.FloatField()
+    questoes_erradas = QuestaoErradaSerializer(many=True)
+    parecer = serializers.CharField()
+
+
 class ModuloLiberadoSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     titulo = serializers.CharField()

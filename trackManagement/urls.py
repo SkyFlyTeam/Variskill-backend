@@ -1,6 +1,12 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
-from .views import MatriculaViewSet, PosicionarNivelView, RoadmapView, TrilhaViewSet
+from .views import (
+    DiagnosticoErrosView,
+    MatriculaViewSet,
+    PosicionarNivelView,
+    RoadmapView,
+    TrilhaViewSet,
+)
 
 router = DefaultRouter()
 router.register('trilhas', TrilhaViewSet, basename='trilha')
@@ -16,5 +22,10 @@ urlpatterns = [
         'diagnostico/<uuid:atividade_id>/posicionar-nivel/',
         PosicionarNivelView.as_view(),
         name='diagnostico-posicionar-nivel',
+    ),
+    path(
+        'progresso/diagnostico-erros/',
+        DiagnosticoErrosView.as_view(),
+        name='progresso-diagnostico-erros',
     ),
 ] + router.urls
