@@ -10,7 +10,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from assistantManagement.models import Mensagem, Sessao
 from trackManagement.models import Trilha, Modulo, Matricula, ProgressoModulo
 from trackManagement.services import efetivar_matricula
-from activityManagement.models import Atividade
+from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
 from intents.models import Intention
 from learning.hint_service import CONTINGENCY_RESPONSE, HintService
 from questionsManagement.models import Questao
@@ -51,6 +51,11 @@ PALAVRAS_IGNORADAS = {
     "com", "para", "por", "um", "uma", "trilha", "trilhas", "curso", "cursos",
 }
 
+# Limiares de classificação do histórico pedagógico (VAR-100), nos mesmos termos do
+# parecer formativo de VAR-94: módulo com reincidência de erros vs. módulo dominado.
+TAXA_DIFICULDADE_PERCENT = 70.0
+TAXA_DOMINIO_PERCENT = 80.0
+
 
 @dataclass
 class RespostaIntencao:
@@ -65,6 +70,13 @@ class RespostaIntencao:
 
 
 @dataclass
+class ResumoPedagogico:
+    """Histórico pedagógico agregado do estudante (VAR-100), por módulo."""
+    modulos_com_dificuldade: list = field(default_factory=list)
+    modulos_com_dominio: list = field(default_factory=list)
+
+
+@dataclass
 class ContextoConversa:
     usuario: Any
     sessao: Sessao
@@ -76,6 +88,7 @@ class ContextoConversa:
     trilha_id: Optional[uuid.UUID] = None
     atividade_id: Optional[uuid.UUID] = None
     questao_id: Optional[uuid.UUID] = None
+    resumo_pedagogico: Optional[ResumoPedagogico] = None
 
     def resolver_trilha(self) -> Optional[Trilha]:
         """
@@ -239,6 +252,54 @@ def _matricular_no_nivel_basico(usuario, trilha: Trilha):
         ).select_related("modulo").order_by("ordem").first()
 
     return matricula, primeira_atividade
+
+
+def agregar_historico_pedagogico(usuario) -> ResumoPedagogico:
+    """
+    Agrega o histórico pedagógico do estudante (VAR-100) a partir da última execução de
+    cada atividade já realizada, classificando os módulos com reincidência de erros
+    (taxa de acerto < 70%) e os módulos já dominados (taxa de acerto >= 80%).
+
+    Usa a mesma estratégia de VAR-94 (última execução por atividade via DISTINCT ON do
+    Postgres) e resolve o agregado por módulo em memória, com uma única consulta a
+    RESPOSTA_QUESTAO (select_related evita N+1 ao acessar execucao/atividade/modulo).
+    """
+    ultimas_execucoes_ids = (
+        ExecucaoAtividade.objects.filter(usuario=usuario)
+        .order_by("atividade_id", "-executado_em")
+        .distinct("atividade_id")
+        .values_list("id", flat=True)
+    )
+
+    respostas = (
+        RespostaQuestao.objects
+        .filter(execucao_id__in=list(ultimas_execucoes_ids))
+        .select_related("execucao__atividade__modulo")
+    )
+
+    agregados_por_modulo = {}
+    for resposta in respostas:
+        modulo = resposta.execucao.atividade.modulo
+        agregado = agregados_por_modulo.setdefault(
+            modulo.id, {"titulo": modulo.titulo, "total": 0, "acertos": 0}
+        )
+        agregado["total"] += 1
+        agregado["acertos"] += int(resposta.correta)
+
+    modulos_com_dificuldade = []
+    modulos_com_dominio = []
+    for modulo_id, dados in agregados_por_modulo.items():
+        taxa_acerto = round(dados["acertos"] * 100.0 / dados["total"], 1)
+        item = {"modulo_id": modulo_id, "titulo": dados["titulo"], "taxa_acerto": taxa_acerto}
+        if taxa_acerto < TAXA_DIFICULDADE_PERCENT:
+            modulos_com_dificuldade.append(item)
+        elif taxa_acerto >= TAXA_DOMINIO_PERCENT:
+            modulos_com_dominio.append(item)
+
+    return ResumoPedagogico(
+        modulos_com_dificuldade=modulos_com_dificuldade,
+        modulos_com_dominio=modulos_com_dominio,
+    )
 
 
 def _pedir_escolha_de_trilha(ctx: ContextoConversa, pergunta: str, modelo_sugestao: str) -> RespostaIntencao:
@@ -564,6 +625,11 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
     if intencao_codigo and intencao_codigo != "FALLBACK":
         intencao_obj = Intention.objects.filter(code=intencao_codigo).first()
 
+    # Memória de contexto pedagógico da sessão (VAR-100): disponibiliza para os
+    # despachadores de intenção as dificuldades/domínios já detectados no histórico do
+    # estudante, sem expor um endpoint analítico novo (fica restrito a este contexto).
+    resumo_pedagogico = agregar_historico_pedagogico(usuario)
+
     # 2. Execução da ação de sistema associada à intenção
     ctx = ContextoConversa(
         usuario=usuario,
@@ -576,6 +642,7 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
         trilha_id=trilha_id,
         atividade_id=atividade_id,
         questao_id=questao_id,
+        resumo_pedagogico=resumo_pedagogico,
     )
     handler = HANDLERS_INTENCAO.get(intencao_codigo, _tratar_fallback)
     resposta = handler(ctx)
