@@ -100,7 +100,7 @@ def test_sem_execucoes_devolve_zerado_com_parecer_proprio(api_client, auth_user,
     assert 'ainda não respondeu' in response.data['parecer']
 
 
-def test_taxa_acima_de_70_por_cento_gera_parecer_de_dominio(api_client, auth_user, modulo):
+def test_taxa_abaixo_de_70_por_cento_calcula_corretamente_e_gera_parecer_de_revisao(api_client, auth_user, modulo):
     atividade = make_atividade(modulo)
     q1, q2, q3 = (make_questao(atividade, ordem=i) for i in range(1, 4))
     make_execucao(auth_user, atividade, [(q1, True), (q2, True), (q3, False)])
@@ -111,7 +111,7 @@ def test_taxa_acima_de_70_por_cento_gera_parecer_de_dominio(api_client, auth_use
     assert response.data['total_respondidas'] == 3
     assert response.data['total_acertos'] == 2
     assert response.data['taxa_acerto'] == pytest.approx(66.7)
-    # abaixo de 70%, então o parecer deve ser de revisao, nao de dominio (ver proximo teste p/ >=70)
+    assert 'abaixo do esperado' in response.data['parecer']
 
 
 def test_taxa_igual_ou_acima_de_70_por_cento_com_erro_cita_ponto_de_atencao(api_client, auth_user, modulo):
