@@ -6,6 +6,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Optional
 
+from django.conf import settings
 from rest_framework.exceptions import NotFound
 
 from assistantManagement.models import Mensagem, Sessao
@@ -66,15 +67,22 @@ class HintService:
 
         prompt_system = (
             f"Você é um tutor de programação. "
-            f"O aluno está na questão: '{questao.enunciado}' com o código '{questao.codigo_snippet}'. "
-            f"Responda à dúvida dele dando apenas pistas conceituais. NUNCA revele a resposta ou o gabarito final."
+            f"O aluno está na questão: '{questao.enunciado}'. "
+            f"Responda à dúvida dele dando apenas pistas conceituais. "
+            f"NUNCA revele a resposta ou o gabarito final."
         )
+
+        # Minimização (LGPD): não enviamos o código da questão e limitamos o texto
+        # livre do aluno. A transferência internacional ainda exige base/instrumento
+        # documentado pelo controlador (ver docs de LGPD).
+        max_chars = getattr(settings, 'LGPD_MAX_PROMPT_CHARS', 500)
+        pergunta_minimizada = (pergunta or '')[:max_chars]
 
         payload = json.dumps({
             "model": os.environ.get("EXTERNAL_AI_MODEL", "gpt-4o-mini"),
             "messages": [
                 {"role": "system", "content": prompt_system},
-                {"role": "user", "content": pergunta},
+                {"role": "user", "content": pergunta_minimizada},
             ],
             "temperature": 0.7,
         }).encode("utf-8")

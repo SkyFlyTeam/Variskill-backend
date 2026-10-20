@@ -28,6 +28,9 @@ class Mensagem(models.Model):
     remetente = models.CharField(max_length=10, choices=Remetente.choices)
     conteudo = models.TextField()
     distancia = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
+    # Origem da resposta do assistente (PLN_LOCAL/IA_EXTERNA/CONTINGENCIA), útil para
+    # transparência do uso de IA (LGPD) sem alterar o contrato existente.
+    origem_resposta = models.CharField(max_length=20, blank=True, default='')
     criada_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:

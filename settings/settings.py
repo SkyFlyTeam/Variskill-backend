@@ -17,19 +17,56 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _env_bool(name, default=False):
+    return os.environ.get(name, str(default)).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-n(#vve3eti$tnba06^y*q!o7)^fo-snp#-+s8+_l)8-9tdcv4_'
+# A chave de desenvolvimento mantém o ambiente local funcionando sem .env.
+# Em produção (DJANGO_DEBUG=False) a variável DJANGO_SECRET_KEY é obrigatória.
+DEV_SECRET_KEY = 'django-insecure-n(#vve3eti$tnba06^y*q!o7)^fo-snp#-+s8+_l)8-9tdcv4_'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', DEV_SECRET_KEY)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _env_bool('DJANGO_DEBUG', True)
+
+if not DEBUG and not os.environ.get('DJANGO_SECRET_KEY'):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        'Defina DJANGO_SECRET_KEY quando DJANGO_DEBUG=False.'
+    )
 
 ALLOWED_HOSTS = os.environ.get(
     'DJANGO_ALLOWED_HOSTS',
     'localhost,127.0.0.1,0.0.0.0',
 ).split(',')
+
+# Cookies e HTTPS. O padrão seguro para desenvolvimento é desligado; em produção
+# ative via DJANGO_* (ver .env.example). SECURE_PROXY_SSL_HEADER é habilitado
+# quando o TLS é terminado no proxy/nginx à frente do Django.
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = _env_bool('DJANGO_SESSION_COOKIE_SECURE', False)
+SESSION_COOKIE_SAMESITE = os.environ.get('DJANGO_SESSION_COOKIE_SAMESITE', 'Lax')
+CSRF_COOKIE_SECURE = _env_bool('DJANGO_CSRF_COOKIE_SECURE', False)
+CSRF_COOKIE_SAMESITE = os.environ.get('DJANGO_CSRF_COOKIE_SAMESITE', 'Lax')
+SECURE_SSL_REDIRECT = _env_bool('DJANGO_SECURE_SSL_REDIRECT', False)
+SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', '0'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS', False)
+SECURE_HSTS_PRELOAD = _env_bool('DJANGO_SECURE_HSTS_PRELOAD', False)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+X_FRAME_OPTIONS = 'DENY'
+
+if _env_bool('DJANGO_USE_X_FORWARDED_PROTO', False):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Flags LGPD (defaults seguros; podem ser desligados para clientes legados).
+LGPD_RESTRINGIR_USERS = _env_bool('LGPD_RESTRINGIR_USERS', True)
+LGPD_CAMPOS_READONLY = _env_bool('LGPD_CAMPOS_READONLY', True)
+LGPD_LIMPAR_AO_REVOGAR = _env_bool('LGPD_LIMPAR_AO_REVOGAR', False)
+LGPD_RETENCAO_DIAS = int(os.environ.get('LGPD_RETENCAO_DIAS', '365'))
+LGPD_MAX_PROMPT_CHARS = int(os.environ.get('LGPD_MAX_PROMPT_CHARS', '500'))
 
 
 # Application definition
