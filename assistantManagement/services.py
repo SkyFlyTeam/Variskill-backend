@@ -72,6 +72,8 @@ class RespostaIntencao:
     dados_acao: dict = field(default_factory=dict)
     # Permite ao handler corrigir a intenção reportada (ex.: FALLBACK respondido pelo corpus).
     intencao: Optional[str] = None
+    # Origem da resposta para transparência do uso de IA (PLN_LOCAL/IA_EXTERNA/CONTINGENCIA).
+    origem_resposta: Optional[str] = None
 
 
 @dataclass
@@ -495,6 +497,7 @@ def _tratar_pedir_dica(ctx: ContextoConversa) -> RespostaIntencao:
             conteudo=_preencher(ctx.resposta_base, texto_dica=dica_local.rstrip(".")),
             acao="DICA_FORNECIDA",
             dados_acao={**dados, "origem_resposta": "PLN_LOCAL"},
+            origem_resposta="PLN_LOCAL",
         )
 
     dica_externa = HintService._call_external_ai(questao, ctx.conteudo)
@@ -503,9 +506,14 @@ def _tratar_pedir_dica(ctx: ContextoConversa) -> RespostaIntencao:
             conteudo=dica_externa,
             acao="DICA_FORNECIDA",
             dados_acao={**dados, "origem_resposta": "IA_EXTERNA"},
+            origem_resposta="IA_EXTERNA",
         )
 
-    return RespostaIntencao(CONTINGENCY_RESPONSE, dados_acao={**dados, "origem_resposta": "CONTINGENCIA"})
+    return RespostaIntencao(
+        CONTINGENCY_RESPONSE,
+        dados_acao={**dados, "origem_resposta": "CONTINGENCIA"},
+        origem_resposta="CONTINGENCIA",
+    )
 
 
 def _resposta_do_corpus(ctx: ContextoConversa, entrada: EntradaCorpus, similaridade: float) -> RespostaIntencao:
@@ -812,6 +820,7 @@ def iniciar_sessao_chat(usuario):
         sessao=sessao,
         remetente=Mensagem.Remetente.ASSISTENTE,
         conteudo=conteudo_abertura,
+        origem_resposta="PLN_LOCAL",
     )
 
     return {
@@ -821,6 +830,7 @@ def iniciar_sessao_chat(usuario):
             "remetente": mensagem_inicial.remetente,
             "conteudo": mensagem_inicial.conteudo,
             "sugestoes_rapidas": sugestoes,
+            "origem_resposta": mensagem_inicial.origem_resposta,
             "criada_em": mensagem_inicial.criada_em,
         },
     }
@@ -897,6 +907,8 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
         intencao_codigo = resposta.intencao
         intencao_obj = Intention.objects.filter(code=intencao_codigo).first()
 
+    origem_resposta = resposta.origem_resposta or "PLN_LOCAL"
+
     # 3. Persistência atômica das mensagens (usuário e assistente juntas para evitar mensagens órfãs)
     with transaction.atomic():
         Mensagem.objects.create(
@@ -911,6 +923,7 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
             conteudo=resposta.conteudo,
             intencao=intencao_obj,
             distancia=distancia,
+            origem_resposta=origem_resposta,
         )
 
     return {
@@ -924,6 +937,7 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
             "acao": resposta.acao,
             "redirecionar_para": resposta.redirecionar_para,
             "dados_acao": resposta.dados_acao,
+            "origem_resposta": origem_resposta,
             "criada_em": mensagem_assistente.criada_em,
         }
     }
@@ -947,6 +961,7 @@ def obter_historico_chat(usuario, sessao_id):
             "remetente": msg.remetente,
             "conteudo": msg.conteudo,
             "intencao_detectada": intencao_codigo,
+            "origem_resposta": msg.origem_resposta or None,
             "criada_em": msg.criada_em,
         }
         if intencao_codigo == "LISTAR_TRILHAS":
