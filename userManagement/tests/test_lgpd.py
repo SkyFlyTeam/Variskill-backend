@@ -238,6 +238,7 @@ def test_registration_creates_termos_de_uso_consent(client, django_user_model):
             'nome': 'Consent User',
             'email': 'consent@example.com',
             'password': 'test-password-123',
+            'aceite_termos': True,
         },
         format='json',
     )
