@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ConsentimentoDetailView,
     ConsentimentoListView,
+    EventoAuditoriaListView,
     InteresseListView,
     LoginView,
     LogoutView,
@@ -27,5 +28,6 @@ urlpatterns = [
         ConsentimentoDetailView.as_view(),
         name='consentimento-detail',
     ),
+    path('auditoria/', EventoAuditoriaListView.as_view(), name='auditoria-list'),
     *router.urls,
 ]
