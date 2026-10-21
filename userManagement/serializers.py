@@ -4,7 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Consentimento, Interesse, SolicitacaoRevisao, UsuarioInteresse
+from .models import Consentimento, EventoAuditoria, Interesse, SolicitacaoRevisao, UsuarioInteresse
 from .services import GamificationService
 
 User = get_user_model()
@@ -75,12 +75,22 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('interesses_ids', None)
         aceite_versao = validated_data.pop('aceite_versao', None)
         password = validated_data.pop('password')
-        user = User(**validated_data)
-        if aceite_versao:
-            user.aceite_privacidade_versao = aceite_versao
+        versao_termos = aceite_versao or getattr(settings, 'TERMOS_DE_USO_VERSAO', '1.0')
+
+        with transaction.atomic():
+            user = User(**validated_data)
+            user.aceite_privacidade_versao = versao_termos
             user.aceite_privacidade_em = timezone.now()
-        user.set_password(password)
-        user.save()
+            user.set_password(password)
+            user.save()
+
+            # Consentimento automático do cadastro (Termos de Uso).
+            Consentimento.objects.create(
+                usuario=user,
+                tipo='TERMOS_DE_USO',
+                email_assinante=user.email,
+                versao_documento=versao_termos,
+            )
         return user
 
     def update(self, instance, validated_data):
@@ -135,10 +145,10 @@ class ConsentimentoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Consentimento
         fields = (
-            'id', 'tipo', 'concedido_em', 'revogado_em',
+            'id', 'tipo', 'email_assinante', 'concedido_em', 'revogado_em',
             'versao_documento', 'ativo',
         )
-        read_only_fields = ('id', 'concedido_em', 'revogado_em', 'ativo')
+        read_only_fields = ('id', 'email_assinante', 'concedido_em', 'revogado_em', 'ativo')
 
 
 class SolicitacaoRevisaoSerializer(serializers.ModelSerializer):
@@ -171,3 +181,14 @@ class ChangePasswordSerializer(serializers.Serializer):
         from django.contrib.auth.password_validation import validate_password
         validate_password(value, self.context.get('user'))
         return value
+
+
+class EventoAuditoriaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventoAuditoria
+        fields = (
+            'id', 'usuario', 'ator_email', 'ator_is_staff', 'acao',
+            'metodo', 'rota', 'status_code', 'resultado', 'recurso',
+            'recurso_id', 'ip_hash', 'user_agent', 'metadata', 'criado_em',
+        )
+        read_only_fields = fields
