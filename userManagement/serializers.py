@@ -25,6 +25,7 @@ class UserSerializer(serializers.ModelSerializer):
     nivel = serializers.SerializerMethodField()
     progresso_nivel = serializers.SerializerMethodField()
     aceite_versao = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    aceite_termos = serializers.BooleanField(write_only=True, required=False)
 
     class Meta:
         model = User
@@ -34,7 +35,7 @@ class UserSerializer(serializers.ModelSerializer):
             'sexo', 'idade', 'interesses', 'interesses_ids',
             'nivel', 'progresso_nivel',
             'aceite_privacidade_versao', 'aceite_privacidade_em', 'anonimizado_em',
-            'aceite_versao',
+            'aceite_versao', 'aceite_termos',
         )
         read_only_fields = (
             'id', 'criado_em', 'nivel', 'progresso_nivel',
@@ -73,6 +74,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('interesses_ids', None)
+        validated_data.pop('aceite_termos', None)
         aceite_versao = validated_data.pop('aceite_versao', None)
         password = validated_data.pop('password')
         versao_termos = aceite_versao or getattr(settings, 'TERMOS_DE_USO_VERSAO', '1.0')
@@ -95,6 +97,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         interesses_ids = validated_data.pop('interesses_ids', None)
+        validated_data.pop('aceite_termos', None)
         aceite_versao = validated_data.pop('aceite_versao', None)
         password = validated_data.pop('password', None)
 

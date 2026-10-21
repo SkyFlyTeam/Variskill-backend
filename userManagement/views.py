@@ -156,6 +156,12 @@ class RegisterView(generics.GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        if not serializer.validated_data.get('aceite_termos'):
+            raise ValidationError({
+                'aceite_termos': 'Você precisa aceitar os Termos de Uso para se cadastrar.'
+            })
+
         user = serializer.save()
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
         registrar_evento(
