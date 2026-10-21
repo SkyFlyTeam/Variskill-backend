@@ -66,7 +66,9 @@ LGPD_RESTRINGIR_USERS = _env_bool('LGPD_RESTRINGIR_USERS', True)
 LGPD_CAMPOS_READONLY = _env_bool('LGPD_CAMPOS_READONLY', True)
 LGPD_LIMPAR_AO_REVOGAR = _env_bool('LGPD_LIMPAR_AO_REVOGAR', False)
 LGPD_RETENCAO_DIAS = int(os.environ.get('LGPD_RETENCAO_DIAS', '365'))
+LGPD_AUDITORIA_RETENCAO_DIAS = int(os.environ.get('LGPD_AUDITORIA_RETENCAO_DIAS', '365'))
 LGPD_MAX_PROMPT_CHARS = int(os.environ.get('LGPD_MAX_PROMPT_CHARS', '500'))
+TERMOS_DE_USO_VERSAO = os.environ.get('TERMOS_DE_USO_VERSAO', '1.0')
 
 
 # Application definition
@@ -106,6 +108,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'userManagement.middleware.AuditRequestMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]

@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from activityManagement.models import ExecucaoAtividade, RespostaQuestao
 from assistantManagement.models import Sessao
+from userManagement.audit import registrar_evento
 
 
 class Command(BaseCommand):
@@ -40,11 +41,16 @@ class Command(BaseCommand):
         sessoes = Sessao.objects.filter(criada_em__lt=cutoff)
         execucoes = ExecucaoAtividade.objects.filter(executado_em__lt=cutoff)
         respostas = RespostaQuestao.objects.filter(execucao__executado_em__lt=cutoff)
+        totais = {
+            'sessoes': sessoes.count(),
+            'execucoes': execucoes.count(),
+            'respostas': respostas.count(),
+        }
 
         self.stdout.write(
             f'Retenção: {dias} dias (cutoff {cutoff.isoformat()}). '
-            f'Sessões: {sessoes.count()} | Execuções: {execucoes.count()} | '
-            f'Respostas: {respostas.count()}'
+            f'Sessões: {totais["sessoes"]} | Execuções: {totais["execucoes"]} | '
+            f'Respostas: {totais["respostas"]}'
         )
 
         if not options['executar']:
@@ -57,5 +63,11 @@ class Command(BaseCommand):
             sessoes.delete()
             execucoes.update(resposta={})
             respostas.update(resposta_fornecida=None)
+
+        registrar_evento(
+            usuario=None,
+            acao='EXPURGO_EXECUTADO',
+            metadata={**totais, 'dias': dias},
+        )
 
         self.stdout.write(self.style.SUCCESS('Expurgo concluído.'))
