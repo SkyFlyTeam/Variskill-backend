@@ -33,7 +33,7 @@ def interesse_django():
 def test_register_creates_user_and_session(client, django_user_model):
     response = client.post(
         reverse('register'),
-        {'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123'},
+        {'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123', 'aceite_termos': True},
         format='json',
     )
 
@@ -62,6 +62,23 @@ def test_register_creates_user_and_session(client, django_user_model):
     assert user.is_primeiro_acesso is True
     assert client.session['_auth_user_id'] == str(user.pk)
     assert client.get(reverse('user-list')).status_code == 200
+
+
+def test_register_requires_aceite_termos(client, django_user_model):
+    response = client.post(
+        reverse('register'),
+        {
+            'apelido': 'sem_termos',
+            'nome': 'Sem Termos',
+            'email': 'sem-termos@example.com',
+            'password': 'test-password-123',
+        },
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'aceite_termos' in response.data
+    assert not django_user_model.objects.filter(apelido='sem_termos').exists()
 
 
 @pytest.mark.parametrize('payload, field', [
