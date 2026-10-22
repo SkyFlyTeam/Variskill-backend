@@ -316,7 +316,21 @@ def _pedir_escolha_de_trilha(ctx: ContextoConversa, pergunta: str, modelo_sugest
 # --- Handlers das intenções canônicas (intents/management/commands/seed_intencoes.py) ---
 
 def _tratar_saudacao(ctx: ContextoConversa) -> RespostaIntencao:
-    return RespostaIntencao(ctx.resposta_base, sugestoes_rapidas=SUGESTOES_INICIAIS)
+    conteudo = ctx.resposta_base
+    resumo = ctx.resumo_pedagogico
+
+    if resumo and resumo.modulos_com_dificuldade:
+        topico = resumo.modulos_com_dificuldade[0]["titulo"]
+        conteudo = (
+            f"{conteudo} "
+            f"Notei que questões sobre '{topico}' foram desafiadoras na última atividade. "
+            f"Quer revisar esse conceito?"
+        )
+        sugestoes = [f"Quero revisar {topico}"] + SUGESTOES_INICIAIS[:2]
+    else:
+        sugestoes = SUGESTOES_INICIAIS
+
+    return RespostaIntencao(conteudo, sugestoes_rapidas=sugestoes)
 
 
 def _tratar_ajuda(ctx: ContextoConversa) -> RespostaIntencao:
@@ -551,15 +565,27 @@ HANDLERS_INTENCAO = {
 def iniciar_sessao_chat(usuario):
     """
     Cria uma sessão ativa para o estudante e retorna a mensagem de abertura do Coach
-    com sugestões rápidas de diálogo.
+    com sugestões rápidas de diálogo. Para estudantes com histórico de dificuldades,
+    a saudação reconhece o tópico problemático e oferece revisão imediata.
     """
     sessao = Sessao.objects.create(usuario=usuario)
     nome_usuario = usuario.nome or usuario.apelido or "Estudante"
+    resumo = agregar_historico_pedagogico(usuario)
 
-    conteudo_abertura = (
-        f"Olá, {nome_usuario}! Seja muito bem-vindo ao VariSkill! "
-        f"Eu sou o seu Coach de aprendizagem. Qual área você gostaria de dominar hoje?"
-    )
+    if resumo.modulos_com_dificuldade:
+        topico = resumo.modulos_com_dificuldade[0]["titulo"]
+        conteudo_abertura = (
+            f"Que bom ter você de volta, {nome_usuario}! "
+            f"Notei que questões sobre '{topico}' foram desafiadoras na última atividade. "
+            f"Quer revisar esse conceito ou explorar uma nova área?"
+        )
+        sugestoes = [f"Quero revisar {topico}"] + SUGESTOES_INICIAIS[:2]
+    else:
+        conteudo_abertura = (
+            f"Olá, {nome_usuario}! Seja muito bem-vindo ao VariSkill! "
+            f"Eu sou o seu Coach de aprendizagem. Qual área você gostaria de dominar hoje?"
+        )
+        sugestoes = SUGESTOES_INICIAIS
 
     mensagem_inicial = Mensagem.objects.create(
         sessao=sessao,
@@ -573,7 +599,7 @@ def iniciar_sessao_chat(usuario):
             "id": mensagem_inicial.id,
             "remetente": mensagem_inicial.remetente,
             "conteudo": mensagem_inicial.conteudo,
-            "sugestoes_rapidas": SUGESTOES_INICIAIS,
+            "sugestoes_rapidas": sugestoes,
             "criada_em": mensagem_inicial.criada_em,
         },
     }

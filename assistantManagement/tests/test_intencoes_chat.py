@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from activityManagement.models import Atividade
+from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
 from assistantManagement.models import Sessao
 from assistantManagement.services import identificar_trilha_no_texto, texto_para_classificacao
 from questionsManagement.models import Questao
@@ -267,3 +267,93 @@ class IdentificarTrilhaNoTextoTests(APITestCase):
         preprocessor = MagicMock()
         preprocessor.processar.side_effect = lambda texto: texto
         self.assertEqual(texto_para_classificacao(preprocessor, "Olá, Coach!", self.trilhas), "Olá, Coach!")
+
+
+class SaudacaoComHistoricoPedagogicoTests(APITestCase):
+    """Testa a interpolação de tópicos vulneráveis na intenção SAUDACAO (VAR-???)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            apelido="aluno_saudacao",
+            nome="Carlos",
+            email="aluno_saudacao@example.com",
+            password="password123",
+        )
+        self.client.force_authenticate(user=self.user)
+        self.sessao = Sessao.objects.create(usuario=self.user)
+        self.url = f"/api/chat/sessao/{self.sessao.id}/mensagem/"
+
+        trilha = Trilha.objects.create(titulo="Python: Fundamentos", habilidade="Fundamentos", ativo=True)
+        self.modulo = Modulo.objects.create(
+            trilha=trilha, titulo="Variáveis e Tipos", nivel="Iniciante", ordem_modulo=1,
+        )
+        self.atividade = Atividade.objects.create(
+            modulo=self.modulo, titulo="Exercício 1", contexto_avaliacao="FORMATIVA", ordem=1, ativo=True,
+        )
+
+        patchers = [
+            patch("assistantManagement.services.TextPreprocessor"),
+            patch("assistantManagement.services.EmbeddingService"),
+            patch("assistantManagement.services.IntentClassifier"),
+        ]
+        mock_pre, mock_emb, mock_cls = [p.start() for p in patchers]
+        for p in patchers:
+            self.addCleanup(p.stop)
+        mock_pre.get_instance.return_value.processar.side_effect = lambda texto: texto
+        mock_emb.get_instance.return_value.gerar_embedding.return_value = [0.1] * 384
+        self.classifier = MagicMock()
+        mock_cls.return_value = self.classifier
+
+    def _criar_historico_com_dificuldade(self):
+        """Cria execução com taxa de acerto abaixo de 70% no módulo."""
+        q1 = Questao.objects.create(
+            atividade=self.atividade, tipo_exercicio="MULTIPLA_ESCOLHA",
+            enunciado="Q1", gabarito_esperado="a", ordem_questao=1,
+        )
+        q2 = Questao.objects.create(
+            atividade=self.atividade, tipo_exercicio="MULTIPLA_ESCOLHA",
+            enunciado="Q2", gabarito_esperado="b", ordem_questao=2,
+        )
+        q3 = Questao.objects.create(
+            atividade=self.atividade, tipo_exercicio="MULTIPLA_ESCOLHA",
+            enunciado="Q3", gabarito_esperado="c", ordem_questao=3,
+        )
+        execucao = ExecucaoAtividade.objects.create(
+            usuario=self.user, atividade=self.atividade, pontuacao_obtida=1, aprovado=False,
+        )
+        RespostaQuestao.objects.bulk_create([
+            RespostaQuestao(execucao=execucao, questao=q1, resposta_fornecida="a", correta=True),
+            RespostaQuestao(execucao=execucao, questao=q2, resposta_fornecida="x", correta=False),
+            RespostaQuestao(execucao=execucao, questao=q3, resposta_fornecida="x", correta=False),
+        ])
+
+    def test_saudacao_com_historico_de_dificuldade_inclui_topico_vulneravel(self):
+        self._criar_historico_com_dificuldade()
+        self.classifier.classificar.return_value = {
+            "intencao": "SAUDACAO",
+            "similaridade": 0.9,
+            "resposta_texto": "Olá, Carlos! Que bom ter você aqui.",
+            "dados_extras": {},
+        }
+        response = self.client.post(self.url, {"conteudo": "Olá"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        resp = response.data["resposta_assistente"]
+
+        self.assertIn("Variáveis e Tipos", resp["conteudo"])
+        self.assertIn("desafiadoras na última atividade", resp["conteudo"])
+        self.assertTrue(any("Quero revisar" in s for s in resp["sugestoes_rapidas"]))
+
+    def test_saudacao_sem_historico_usa_sugestoes_padrao(self):
+        self.classifier.classificar.return_value = {
+            "intencao": "SAUDACAO",
+            "similaridade": 0.9,
+            "resposta_texto": "Olá, Carlos! Que bom ter você aqui.",
+            "dados_extras": {},
+        }
+        response = self.client.post(self.url, {"conteudo": "Olá"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        resp = response.data["resposta_assistente"]
+
+        self.assertEqual(resp["conteudo"], "Olá, Carlos! Que bom ter você aqui.")
+        self.assertIn("Ver trilhas disponíveis", resp["sugestoes_rapidas"])
+        self.assertFalse(any("Quero revisar" in s for s in resp["sugestoes_rapidas"]))

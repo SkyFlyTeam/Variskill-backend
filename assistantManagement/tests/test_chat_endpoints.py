@@ -4,9 +4,11 @@ from unittest.mock import MagicMock, patch
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
 from assistantManagement.models import Mensagem, Sessao
 from intents.models import Intention, Response
-from trackManagement.models import Trilha
+from questionsManagement.models import Questao
+from trackManagement.models import Modulo, Trilha
 from userManagement.models import User
 
 
@@ -296,4 +298,63 @@ class ChatEndpointsTests(APITestCase):
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
+
+
+class IniciarSessaoComHistoricoTests(APITestCase):
+    """Testa a saudação adaptada ao histórico pedagógico na abertura da sessão."""
+
+    URL = "/api/chat/sessao/iniciar/"
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            apelido="aluno_retorno",
+            nome="Beatriz",
+            email="aluno_retorno@example.com",
+            password="password123",
+        )
+        self.client.force_authenticate(user=self.user)
+
+        trilha = Trilha.objects.create(titulo="Python: Fundamentos", habilidade="Fundamentos", ativo=True)
+        self.modulo = Modulo.objects.create(
+            trilha=trilha, titulo="Funções e Escopo", nivel="Intermediário", ordem_modulo=1,
+        )
+        self.atividade = Atividade.objects.create(
+            modulo=self.modulo, titulo="Exercício Funções", contexto_avaliacao="FORMATIVA", ordem=1, ativo=True,
+        )
+
+    def _criar_historico_com_dificuldade(self):
+        q1 = Questao.objects.create(
+            atividade=self.atividade, tipo_exercicio="MULTIPLA_ESCOLHA",
+            enunciado="Q1", gabarito_esperado="a", ordem_questao=1,
+        )
+        q2 = Questao.objects.create(
+            atividade=self.atividade, tipo_exercicio="MULTIPLA_ESCOLHA",
+            enunciado="Q2", gabarito_esperado="b", ordem_questao=2,
+        )
+        execucao = ExecucaoAtividade.objects.create(
+            usuario=self.user, atividade=self.atividade, pontuacao_obtida=0, aprovado=False,
+        )
+        RespostaQuestao.objects.bulk_create([
+            RespostaQuestao(execucao=execucao, questao=q1, resposta_fornecida="x", correta=False),
+            RespostaQuestao(execucao=execucao, questao=q2, resposta_fornecida="x", correta=False),
+        ])
+
+    def test_abertura_com_dificuldade_menciona_topico_vulneravel(self):
+        self._criar_historico_com_dificuldade()
+        response = self.client.post(self.URL, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mensagem_inicial = response.data["mensagem_inicial"]
+        self.assertIn("Funções e Escopo", mensagem_inicial["conteudo"])
+        self.assertIn("desafiadoras na última atividade", mensagem_inicial["conteudo"])
+        self.assertTrue(any("Quero revisar" in s for s in mensagem_inicial["sugestoes_rapidas"]))
+
+    def test_abertura_novo_estudante_usa_boas_vindas_padrao(self):
+        response = self.client.post(self.URL, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mensagem_inicial = response.data["mensagem_inicial"]
+        self.assertIn("Olá, Beatriz!", mensagem_inicial["conteudo"])
+        self.assertIn("Ver trilhas disponíveis", mensagem_inicial["sugestoes_rapidas"])
+        self.assertFalse(any("Quero revisar" in s for s in mensagem_inicial["sugestoes_rapidas"]))
 

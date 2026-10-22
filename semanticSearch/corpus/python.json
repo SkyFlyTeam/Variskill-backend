@@ -631,5 +631,71 @@
             "Como entender uma mensagem de erro?"
         ],
         "resposta": "Os erros mais comuns e suas causas:\n- SyntaxError: código escrito fora das regras (faltou dois-pontos, parêntese...)\n- IndentationError: blocos desalinhados\n- NameError: usou uma variável ou função que não existe (confira a grafia)\n- TypeError: operação com tipo errado, como \"a\" + 1\n- ValueError: tipo certo, valor inválido, como int(\"abc\")\n- IndexError: índice fora da lista\n- KeyError: chave inexistente no dicionário\n\nLeia a mensagem de baixo para cima: a última linha diz o tipo do erro e as anteriores mostram a linha onde ele aconteceu."
+    },
+
+    {
+        "topico": "Variaveis, Tipos de Dados e Operadores",
+        "pergunta": "Quero revisar Variaveis, Tipos de Dados e Operadores",
+        "variacoes": [
+            "Revisao de variaveis e tipos de dados",
+            "Tenho dificuldade com variaveis em Python",
+            "Nao entendi tipos de dados e operadores",
+            "Resumo de variaveis e operadores",
+            "Reforco sobre tipos primitivos Python",
+            "Como funcionam variaveis e operadores em Python?"
+        ],
+        "resposta": "Revisão rápida do módulo — Variáveis, Tipos e Operadores:\n\n**Variáveis**: criadas com atribuição simples, sem declarar tipo.\nnome = \"Ana\"\nidade = 20\naltura = 1.65\n\n**Tipos principais**: int, float, str, bool. Use type() para inspecionar.\n\n**Conversão de tipos**: int(\"42\"), float(\"3.5\"), str(10)\n\n**Operadores aritméticos**: +, -, *, /, // (divisão inteira), % (resto), ** (potência)\n\n**Erros comuns**: somar str com int (TypeError), não converter o resultado de input() para número antes de calcular."
+    },
+    {
+        "topico": "Controle de Fluxo e Condicionais",
+        "pergunta": "Quero revisar Controle de Fluxo e Condicionais",
+        "variacoes": [
+            "Revisao de condicionais em Python",
+            "Tenho dificuldade com if e else",
+            "Nao entendi controle de fluxo",
+            "Resumo de if, elif e else",
+            "Reforco sobre logica booleana",
+            "Como usar condicionais em Python?"
+        ],
+        "resposta": "Revisão rápida do módulo — Controle de Fluxo e Condicionais:\n\n**Estrutura básica**:\nif nota >= 7:\n    print(\"Aprovado\")\nelif nota >= 5:\n    print(\"Recuperação\")\nelse:\n    print(\"Reprovado\")\n\n**Operadores de comparação**: ==, !=, >, <, >=, <=\n**Operadores lógicos**: and, or, not\n\n**Erros comuns**:\n- Usar = em vez de == na condição\n- Esquecer os dois-pontos após o if/elif/else\n- Indentação incorreta no bloco\n- not tem precedência menor que and/or; use parênteses para clareza."
+    },
+    {
+        "topico": "Estruturas de Repeticao (For e While)",
+        "pergunta": "Quero revisar Estruturas de Repeticao (For e While)",
+        "variacoes": [
+            "Revisao de lacos de repeticao",
+            "Tenho dificuldade com for e while",
+            "Nao entendi loops em Python",
+            "Resumo de for e while",
+            "Reforco sobre range e iteracao",
+            "Como usar for e while em Python?"
+        ],
+        "resposta": "Revisão rápida do módulo — Laços de Repetição:\n\n**for** — percorre um iterável:\nfor i in range(5):        # 0,1,2,3,4\n    print(i)\nfor item in lista:\n    print(item)\n\n**while** — executa enquanto a condição for verdadeira:\ncontador = 0\nwhile contador < 3:\n    print(contador)\n    contador += 1\n\n**Controle de laço**: break (sai do loop), continue (pula para a próxima iteração)\n\n**Erros comuns**:\n- Loop infinito no while (esquecer de atualizar a variável de controle)\n- Modificar a lista enquanto itera sobre ela\n- Confundir range(n) que gera 0..n-1, não 1..n"
+    },
+    {
+        "topico": "Colecoes de Dados (Listas, Tuplas e Dicionarios)",
+        "pergunta": "Quero revisar Colecoes de Dados (Listas, Tuplas e Dicionarios)",
+        "variacoes": [
+            "Revisao de listas, tuplas e dicionarios",
+            "Tenho dificuldade com colecoes em Python",
+            "Nao entendi listas e dicionarios",
+            "Resumo de listas, tuplas, dicionarios e sets",
+            "Reforco sobre colecoes de dados Python",
+            "Como usar listas e dicionarios em Python?"
+        ],
+        "resposta": "Revisão rápida do módulo — Coleções de Dados:\n\n**Lista** — mutável, ordenada, aceita duplicatas:\nlista = [1, 2, 3]\nlista.append(4)\nlista[0]      # 1\n\n**Tupla** — imutável, ordenada:\ntupla = (10, 20, 30)\n\n**Dicionário** — pares chave:valor, mutável:\npessoa = {\"nome\": \"Ana\", \"idade\": 25}\npessoa[\"nome\"]          # \"Ana\"\npessoa.get(\"email\", \"-\") # valor padrão se chave ausente\n\n**Set** — elementos únicos, sem ordem:\ns = {1, 2, 3, 2}   # {1, 2, 3}\n\n**Erros comuns**: IndexError (índice além do tamanho), KeyError (chave inexistente — use .get()), tentar modificar tupla."
+    },
+    {
+        "topico": "Funcoes, Parametros e Escopo",
+        "pergunta": "Quero revisar Funcoes, Parametros e Escopo",
+        "variacoes": [
+            "Revisao de funcoes em Python",
+            "Tenho dificuldade com funcoes e parametros",
+            "Nao entendi escopo de variaveis",
+            "Resumo de def, parametros e retorno",
+            "Reforco sobre funcoes e args kwargs",
+            "Como definir e usar funcoes em Python?"
+        ],
+        "resposta": "Revisão rápida do módulo — Funções, Parâmetros e Escopo:\n\n**Definição básica**:\ndef somar(a, b):\n    return a + b\n\n**Parâmetros com valor padrão**:\ndef saudar(nome, prefixo=\"Olá\"):\n    return f\"{prefixo}, {nome}!\"\n\n***args e **kwargs**:\ndef soma_tudo(*args):      # tupla de positional args\n    return sum(args)\ndef exibir(**kwargs):      # dicionário de keyword args\n    print(kwargs)\n\n**Escopo**: variável criada dentro de uma função não existe fora dela (escopo local). Use return para retornar valores.\n\n**Erros comuns**: esquecer o return (função retorna None), usar variável local fora da função, confundir parâmetro com argumento."
     }
 ]
