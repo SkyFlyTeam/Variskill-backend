@@ -1,0 +1,263 @@
+[
+    {
+        "topico": "NumPy",
+        "pergunta": "O que é NumPy e para que serve?",
+        "variacoes": [
+            "O que é NumPy?",
+            "Para que serve o NumPy?",
+            "Por que usar NumPy?",
+            "O que é um array NumPy?",
+            "Qual a diferença entre lista Python e array NumPy?",
+            "Quando usar NumPy?"
+        ],
+        "resposta": "NumPy é a biblioteca fundamental para computação numérica em Python. Seu principal recurso é o ndarray: um array multidimensional de elementos do mesmo tipo, muito mais rápido que listas Python para operações matemáticas.\n\nimport numpy as np\n\narr = np.array([1, 2, 3, 4, 5])\nprint(arr * 2)   # [2 4 6 8 10] — operação vetorizada\n\nDiferença-chave: listas Python guardam objetos; arrays NumPy guardam valores brutos na memória, o que torna as operações até 100x mais rápidas para dados numéricos."
+    },
+    {
+        "topico": "NumPy",
+        "pergunta": "Como criar e manipular arrays NumPy?",
+        "variacoes": [
+            "Como criar um array NumPy?",
+            "Como criar array de zeros no NumPy?",
+            "Como criar array de uns no NumPy?",
+            "Como criar um array bidimensional?",
+            "Como criar uma matriz com NumPy?",
+            "Como usar np.zeros e np.ones?",
+            "Como usar np.arange?"
+        ],
+        "resposta": "Formas comuns de criar arrays:\n\nimport numpy as np\n\n# A partir de lista\narr = np.array([1, 2, 3])\n\n# Sequência\nnp.arange(0, 10, 2)      # [0 2 4 6 8]\nnp.linspace(0, 1, 5)     # 5 valores entre 0 e 1\n\n# Cheios\nnp.zeros((3, 3))          # matriz 3x3 de zeros\nnp.ones((2, 4))           # matriz 2x4 de uns\nnp.eye(3)                 # matriz identidade 3x3\n\n# Shape e tipo\narr.shape    # (3,)\narr.dtype    # dtype('int64')"
+    },
+    {
+        "topico": "NumPy",
+        "pergunta": "Como fazer indexação e fatiamento em arrays NumPy?",
+        "variacoes": [
+            "Como acessar elementos de um array NumPy?",
+            "Como fatiar um array NumPy?",
+            "Como usar slicing no NumPy?",
+            "Como selecionar linhas e colunas em uma matriz?",
+            "Como indexar array 2D no NumPy?",
+            "Como filtrar elementos de um array?"
+        ],
+        "resposta": "Indexação e slicing são similares às listas Python, mas estendem para múltiplas dimensões:\n\narr = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])\n\narr[0]          # primeira linha: [1 2 3]\narr[1, 2]       # linha 1, coluna 2: 6\narr[:, 0]       # toda a coluna 0: [1 4 7]\narr[0:2, 1:]    # linhas 0-1, colunas 1 em diante\n\n# Indexação booleana (filtro)\narr[arr > 5]    # [6 7 8 9]"
+    },
+    {
+        "topico": "NumPy",
+        "pergunta": "Como realizar operações matemáticas e estatísticas com NumPy?",
+        "variacoes": [
+            "Como calcular média com NumPy?",
+            "Como somar todos os elementos de um array?",
+            "Como calcular desvio padrão com NumPy?",
+            "Como usar np.mean e np.std?",
+            "Como fazer operações elemento a elemento no NumPy?",
+            "Como calcular o máximo e mínimo de um array?"
+        ],
+        "resposta": "NumPy oferece funções matemáticas e estatísticas vetorizadas:\n\narr = np.array([2, 4, 6, 8, 10])\n\nnp.sum(arr)      # 30\nnp.mean(arr)     # 6.0\nnp.std(arr)      # 2.83...\nnp.min(arr)      # 2\nnp.max(arr)      # 10\nnp.median(arr)   # 6.0\n\n# Em matrizes, use axis:\nmatriz = np.array([[1, 2], [3, 4]])\nmatriz.sum(axis=0)   # soma por coluna: [4 6]\nmatriz.sum(axis=1)   # soma por linha:  [3 7]"
+    },
+    {
+        "topico": "Pandas",
+        "pergunta": "O que é Pandas e quais são suas estruturas de dados principais?",
+        "variacoes": [
+            "O que é Pandas?",
+            "Para que serve o Pandas?",
+            "O que é um DataFrame?",
+            "O que é uma Series no Pandas?",
+            "Qual a diferença entre Series e DataFrame?",
+            "Como usar Pandas para análise de dados?"
+        ],
+        "resposta": "Pandas é a biblioteca principal para manipulação de dados tabulares em Python. Suas duas estruturas centrais são:\n\n- Series: array unidimensional com índice (como uma coluna de tabela)\n- DataFrame: tabela bidimensional com linhas e colunas nomeadas\n\nimport pandas as pd\n\ns = pd.Series([10, 20, 30], index=[\"a\", \"b\", \"c\"])\n\ndf = pd.DataFrame({\n    \"nome\": [\"Ana\", \"Bruno\"],\n    \"idade\": [25, 30]\n})\nprint(df)"
+    },
+    {
+        "topico": "Pandas",
+        "pergunta": "Como ler e salvar dados com Pandas (CSV, Excel)?",
+        "variacoes": [
+            "Como ler um CSV com Pandas?",
+            "Como importar dados no Pandas?",
+            "Como usar pd.read_csv?",
+            "Como salvar um DataFrame em CSV?",
+            "Como ler arquivo Excel com Pandas?",
+            "Como exportar dados com Pandas?"
+        ],
+        "resposta": "Funções de leitura e escrita mais usadas:\n\nimport pandas as pd\n\n# Ler\ndf = pd.read_csv(\"dados.csv\")\ndf = pd.read_csv(\"dados.csv\", sep=\";\", encoding=\"utf-8\")\ndf = pd.read_excel(\"dados.xlsx\", sheet_name=\"Plan1\")\n\n# Explorar\ndf.head()     # primeiras 5 linhas\ndf.info()     # tipos e valores nulos\ndf.describe() # estatísticas descritivas\n\n# Salvar\ndf.to_csv(\"saida.csv\", index=False)\ndf.to_excel(\"saida.xlsx\", index=False)"
+    },
+    {
+        "topico": "Pandas",
+        "pergunta": "Como selecionar e filtrar dados em um DataFrame?",
+        "variacoes": [
+            "Como selecionar uma coluna no Pandas?",
+            "Como filtrar linhas no Pandas?",
+            "Como usar loc e iloc?",
+            "Como selecionar múltiplas colunas?",
+            "Como filtrar DataFrame por condição?",
+            "Como buscar linhas no Pandas?"
+        ],
+        "resposta": "Seleção de colunas e filtragem de linhas:\n\n# Selecionar coluna\ndf[\"nome\"]\ndf[[\"nome\", \"idade\"]]\n\n# Filtrar por condição\ndf[df[\"idade\"] > 25]\ndf[(df[\"cidade\"] == \"SP\") & (df[\"idade\"] < 40)]\n\n# loc: indexação por rótulo\ndf.loc[0, \"nome\"]           # linha 0, coluna nome\ndf.loc[df[\"ativo\"] == True]\n\n# iloc: indexação por posição\ndf.iloc[0]         # primeira linha\ndf.iloc[0:3, 1:3]  # linhas 0-2, colunas 1-2"
+    },
+    {
+        "topico": "Pandas",
+        "pergunta": "Como tratar valores nulos em um DataFrame?",
+        "variacoes": [
+            "Como verificar valores nulos no Pandas?",
+            "Como remover linhas com NaN?",
+            "Como preencher valores ausentes no Pandas?",
+            "Como usar fillna e dropna?",
+            "Como tratar dados faltantes no Pandas?",
+            "O que é NaN no Pandas?"
+        ],
+        "resposta": "NaN representa valores ausentes. Para gerenciá-los:\n\n# Detectar\ndf.isnull().sum()          # conta nulos por coluna\ndf[df[\"idade\"].isnull()]   # linhas com idade ausente\n\n# Remover\ndf.dropna()                # remove linhas com qualquer nulo\ndf.dropna(subset=[\"email\"]) # remove só onde email é nulo\n\n# Preencher\ndf.fillna(0)               # substitui todos os nulos por 0\ndf[\"idade\"].fillna(df[\"idade\"].mean())  # preenche com a média\n\nSempre analise se faz sentido remover ou preencher, pois cada abordagem afeta os resultados da análise."
+    },
+    {
+        "topico": "Pandas",
+        "pergunta": "Como agrupar e agregar dados com groupby no Pandas?",
+        "variacoes": [
+            "Como usar groupby no Pandas?",
+            "Como somar por grupo no Pandas?",
+            "Como calcular média por categoria no Pandas?",
+            "Como agregar dados no Pandas?",
+            "Como contar registros por grupo?",
+            "Como usar agg no Pandas?"
+        ],
+        "resposta": "groupby divide o DataFrame em grupos e aplica funções de agregação:\n\n# Média de salário por departamento\ndf.groupby(\"departamento\")[\"salario\"].mean()\n\n# Contagem por categoria\ndf.groupby(\"categoria\").size()\n\n# Múltiplas agregações\ndf.groupby(\"cidade\").agg(\n    total_vendas=(\"valor\", \"sum\"),\n    media_vendas=(\"valor\", \"mean\"),\n    qtd_pedidos=(\"id\", \"count\")\n)\n\nO resultado é um novo DataFrame com os grupos como índice."
+    },
+    {
+        "topico": "Pandas",
+        "pergunta": "Como combinar DataFrames com merge e concat no Pandas?",
+        "variacoes": [
+            "Como fazer join de DataFrames no Pandas?",
+            "Como combinar dois DataFrames?",
+            "Como usar merge no Pandas?",
+            "Como usar concat no Pandas?",
+            "Como fazer left join no Pandas?",
+            "Como unir tabelas no Pandas?"
+        ],
+        "resposta": "Duas formas principais de combinar DataFrames:\n\n# concat: empilhar linhas ou colunas\npd.concat([df1, df2])              # empilha linhas\npd.concat([df1, df2], axis=1)      # junta colunas\n\n# merge: join por coluna chave (como SQL)\npd.merge(clientes, pedidos, on=\"cliente_id\")\npd.merge(clientes, pedidos, on=\"cliente_id\", how=\"left\")  # left join\n\n# how pode ser: 'inner' (padrão), 'left', 'right', 'outer'\n# inner: apenas correspondências\n# left: todos da esquerda + correspondências da direita"
+    },
+    {
+        "topico": "Estatística descritiva",
+        "pergunta": "Como calcular estatísticas descritivas de um conjunto de dados?",
+        "variacoes": [
+            "Como calcular média, mediana e moda?",
+            "O que são medidas de tendência central?",
+            "Como calcular desvio padrão?",
+            "O que é variância?",
+            "Como interpretar estatísticas descritivas?",
+            "Como usar describe no Pandas?"
+        ],
+        "resposta": "Medidas descritivas resumem a distribuição dos dados:\n\nimport pandas as pd\n\ndf[\"salario\"].mean()    # média\ndf[\"salario\"].median()  # mediana (mais robusta a outliers)\ndf[\"salario\"].mode()    # moda (valor mais frequente)\ndf[\"salario\"].std()     # desvio padrão\ndf[\"salario\"].var()     # variância\ndf[\"salario\"].describe()  # tudo de uma vez\n\nRegra prática:\n- Use média quando os dados são simétricos\n- Use mediana quando há outliers (ex.: salários extremos)\n- Desvio padrão alto indica dados muito dispersos"
+    },
+    {
+        "topico": "Visualização de dados",
+        "pergunta": "Como criar gráficos básicos com Matplotlib?",
+        "variacoes": [
+            "Como fazer um gráfico em Python?",
+            "Como usar Matplotlib?",
+            "Como criar gráfico de linha no Python?",
+            "Como criar gráfico de barras em Python?",
+            "Como usar plt.plot?",
+            "Como salvar um gráfico em Python?"
+        ],
+        "resposta": "Matplotlib é a biblioteca base para visualização em Python:\n\nimport matplotlib.pyplot as plt\n\n# Gráfico de linha\nplt.plot([1, 2, 3], [10, 20, 15])\nplt.title(\"Título\")\nplt.xlabel(\"Eixo X\")\nplt.ylabel(\"Eixo Y\")\nplt.show()\n\n# Gráfico de barras\nplt.bar([\"A\", \"B\", \"C\"], [30, 50, 20])\n\n# Histograma\nplt.hist(df[\"idade\"], bins=10)\n\n# Salvar (antes do show)\nplt.savefig(\"grafico.png\", dpi=150)\nplt.show()"
+    },
+    {
+        "topico": "Visualização de dados",
+        "pergunta": "Como criar visualizações estatísticas com Seaborn?",
+        "variacoes": [
+            "O que é Seaborn?",
+            "Como usar Seaborn?",
+            "Como criar boxplot em Python?",
+            "Como fazer gráfico de dispersão estatístico?",
+            "Qual a diferença entre Matplotlib e Seaborn?",
+            "Como criar heatmap com Seaborn?"
+        ],
+        "resposta": "Seaborn é construído sobre Matplotlib e simplifica visualizações estatísticas:\n\nimport seaborn as sns\nimport matplotlib.pyplot as plt\n\n# Distribuição\nsns.histplot(df[\"salario\"], kde=True)\n\n# Boxplot (mostra mediana, quartis e outliers)\nsns.boxplot(x=\"departamento\", y=\"salario\", data=df)\n\n# Scatter plot com tendência\nsns.scatterplot(x=\"experiencia\", y=\"salario\", data=df)\n\n# Heatmap de correlação\nsns.heatmap(df.corr(), annot=True, cmap=\"coolwarm\")\n\nplt.show()\n\nSeaborn aceita DataFrames diretamente e aplica temas visuais automaticamente."
+    },
+    {
+        "topico": "Limpeza de dados",
+        "pergunta": "Como remover duplicatas em um DataFrame?",
+        "variacoes": [
+            "Como remover linhas duplicadas no Pandas?",
+            "Como encontrar duplicatas no Pandas?",
+            "Como usar drop_duplicates?",
+            "Como verificar se há linhas repetidas?",
+            "Como eliminar registros duplicados?"
+        ],
+        "resposta": "Use duplicated() para identificar e drop_duplicates() para remover:\n\n# Verificar\ndf.duplicated().sum()                    # quantas linhas duplicadas\ndf[df.duplicated()]                      # mostrar as duplicatas\n\n# Remover (mantém primeira ocorrência)\ndf_limpo = df.drop_duplicates()\n\n# Duplicata apenas em colunas específicas\ndf_limpo = df.drop_duplicates(subset=[\"email\"])\n\n# Manter a última ocorrência\ndf_limpo = df.drop_duplicates(keep=\"last\")\n\nSempre verifique quantas linhas foram removidas para garantir que a limpeza foi correta."
+    },
+    {
+        "topico": "Limpeza de dados",
+        "pergunta": "Como renomear colunas e alterar tipos de dados em um DataFrame?",
+        "variacoes": [
+            "Como renomear coluna no Pandas?",
+            "Como mudar o tipo de uma coluna no Pandas?",
+            "Como usar rename no Pandas?",
+            "Como converter coluna para inteiro?",
+            "Como usar astype no Pandas?",
+            "Como transformar string em data no Pandas?"
+        ],
+        "resposta": "Renomear colunas e converter tipos são operações comuns na preparação de dados:\n\n# Renomear colunas\ndf.rename(columns={\"nome_antigo\": \"nome_novo\"}, inplace=True)\n\n# Renomear todas (lista com novo nome para cada coluna)\ndf.columns = [\"id\", \"nome\", \"valor\"]\n\n# Converter tipo\ndf[\"idade\"] = df[\"idade\"].astype(int)\ndf[\"preco\"] = df[\"preco\"].astype(float)\n\n# Converter string para data\ndf[\"data\"] = pd.to_datetime(df[\"data\"])\ndf[\"data\"] = pd.to_datetime(df[\"data\"], format=\"%d/%m/%Y\")"
+    },
+
+    {
+        "topico": "Computacao Numerica e Vetorizacao com NumPy",
+        "pergunta": "Quero revisar Computacao Numerica e Vetorizacao com NumPy",
+        "variacoes": [
+            "Revisao de NumPy",
+            "Tenho dificuldade com arrays NumPy",
+            "Nao entendi vetorizacao com NumPy",
+            "Resumo de NumPy e arrays",
+            "Reforco sobre operacoes numericas com NumPy",
+            "Como usar NumPy para calculos?"
+        ],
+        "resposta": "Revisão rápida — Computação Numérica com NumPy:\n\n**Criar arrays**:\nimport numpy as np\narr = np.array([1, 2, 3, 4])\nmatriz = np.zeros((3, 3))   # 3x3 de zeros\nnp.arange(0, 10, 2)         # [0 2 4 6 8]\n\n**Operações vetorizadas** (sem loop):\narr * 2          # [2 4 6 8]\narr[arr > 2]     # [3 4] — indexação booleana\n\n**Estatísticas**:\nnp.mean(arr), np.std(arr), np.sum(arr)\nmatriz.sum(axis=0)   # soma por coluna\nmatriz.sum(axis=1)   # soma por linha\n\n**Erros comuns**: confundir shape (linhas, colunas) com dimensão real, operar arrays com shapes incompatíveis (broadcast error), usar lista Python onde NumPy é esperado."
+    },
+    {
+        "topico": "Manipulacao Tabular com Pandas Series e DataFrames",
+        "pergunta": "Quero revisar Manipulacao Tabular com Pandas Series e DataFrames",
+        "variacoes": [
+            "Revisao de Pandas",
+            "Tenho dificuldade com DataFrame e Series",
+            "Nao entendi Pandas",
+            "Resumo de Pandas Series e DataFrame",
+            "Reforco sobre manipulacao de dados com Pandas",
+            "Como usar loc e iloc no Pandas?"
+        ],
+        "resposta": "Revisão rápida — Manipulação Tabular com Pandas:\n\n**Estruturas**:\n- Series: coluna com índice (1D)\n- DataFrame: tabela com linhas e colunas (2D)\n\n**Selecionar**:\ndf[\"coluna\"]             # uma coluna\ndf[[\"col1\", \"col2\"]]    # múltiplas colunas\ndf.loc[0, \"nome\"]       # linha por rótulo\ndf.iloc[0, 1]           # linha por posição\n\n**Filtrar**:\ndf[df[\"idade\"] > 25]\ndf[(df[\"cidade\"] == \"SP\") & (df[\"ativo\"] == True)]\n\n**Explorar**:\ndf.head(), df.info(), df.describe(), df.shape\n\n**Erros comuns**: usar df[0] para acessar linha (use iloc), esquecer que filtros com & precisam de parênteses em cada condição, confundir loc (rótulo) com iloc (posição)."
+    },
+    {
+        "topico": "Limpeza, Filtros e Tratamento de Dados Ausentes",
+        "pergunta": "Quero revisar Limpeza, Filtros e Tratamento de Dados Ausentes",
+        "variacoes": [
+            "Revisao de limpeza de dados",
+            "Tenho dificuldade com valores nulos no Pandas",
+            "Nao entendi como tratar NaN",
+            "Resumo de dropna e fillna",
+            "Reforco sobre dados ausentes e duplicatas",
+            "Como tratar dados faltantes no Pandas?"
+        ],
+        "resposta": "Revisão rápida — Limpeza e Dados Ausentes:\n\n**Detectar nulos**:\ndf.isnull().sum()               # nulos por coluna\ndf[df[\"email\"].isnull()]       # linhas onde email é nulo\n\n**Remover nulos**:\ndf.dropna()                     # remove qualquer linha com nulo\ndf.dropna(subset=[\"email\"])    # só onde email é nulo\n\n**Preencher nulos**:\ndf.fillna(0)\ndf[\"idade\"].fillna(df[\"idade\"].median())\n\n**Duplicatas**:\ndf.duplicated().sum()\ndf.drop_duplicates(subset=[\"email\"])\n\n**Converter tipos**:\ndf[\"valor\"] = df[\"valor\"].astype(float)\ndf[\"data\"] = pd.to_datetime(df[\"data\"])\n\n**Erros comuns**: remover linhas com nulo quando preencher seria mais adequado, não verificar impacto do dropna no tamanho do dataset."
+    },
+    {
+        "topico": "Agrupamentos, Agregacoes e Transformacoes (GroupBy)",
+        "pergunta": "Quero revisar Agrupamentos, Agregacoes e Transformacoes (GroupBy)",
+        "variacoes": [
+            "Revisao de groupby no Pandas",
+            "Tenho dificuldade com groupby e agg",
+            "Nao entendi agrupamento de dados",
+            "Resumo de groupby e agregacoes",
+            "Reforco sobre split-apply-combine",
+            "Como usar groupby para agregar dados?"
+        ],
+        "resposta": "Revisão rápida — Agrupamentos e Agregações (GroupBy):\n\n**Paradigma**: split (dividir por grupo) → apply (aplicar função) → combine (unir resultados)\n\n**Uso básico**:\ndf.groupby(\"categoria\")[\"valor\"].sum()\ndf.groupby(\"cidade\").size()         # contagem por grupo\n\n**Múltiplas agregações com agg**:\ndf.groupby(\"departamento\").agg(\n    total=(\"salario\", \"sum\"),\n    media=(\"salario\", \"mean\"),\n    qtd=(\"id\", \"count\")\n)\n\n**Agrupar por múltiplas colunas**:\ndf.groupby([\"ano\", \"mes\"])[\"vendas\"].sum()\n\n**Erros comuns**: esquecer que groupby retorna um objeto GroupBy (não um DataFrame) até aplicar uma função, confundir size() (conta linhas) com count() (conta não-nulos por coluna)."
+    },
+    {
+        "topico": "Visualizacao de Dados com Matplotlib e Seaborn",
+        "pergunta": "Quero revisar Visualizacao de Dados com Matplotlib e Seaborn",
+        "variacoes": [
+            "Revisao de Matplotlib e Seaborn",
+            "Tenho dificuldade com visualizacao de dados",
+            "Nao entendi como fazer graficos em Python",
+            "Resumo de Matplotlib e Seaborn",
+            "Reforco sobre graficos estatisticos",
+            "Como criar graficos com Python?"
+        ],
+        "resposta": "Revisão rápida — Visualização com Matplotlib e Seaborn:\n\n**Matplotlib (controle total)**:\nimport matplotlib.pyplot as plt\nplt.plot(x, y)              # linha\nplt.bar(categorias, valores) # barras\nplt.hist(df[\"idade\"], bins=10) # histograma\nplt.title(\"Título\"); plt.xlabel(\"X\"); plt.ylabel(\"Y\")\nplt.savefig(\"grafico.png\"); plt.show()\n\n**Seaborn (gráficos estatísticos prontos)**:\nimport seaborn as sns\nsns.histplot(df[\"valor\"], kde=True)               # distribuição\nsns.boxplot(x=\"grupo\", y=\"valor\", data=df)        # outliers e quartis\nsns.heatmap(df.corr(), annot=True)                # correlação\n\n**Quando usar**:\n- Matplotlib: gráficos customizados, controle pixel a pixel\n- Seaborn: análise exploratória rápida com DataFrames\n\n**Erros comuns**: chamar plt.show() antes de plt.savefig() (gera imagem em branco), esquecer plt.clf() entre gráficos em loop."
+    }
+]

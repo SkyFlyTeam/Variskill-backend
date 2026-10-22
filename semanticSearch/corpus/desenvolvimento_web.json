@@ -1,0 +1,289 @@
+[
+    {
+        "topico": "FastAPI",
+        "pergunta": "O que é FastAPI e para que serve?",
+        "variacoes": [
+            "O que é FastAPI?",
+            "Para que serve o FastAPI?",
+            "Quando usar FastAPI?",
+            "FastAPI é um framework?",
+            "Qual a diferença entre FastAPI e Flask?",
+            "Por que usar FastAPI?"
+        ],
+        "resposta": "FastAPI é um framework web moderno e de alta performance para construir APIs em Python. Ele gera documentação automática (Swagger/ReDoc), valida dados com Pydantic e suporta programação assíncrona nativamente.\n\nPontos fortes:\n- Tipagem estática com type hints\n- Documentação automática em /docs\n- Validação de entrada/saída automática\n- Suporte nativo a async/await"
+    },
+    {
+        "topico": "FastAPI",
+        "pergunta": "Como criar uma rota no FastAPI?",
+        "variacoes": [
+            "Como definir um endpoint no FastAPI?",
+            "Como criar um GET no FastAPI?",
+            "Como criar um POST no FastAPI?",
+            "Como adicionar uma rota no FastAPI?",
+            "Como criar endpoint GET e POST?",
+            "Como usar @app.get?",
+            "Como usar @app.post?"
+        ],
+        "resposta": "Use decoradores com o método HTTP desejado:\n\nfrom fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/usuarios\")\ndef listar_usuarios():\n    return [{\"id\": 1, \"nome\": \"Ana\"}]\n\n@app.post(\"/usuarios\")\ndef criar_usuario(dados: dict):\n    return {\"mensagem\": \"Criado\", \"dados\": dados}\n\nPara rotas com validação de schema, use um modelo Pydantic como parâmetro do POST."
+    },
+    {
+        "topico": "FastAPI",
+        "pergunta": "Como usar parâmetros de rota e query no FastAPI?",
+        "variacoes": [
+            "Como pegar parâmetros da URL no FastAPI?",
+            "Como usar path params no FastAPI?",
+            "Como usar query params no FastAPI?",
+            "Como passar parâmetros para uma rota?",
+            "Como ler o id da URL no FastAPI?",
+            "Como filtrar com query string no FastAPI?"
+        ],
+        "resposta": "Parâmetros de rota ficam entre chaves na URL; query params são argumentos da função sem chaves:\n\n# Parâmetro de rota: /usuarios/42\n@app.get(\"/usuarios/{usuario_id}\")\ndef buscar_usuario(usuario_id: int):\n    return {\"id\": usuario_id}\n\n# Query param: /itens?limite=10&pagina=2\n@app.get(\"/itens\")\ndef listar_itens(limite: int = 10, pagina: int = 1):\n    return {\"limite\": limite, \"pagina\": pagina}\n\nO FastAPI converte e valida os tipos automaticamente."
+    },
+    {
+        "topico": "FastAPI",
+        "pergunta": "Como usar Depends para injeção de dependências no FastAPI?",
+        "variacoes": [
+            "O que é Depends no FastAPI?",
+            "Como funciona injeção de dependência no FastAPI?",
+            "Como reutilizar lógica entre rotas no FastAPI?",
+            "Como passar a sessão do banco para uma rota no FastAPI?",
+            "Como usar Depends com banco de dados?"
+        ],
+        "resposta": "Depends permite injetar dependências reutilizáveis em rotas, como sessão de banco ou usuário autenticado:\n\nfrom fastapi import Depends\nfrom sqlalchemy.orm import Session\nfrom database import SessionLocal\n\ndef get_db():\n    db = SessionLocal()\n    try:\n        yield db\n    finally:\n        db.close()\n\n@app.get(\"/itens\")\ndef listar(db: Session = Depends(get_db)):\n    return db.query(Item).all()\n\nO FastAPI resolve a dependência automaticamente antes de chamar a rota."
+    },
+    {
+        "topico": "FastAPI",
+        "pergunta": "Como configurar CORS no FastAPI?",
+        "variacoes": [
+            "O que é CORS?",
+            "Como habilitar CORS no FastAPI?",
+            "Por que minha requisição do frontend está bloqueada?",
+            "Como permitir origens diferentes no FastAPI?",
+            "Como configurar o middleware de CORS?"
+        ],
+        "resposta": "Use o middleware CORSMiddleware para liberar origens que podem acessar a API:\n\nfrom fastapi.middleware.cors import CORSMiddleware\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"http://localhost:3000\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\nEm produção substitua o wildcard por domínios específicos. CORS é validado pelo browser, não pelo servidor, então erros de CORS aparecem no console do frontend."
+    },
+    {
+        "topico": "Pydantic",
+        "pergunta": "O que é Pydantic e como usá-lo para validar dados?",
+        "variacoes": [
+            "O que é Pydantic?",
+            "Para que serve o Pydantic?",
+            "Como validar dados com Pydantic?",
+            "Como criar um schema com Pydantic?",
+            "Como usar BaseModel?",
+            "O que é BaseModel no Pydantic?"
+        ],
+        "resposta": "Pydantic valida e serializa dados usando type hints do Python. Crie um modelo herdando de BaseModel:\n\nfrom pydantic import BaseModel\n\nclass Usuario(BaseModel):\n    nome: str\n    email: str\n    idade: int\n\n# Validação automática ao instanciar:\nuser = Usuario(nome=\"Ana\", email=\"ana@email.com\", idade=25)\n\n# Se um campo for inválido, Pydantic lança ValidationError com mensagem clara.\nNo FastAPI, basta usar o modelo como tipo do parâmetro da rota."
+    },
+    {
+        "topico": "Pydantic",
+        "pergunta": "Como tornar campos opcionais e definir valores padrão no Pydantic?",
+        "variacoes": [
+            "Como deixar um campo opcional no Pydantic?",
+            "Como definir valor padrão em modelo Pydantic?",
+            "Como usar Optional no Pydantic?",
+            "Campo opcional Pydantic",
+            "Como criar campo com default no Pydantic?",
+            "Como aceitar None no Pydantic?"
+        ],
+        "resposta": "Use Optional para campos que aceitam None, ou defina um valor padrão diretamente:\n\nfrom pydantic import BaseModel\nfrom typing import Optional\n\nclass Produto(BaseModel):\n    nome: str\n    preco: float\n    descricao: Optional[str] = None\n    ativo: bool = True\n\n# descricao pode ser omitido ou None\n# ativo é True por padrão\nNo Pydantic v2 você pode usar: descricao: str | None = None"
+    },
+    {
+        "topico": "Pydantic",
+        "pergunta": "Como adicionar validações customizadas em modelos Pydantic?",
+        "variacoes": [
+            "Como validar um campo no Pydantic?",
+            "Como criar um validador customizado?",
+            "Como usar @validator no Pydantic?",
+            "Como garantir que o email é válido?",
+            "Como fazer validação de campo no Pydantic?",
+            "Como usar @field_validator?"
+        ],
+        "resposta": "Use @field_validator (Pydantic v2) para validar campos individualmente:\n\nfrom pydantic import BaseModel, field_validator\n\nclass Usuario(BaseModel):\n    nome: str\n    idade: int\n\n    @field_validator('idade')\n    @classmethod\n    def idade_positiva(cls, v):\n        if v < 0:\n            raise ValueError('Idade não pode ser negativa')\n        return v\n\nNo Pydantic v1 use @validator. O erro vira um ValidationError com detalhe do campo."
+    },
+    {
+        "topico": "SQLAlchemy",
+        "pergunta": "O que é SQLAlchemy e como configurá-lo?",
+        "variacoes": [
+            "O que é SQLAlchemy?",
+            "Para que serve o SQLAlchemy?",
+            "Como conectar ao banco com SQLAlchemy?",
+            "Como configurar o SQLAlchemy no projeto?",
+            "O que é ORM?",
+            "Como usar ORM em Python?"
+        ],
+        "resposta": "SQLAlchemy é um ORM (Object-Relational Mapper) que permite interagir com bancos de dados usando classes Python ao invés de SQL puro.\n\nConfiguração básica:\n\nfrom sqlalchemy import create_engine\nfrom sqlalchemy.orm import sessionmaker, declarative_base\n\nDATABASE_URL = \"postgresql://user:senha@localhost/db\"\n\nengine = create_engine(DATABASE_URL)\nSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)\nBase = declarative_base()"
+    },
+    {
+        "topico": "SQLAlchemy",
+        "pergunta": "Como definir um modelo (tabela) com SQLAlchemy?",
+        "variacoes": [
+            "Como criar um modelo no SQLAlchemy?",
+            "Como mapear uma tabela com SQLAlchemy?",
+            "Como criar uma classe que representa uma tabela?",
+            "Como definir colunas no SQLAlchemy?",
+            "Como usar Column e Integer no SQLAlchemy?",
+            "Como criar uma entidade no SQLAlchemy?"
+        ],
+        "resposta": "Herde de Base e use Column para definir colunas:\n\nfrom sqlalchemy import Column, Integer, String\nfrom database import Base\n\nclass Usuario(Base):\n    __tablename__ = \"usuarios\"\n\n    id = Column(Integer, primary_key=True, index=True)\n    nome = Column(String(100), nullable=False)\n    email = Column(String(200), unique=True, index=True)\n\n# Para criar as tabelas no banco:\nBase.metadata.create_all(bind=engine)"
+    },
+    {
+        "topico": "SQLAlchemy",
+        "pergunta": "Como fazer consultas com SQLAlchemy?",
+        "variacoes": [
+            "Como buscar dados com SQLAlchemy?",
+            "Como fazer SELECT com SQLAlchemy?",
+            "Como filtrar registros no SQLAlchemy?",
+            "Como usar query no SQLAlchemy?",
+            "Como buscar por id no SQLAlchemy?",
+            "Como listar todos os registros com SQLAlchemy?"
+        ],
+        "resposta": "Use a sessão para consultar:\n\n# Buscar todos\nusuarios = db.query(Usuario).all()\n\n# Filtrar\nusuario = db.query(Usuario).filter(Usuario.email == \"ana@email.com\").first()\n\n# Buscar por id\nusuario = db.query(Usuario).get(1)\n# ou (SQLAlchemy 2.x):\nusuario = db.get(Usuario, 1)\n\n# Múltiplos filtros\nitens = db.query(Item).filter(Item.ativo == True, Item.preco < 100).all()"
+    },
+    {
+        "topico": "SQLAlchemy",
+        "pergunta": "Como criar, atualizar e deletar registros com SQLAlchemy?",
+        "variacoes": [
+            "Como inserir dado no banco com SQLAlchemy?",
+            "Como salvar um registro com SQLAlchemy?",
+            "Como atualizar um registro no SQLAlchemy?",
+            "Como deletar com SQLAlchemy?",
+            "Como usar add e commit?",
+            "Como fazer CRUD com SQLAlchemy?"
+        ],
+        "resposta": "Operações CRUD com a sessão:\n\n# Criar\nnovo = Usuario(nome=\"Ana\", email=\"ana@email.com\")\ndb.add(novo)\ndb.commit()\ndb.refresh(novo)  # popula o id gerado\n\n# Atualizar\nusuario.nome = \"Ana Paula\"\ndb.commit()\n\n# Deletar\ndb.delete(usuario)\ndb.commit()\n\nSempre chame db.commit() para persistir. Use db.rollback() para desfazer em caso de erro."
+    },
+    {
+        "topico": "Autenticação JWT",
+        "pergunta": "O que é JWT e como funciona a autenticação com token?",
+        "variacoes": [
+            "O que é JWT?",
+            "Como funciona autenticação com token?",
+            "Para que serve o JWT?",
+            "O que é JSON Web Token?",
+            "Como funciona o login com JWT?",
+            "Qual a diferença entre sessão e JWT?"
+        ],
+        "resposta": "JWT (JSON Web Token) é um token compacto e autocontido que autentica usuários sem armazenar estado no servidor.\n\nFluxo:\n1. Usuário faz login → servidor gera um token JWT assinado\n2. Cliente envia o token no header: Authorization: Bearer <token>\n3. Servidor verifica a assinatura e lê os dados (claims) do token\n\nEstrutura do token: header.payload.signature (base64)\n\nVantagens: stateless, escalável, funciona bem com microsserviços."
+    },
+    {
+        "topico": "Autenticação JWT",
+        "pergunta": "Como gerar e verificar um token JWT em Python?",
+        "variacoes": [
+            "Como criar um token JWT em Python?",
+            "Como gerar token JWT com python-jose?",
+            "Como verificar um JWT?",
+            "Como decodificar um JWT?",
+            "Como usar python-jose para JWT?",
+            "Como assinar um token JWT?"
+        ],
+        "resposta": "Use a biblioteca python-jose:\n\nfrom jose import JWTError, jwt\nfrom datetime import datetime, timedelta\n\nSECRET_KEY = \"chave-secreta\"\nALGORITHM = \"HS256\"\n\n# Gerar token\ndef criar_token(dados: dict):\n    payload = dados.copy()\n    payload[\"exp\"] = datetime.utcnow() + timedelta(hours=1)\n    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)\n\n# Verificar token\ndef verificar_token(token: str):\n    try:\n        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])\n    except JWTError:\n        raise ValueError(\"Token inválido\")"
+    },
+    {
+        "topico": "Autenticação JWT",
+        "pergunta": "Como proteger rotas com autenticação JWT no FastAPI?",
+        "variacoes": [
+            "Como exigir login em uma rota no FastAPI?",
+            "Como proteger endpoint com JWT?",
+            "Como criar rota autenticada no FastAPI?",
+            "Como usar OAuth2PasswordBearer?",
+            "Como verificar o token em cada requisição?",
+            "Como pegar o usuário logado no FastAPI?"
+        ],
+        "resposta": "Use OAuth2PasswordBearer e Depends para proteger rotas:\n\nfrom fastapi import Depends, HTTPException, status\nfrom fastapi.security import OAuth2PasswordBearer\n\noauth2_scheme = OAuth2PasswordBearer(tokenUrl=\"/auth/login\")\n\ndef get_usuario_atual(token: str = Depends(oauth2_scheme)):\n    try:\n        payload = verificar_token(token)\n        return payload\n    except ValueError:\n        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)\n\n@app.get(\"/perfil\")\ndef perfil(usuario=Depends(get_usuario_atual)):\n    return usuario"
+    },
+    {
+        "topico": "HTTP e APIs REST",
+        "pergunta": "Quais são os métodos HTTP e quando usar cada um?",
+        "variacoes": [
+            "Qual a diferença entre GET e POST?",
+            "Quando usar PUT ou PATCH?",
+            "Para que serve o DELETE?",
+            "Quais os verbos HTTP?",
+            "Qual método HTTP usar para criar um recurso?",
+            "Qual método HTTP usar para atualizar?"
+        ],
+        "resposta": "Os métodos HTTP definem a intenção da requisição:\n\n- GET: buscar dados (sem efeitos colaterais)\n- POST: criar um novo recurso\n- PUT: substituir um recurso inteiro\n- PATCH: atualizar campos específicos de um recurso\n- DELETE: remover um recurso\n\nExemplo REST para usuarios:\n- GET /usuarios → lista todos\n- GET /usuarios/1 → busca o id 1\n- POST /usuarios → cria novo\n- PUT /usuarios/1 → substitui o id 1\n- DELETE /usuarios/1 → remove o id 1"
+    },
+    {
+        "topico": "HTTP e APIs REST",
+        "pergunta": "O que são status codes HTTP e quais os mais importantes?",
+        "variacoes": [
+            "O que é status code HTTP?",
+            "O que significa 200, 201, 404, 422?",
+            "Quais os códigos de resposta HTTP?",
+            "O que é erro 404?",
+            "O que é erro 500?",
+            "Quando retornar 201 vs 200?",
+            "O que significa 422 Unprocessable Entity?"
+        ],
+        "resposta": "Codes mais comuns:\n\n2xx — Sucesso:\n- 200 OK: requisição bem-sucedida\n- 201 Created: recurso criado (usar no POST)\n- 204 No Content: sucesso sem corpo (usar no DELETE)\n\n4xx — Erro do cliente:\n- 400 Bad Request: dados inválidos\n- 401 Unauthorized: não autenticado\n- 403 Forbidden: autenticado mas sem permissão\n- 404 Not Found: recurso não existe\n- 422 Unprocessable Entity: dados com formato inválido (padrão do FastAPI)\n\n5xx — Erro do servidor:\n- 500 Internal Server Error: bug no servidor"
+    },
+
+    {
+        "topico": "Fundamentos da Web, Protocolo HTTP e APIs",
+        "pergunta": "Quero revisar Fundamentos da Web, Protocolo HTTP e APIs",
+        "variacoes": [
+            "Revisao de HTTP e APIs REST",
+            "Tenho dificuldade com protocolo HTTP",
+            "Nao entendi como funciona uma API",
+            "Resumo de requisicao e resposta HTTP",
+            "Reforco sobre metodos HTTP e status codes",
+            "Como funciona o ciclo requisicao-resposta?"
+        ],
+        "resposta": "Revisão rápida — Fundamentos da Web, HTTP e APIs:\n\n**Ciclo HTTP**: cliente envia Request → servidor processa → devolve Response\n\n**Métodos**: GET (buscar), POST (criar), PUT (substituir), PATCH (atualizar parcialmente), DELETE (remover)\n\n**Status codes**:\n- 200 OK, 201 Created, 204 No Content\n- 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 422 Unprocessable Entity\n- 500 Internal Server Error\n\n**REST**: padrão de design de APIs que usa URLs para recursos e métodos HTTP para ações. Ex.: GET /usuarios/1 busca o usuário 1.\n\n**Erros comuns**: confundir 401 (não autenticado) com 403 (autenticado mas sem permissão), usar GET para criar dados."
+    },
+    {
+        "topico": "FastAPI: Rotas, Path e Query Parameters",
+        "pergunta": "Quero revisar FastAPI: Rotas, Path e Query Parameters",
+        "variacoes": [
+            "Revisao de FastAPI e rotas",
+            "Tenho dificuldade com path e query params no FastAPI",
+            "Nao entendi parametros de rota no FastAPI",
+            "Resumo de rotas e parametros FastAPI",
+            "Reforco sobre endpoints FastAPI",
+            "Como criar rotas com parametros no FastAPI?"
+        ],
+        "resposta": "Revisão rápida — FastAPI: Rotas e Parâmetros:\n\n**Rota simples**:\n@app.get(\"/usuarios\")\ndef listar(): ...\n\n**Path parameter** (parte da URL):\n@app.get(\"/usuarios/{id}\")\ndef buscar(id: int): ...\n\n**Query parameter** (após o ?):\n@app.get(\"/itens\")\ndef listar(pagina: int = 1, limite: int = 10): ...\n# Acesso: /itens?pagina=2&limite=5\n\n**Body parameter** (use modelo Pydantic):\n@app.post(\"/usuarios\")\ndef criar(dados: UsuarioCreate): ...\n\n**Erros comuns**: definir path param sem tipar ({id} sem : int), esquecer que query params opcionais precisam de valor padrão, confundir path param com query param."
+    },
+    {
+        "topico": "Modelos e Validacao de Dados com Pydantic",
+        "pergunta": "Quero revisar Modelos e Validacao de Dados com Pydantic",
+        "variacoes": [
+            "Revisao de Pydantic",
+            "Tenho dificuldade com validacao de dados com Pydantic",
+            "Nao entendi BaseModel do Pydantic",
+            "Resumo de modelos Pydantic",
+            "Reforco sobre validacao com Pydantic",
+            "Como criar modelos de validacao com Pydantic?"
+        ],
+        "resposta": "Revisão rápida — Modelos e Validação com Pydantic:\n\n**Modelo básico**:\nfrom pydantic import BaseModel\nfrom typing import Optional\n\nclass Produto(BaseModel):\n    nome: str\n    preco: float\n    descricao: Optional[str] = None\n    ativo: bool = True\n\n**Validação automática**: Pydantic lança ValidationError se um campo receber o tipo errado.\n\n**Validador customizado** (v2):\n@field_validator('preco')\n@classmethod\ndef preco_positivo(cls, v):\n    if v <= 0: raise ValueError('Preço deve ser positivo')\n    return v\n\n**Erros comuns**: esquecer que campos sem default são obrigatórios, tentar usar Optional sem = None, confundir ValidationError com outros erros."
+    },
+    {
+        "topico": "Persistencia e Modelos com SQLAlchemy ORM",
+        "pergunta": "Quero revisar Persistencia e Modelos com SQLAlchemy ORM",
+        "variacoes": [
+            "Revisao de SQLAlchemy",
+            "Tenho dificuldade com SQLAlchemy ORM",
+            "Nao entendi como persistir dados com SQLAlchemy",
+            "Resumo de modelos e sessao SQLAlchemy",
+            "Reforco sobre ORM e banco de dados",
+            "Como salvar dados no banco com SQLAlchemy?"
+        ],
+        "resposta": "Revisão rápida — Persistência com SQLAlchemy ORM:\n\n**Modelo (mapeamento de tabela)**:\nclass Usuario(Base):\n    __tablename__ = \"usuarios\"\n    id = Column(Integer, primary_key=True)\n    nome = Column(String(100), nullable=False)\n\n**CRUD com sessão**:\n# Criar\ndb.add(Usuario(nome=\"Ana\"))\ndb.commit()\n\n# Ler\ndb.query(Usuario).filter(Usuario.nome == \"Ana\").first()\n\n# Atualizar\nusuario.nome = \"Ana Paula\"; db.commit()\n\n# Deletar\ndb.delete(usuario); db.commit()\n\n**Erros comuns**: esquecer db.commit() após add/delete, acessar atributos após fechar a sessão (DetachedInstanceError), não usar db.refresh() após criar para obter o id gerado."
+    },
+    {
+        "topico": "Autenticacao Segura com Tokens JWT",
+        "pergunta": "Quero revisar Autenticacao Segura com Tokens JWT",
+        "variacoes": [
+            "Revisao de JWT",
+            "Tenho dificuldade com autenticacao JWT",
+            "Nao entendi tokens JWT",
+            "Resumo de autenticacao com JWT no FastAPI",
+            "Reforco sobre seguranca com JWT",
+            "Como implementar login com JWT?"
+        ],
+        "resposta": "Revisão rápida — Autenticação Segura com JWT:\n\n**Fluxo completo**:\n1. POST /login com credenciais → servidor valida senha (bcrypt) → gera JWT\n2. Cliente armazena o token e envia em cada requisição: Authorization: Bearer <token>\n3. Rota protegida verifica o token com Depends\n\n**Gerar token**:\npayload = {\"sub\": str(usuario.id), \"exp\": datetime.utcnow() + timedelta(hours=1)}\ntoken = jwt.encode(payload, SECRET_KEY, algorithm=\"HS256\")\n\n**Proteger rota**:\ndef get_usuario_atual(token: str = Depends(oauth2_scheme)):\n    payload = jwt.decode(token, SECRET_KEY, algorithms=[\"HS256\"])\n    ...\n\n**Erros comuns**: guardar senha em texto puro (use bcrypt), SECRET_KEY fraca ou hardcoded, não verificar a expiração (exp) do token, confundir 401 com 403."
+    }
+]
