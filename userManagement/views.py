@@ -22,6 +22,31 @@ from .serializers import (
 )
 from .services import anonimizar_usuario, exportar_dados_usuario
 
+PROFILE_AUDIT_FIELDS = ('nome', 'apelido', 'email', 'sexo', 'idade')
+
+
+def _profile_snapshot(user):
+    return {field: getattr(user, field) for field in PROFILE_AUDIT_FIELDS}
+
+
+def _registrar_alteracao_perfil(request, usuario, antes):
+    depois = _profile_snapshot(usuario)
+    campos = [field for field in PROFILE_AUDIT_FIELDS if antes.get(field) != depois.get(field)]
+    if not campos:
+        return
+    registrar_evento(
+        usuario=request.user,
+        acao='ALTERACAO_PERFIL',
+        request=request,
+        ator_email=getattr(request.user, 'email', ''),
+        recurso='USER',
+        recurso_id=usuario.pk,
+        metadata={
+            'campos': campos,
+            'email_alterado': 'email' in campos,
+        },
+    )
+
 
 class UserViewSet(viewsets.ModelViewSet):
     authentication_classes = (SessionAuthentication,)
@@ -73,6 +98,7 @@ class UserViewSet(viewsets.ModelViewSet):
             logout(request)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+        antes = _profile_snapshot(request.user)
         serializer = self.get_serializer(
             request.user,
             data=request.data,
@@ -80,7 +106,14 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        _registrar_alteracao_perfil(request, request.user, antes)
         return Response(serializer.data)
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        antes = _profile_snapshot(instance)
+        serializer.save()
+        _registrar_alteracao_perfil(self.request, instance, antes)
 
     @decorators.action(detail=False, methods=['get'], url_path='admin-export')
     def admin_export(self, request):
