@@ -17,19 +17,70 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _env_bool(name, default=False):
+    return os.environ.get(name, str(default)).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-n(#vve3eti$tnba06^y*q!o7)^fo-snp#-+s8+_l)8-9tdcv4_'
+# A chave de desenvolvimento mantém o ambiente local funcionando sem .env.
+# Em produção (DJANGO_DEBUG=False) a variável DJANGO_SECRET_KEY é obrigatória.
+DEV_SECRET_KEY = 'django-insecure-n(#vve3eti$tnba06^y*q!o7)^fo-snp#-+s8+_l)8-9tdcv4_'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', DEV_SECRET_KEY)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _env_bool('DJANGO_DEBUG', True)
+
+if not DEBUG and not os.environ.get('DJANGO_SECRET_KEY'):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        'Defina DJANGO_SECRET_KEY quando DJANGO_DEBUG=False.'
+    )
 
 ALLOWED_HOSTS = os.environ.get(
     'DJANGO_ALLOWED_HOSTS',
     'localhost,127.0.0.1,0.0.0.0',
 ).split(',')
+
+# Cookies e HTTPS. O padrão seguro para desenvolvimento é desligado; em produção
+# ative via DJANGO_* (ver .env.example). SECURE_PROXY_SSL_HEADER é habilitado
+# quando o TLS é terminado no proxy/nginx à frente do Django.
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = _env_bool('DJANGO_SESSION_COOKIE_SECURE', False)
+SESSION_COOKIE_SAMESITE = os.environ.get('DJANGO_SESSION_COOKIE_SAMESITE', 'Lax')
+# Expiração por inatividade. SESSION_SAVE_EVERY_REQUEST renova o prazo a cada
+# requisição autenticada, em vez de encerrar a sessão no horário fixo do login.
+SESSION_COOKIE_AGE = int(os.environ.get('DJANGO_SESSION_COOKIE_AGE', '1800'))
+SESSION_SAVE_EVERY_REQUEST = _env_bool('DJANGO_SESSION_SAVE_EVERY_REQUEST', True)
+CSRF_COOKIE_SECURE = _env_bool('DJANGO_CSRF_COOKIE_SECURE', False)
+CSRF_COOKIE_SAMESITE = os.environ.get('DJANGO_CSRF_COOKIE_SAMESITE', 'Lax')
+SECURE_SSL_REDIRECT = _env_bool('DJANGO_SECURE_SSL_REDIRECT', False)
+SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', '0'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS', False)
+SECURE_HSTS_PRELOAD = _env_bool('DJANGO_SECURE_HSTS_PRELOAD', False)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+X_FRAME_OPTIONS = 'DENY'
+
+if _env_bool('DJANGO_USE_X_FORWARDED_PROTO', False):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Flags LGPD (defaults seguros; podem ser desligados para clientes legados).
+LGPD_RESTRINGIR_USERS = _env_bool('LGPD_RESTRINGIR_USERS', True)
+LGPD_CAMPOS_READONLY = _env_bool('LGPD_CAMPOS_READONLY', True)
+LGPD_RETENCAO_DIAS = int(os.environ.get('LGPD_RETENCAO_DIAS', '365'))
+LGPD_AUDITORIA_RETENCAO_DIAS = int(os.environ.get('LGPD_AUDITORIA_RETENCAO_DIAS', '365'))
+LGPD_MAX_PROMPT_CHARS = int(os.environ.get('LGPD_MAX_PROMPT_CHARS', '500'))
+TERMOS_DE_USO_VERSAO = os.environ.get('TERMOS_DE_USO_VERSAO', '1.0')
+
+if not DEBUG and (
+    not LGPD_RESTRINGIR_USERS
+    or not LGPD_CAMPOS_READONLY
+):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        'Em produção, LGPD_RESTRINGIR_USERS e LGPD_CAMPOS_READONLY devem ser true.'
+    )
 
 
 # Application definition
@@ -69,6 +120,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'userManagement.middleware.AuditRequestMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -151,6 +203,44 @@ STATIC_ROOT = os.environ.get('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles')
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Proteção mesmo quando o Django for exposto diretamente, sem nginx.
+    # O rate limit do nginx continua valendo para os endpoints de autenticação.
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': os.environ.get('DRF_THROTTLE_ANON', '120/min'),
+        'user': os.environ.get('DRF_THROTTLE_USER', '1200/min'),
+    },
+}
+
+# Logs: o filtro mascarará e-mail/IP. Conteúdo de mensagem, resposta, senha e
+# token não deve ser registrado pelo código.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {
+        'pii': {
+            '()': 'settings.logging_filters.PIIMaskingFilter',
+        },
+    },
+    'formatters': {
+        'default': {
+            'format': '%(asctime)s %(levelname)s %(name)s %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'default',
+            'filters': ['pii'],
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
+    },
 }
 
 

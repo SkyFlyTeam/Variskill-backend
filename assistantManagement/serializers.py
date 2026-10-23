@@ -33,6 +33,7 @@ class MensagemInicialSerializer(serializers.Serializer):
     remetente = serializers.CharField()
     conteudo = serializers.CharField()
     sugestoes_rapidas = serializers.ListField(child=serializers.CharField())
+    origem_resposta = serializers.CharField(allow_null=True, required=False)
     criada_em = serializers.DateTimeField(required=False)
 
 
@@ -51,6 +52,7 @@ class RespostaAssistenteSerializer(serializers.Serializer):
     acao = serializers.CharField(allow_null=True, required=False)
     redirecionar_para = serializers.CharField(allow_null=True, required=False)
     dados_acao = serializers.DictField(required=False)
+    origem_resposta = serializers.CharField(allow_null=True, required=False)
     criada_em = serializers.DateTimeField(required=False)
 
 
@@ -64,6 +66,7 @@ class MensagemHistoricoSerializer(serializers.Serializer):
     conteudo = serializers.CharField()
     intencao_detectada = serializers.CharField(allow_null=True)
     opcoes_trilhas = OpcaoTrilhaSerializer(many=True, required=False)
+    origem_resposta = serializers.CharField(allow_null=True, required=False)
     criada_em = serializers.DateTimeField()
 
 

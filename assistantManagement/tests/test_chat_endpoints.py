@@ -332,7 +332,11 @@ class IniciarSessaoComHistoricoTests(APITestCase):
             enunciado="Q2", gabarito_esperado="b", ordem_questao=2,
         )
         execucao = ExecucaoAtividade.objects.create(
-            usuario=self.user, atividade=self.atividade, pontuacao_obtida=0, aprovado=False,
+            usuario=self.user,
+            atividade=self.atividade,
+            resposta={},
+            pontuacao_obtida=0,
+            aprovado=False,
         )
         RespostaQuestao.objects.bulk_create([
             RespostaQuestao(execucao=execucao, questao=q1, resposta_fornecida="x", correta=False),

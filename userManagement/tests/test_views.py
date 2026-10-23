@@ -33,7 +33,7 @@ def interesse_django():
 def test_register_creates_user_and_session(client, django_user_model):
     response = client.post(
         reverse('register'),
-        {'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123'},
+        {'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123', 'aceite_termos': True},
         format='json',
     )
 
@@ -62,6 +62,23 @@ def test_register_creates_user_and_session(client, django_user_model):
     assert user.is_primeiro_acesso is True
     assert client.session['_auth_user_id'] == str(user.pk)
     assert client.get(reverse('user-list')).status_code == 200
+
+
+def test_register_requires_aceite_termos(client, django_user_model):
+    response = client.post(
+        reverse('register'),
+        {
+            'apelido': 'sem_termos',
+            'nome': 'Sem Termos',
+            'email': 'sem-termos@example.com',
+            'password': 'test-password-123',
+        },
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'aceite_termos' in response.data
+    assert not django_user_model.objects.filter(apelido='sem_termos').exists()
 
 
 @pytest.mark.parametrize('payload, field', [
@@ -206,16 +223,41 @@ def test_authenticated_user_can_list_and_retrieve_users(client, user, django_use
     response = client.get(reverse('user-list'))
 
     assert response.status_code == 200
-    assert [item['id'] for item in response.data] == sorted([str(user.pk), str(second_user.pk)])
-    assert [item['apelido'] for item in response.data] == [user.apelido if str(user.pk) < str(second_user.pk) else second_user.apelido, second_user.apelido if str(user.pk) < str(second_user.pk) else user.apelido]
+    assert [item['id'] for item in response.data] == [str(user.pk)]
+    response = client.get(reverse('user-detail', args=[second_user.pk]))
+    assert response.status_code == 404
+
+
+def test_admin_can_list_and_retrieve_all_users(client, user, django_user_model):
+    second_user = baker.make(django_user_model, apelido='bob')
+    admin = baker.make(django_user_model, apelido='admin', is_staff=True)
+    client.force_login(admin)
+
+    response = client.get(reverse('user-list'))
+
+    assert response.status_code == 200
+    ids = {item['id'] for item in response.data}
+    assert ids == {str(user.pk), str(second_user.pk), str(admin.pk)}
     response = client.get(reverse('user-detail', args=[second_user.pk]))
     assert response.status_code == 200
-    assert response.data['id'] == str(second_user.pk)
-    assert response.data['apelido'] == 'bob'
 
 
-def test_authenticated_user_can_create_user(client, user, django_user_model):
+def test_authenticated_user_cannot_create_user(client, user, django_user_model):
     client.force_login(user)
+
+    response = client.post(
+        reverse('user-list'),
+        {'apelido': 'bob', 'nome': 'Bob', 'email': 'bob@example.com', 'password': 'new-password'},
+        format='json',
+    )
+
+    assert response.status_code == 403
+    assert not django_user_model.objects.filter(apelido='bob').exists()
+
+
+def test_admin_can_create_user(client, django_user_model):
+    admin = baker.make(django_user_model, apelido='admin', is_staff=True)
+    client.force_login(admin)
 
     response = client.post(
         reverse('user-list'),
@@ -236,16 +278,31 @@ def test_authenticated_user_can_update_user(client, user, method):
 
     response = getattr(client, method)(
         reverse('user-detail', args=[user.pk]),
-        {'apelido': 'updated', 'nome': user.nome, 'email': user.email, 'password': 'updated-password'},
+        {'apelido': 'updated', 'nome': user.nome, 'email': user.email},
         format='json',
     )
 
     assert response.status_code == 200
     user.refresh_from_db()
     assert user.apelido == 'updated'
-    assert user.check_password('updated-password')
+    assert user.check_password('test-password-123')
     assert response.data['id'] == str(user.pk)
     assert response.data['apelido'] == 'updated'
+
+
+def test_password_update_via_generic_endpoint_is_rejected(client, user):
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-detail', args=[user.pk]),
+        {'password': 'updated-password'},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'password' in response.data
+    user.refresh_from_db()
+    assert user.check_password('test-password-123')
 
 
 def test_partial_update_preserves_password(client, user):
@@ -278,8 +335,18 @@ def test_first_access_flag_can_be_updated(client, user):
     assert response.data['is_primeiro_acesso'] is False
 
 
-def test_authenticated_user_can_delete_user(client, user, django_user_model):
+def test_authenticated_user_cannot_delete_user(client, user, django_user_model):
     client.force_login(user)
+
+    response = client.delete(reverse('user-detail', args=[user.pk]))
+
+    assert response.status_code == 403
+    assert django_user_model.objects.filter(pk=user.pk).exists()
+
+
+def test_admin_can_delete_user(client, user, django_user_model):
+    admin = baker.make(django_user_model, apelido='admin', is_staff=True)
+    client.force_login(admin)
 
     response = client.delete(reverse('user-detail', args=[user.pk]))
 

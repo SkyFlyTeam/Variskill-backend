@@ -24,6 +24,10 @@ class User(AbstractUser):
     sexo = models.CharField(max_length=20, choices=SEXO_CHOICES, null=True, blank=True)
     idade = models.PositiveIntegerField(null=True, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
+    aceite_privacidade_versao = models.CharField(max_length=50, null=True, blank=True)
+    aceite_privacidade_em = models.DateTimeField(null=True, blank=True)
+    consentimento_revogado_em = models.DateTimeField(null=True, blank=True)
+    anonimizado_em = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = 'apelido'
     REQUIRED_FIELDS = []
@@ -31,6 +35,13 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.apelido
+
+    @property
+    def consentimento_ativo(self) -> bool:
+        return (
+            self.aceite_privacidade_em is not None
+            and self.consentimento_revogado_em is None
+        )
 
 
 class Interesse(models.Model):
@@ -62,3 +73,93 @@ class UsuarioInteresse(models.Model):
 
     def __str__(self):
         return f"{self.usuario} -> {self.interesse}"
+
+
+class SolicitacaoRevisao(models.Model):
+    TIPO_CHOICES = [
+        ('NIVELAMENTO', 'Nivelamento'),
+        ('PARECER', 'Parecer formativo'),
+        ('RECOMENDACAO', 'Recomendação de trilha'),
+    ]
+    STATUS_CHOICES = [
+        ('ABERTA', 'Aberta'),
+        ('REVISADA', 'Revisada'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='solicitacoes_revisao'
+    )
+    tipo = models.CharField(max_length=30, choices=TIPO_CHOICES)
+    referencia_id = models.UUIDField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ABERTA')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    respondido_em = models.DateTimeField(null=True, blank=True)
+    resposta = models.TextField(blank=True, default='')
+
+    class Meta:
+        db_table = 'SOLICITACAO_REVISAO'
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        return f"{self.usuario} - {self.tipo} ({self.status})"
+
+
+class EventoAuditoria(models.Model):
+    ACAO_CHOICES = [
+        ('REQUISICAO', 'Requisição'),
+        ('LOGIN', 'Login'),
+        ('LOGIN_FALHA', 'Falha de login'),
+        ('LOGOUT', 'Logout'),
+        ('CADASTRO', 'Cadastro'),
+        ('ALTERACAO_PERFIL', 'Alteração de perfil'),
+        ('CONSENTIMENTO_CONCEDIDO', 'Consentimento concedido'),
+        ('CONSENTIMENTO_REVOGADO', 'Consentimento revogado'),
+        ('EXPORTACAO_DADOS', 'Exportação de dados'),
+        ('ANONIMIZACAO_CONTA', 'Anonimização de conta'),
+        ('HARD_DELETE', 'Exclusão definitiva'),
+        ('TROCA_SENHA', 'Troca de senha'),
+        ('REVISAO_SOLICITADA', 'Revisão solicitada'),
+        ('REVISAO_RESPONDIDA', 'Revisão respondida'),
+        ('EXPURGO_EXECUTADO', 'Expurgo executado'),
+    ]
+    RESULTADO_CHOICES = [
+        ('SUCESSO', 'Sucesso'),
+        ('FALHA', 'Falha'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='eventos_auditoria',
+    )
+    # Snapshot do e-mail/identificador no momento do evento: preserva a evidência
+    # mesmo se a conta for anonimizada ou apagada. Não guardar senha/token/conteúdo.
+    ator_email = models.CharField(max_length=254, blank=True, default='')
+    ator_is_staff = models.BooleanField(default=False)
+    acao = models.CharField(max_length=40, choices=ACAO_CHOICES)
+    metodo = models.CharField(max_length=10, blank=True, default='')
+    rota = models.CharField(max_length=500, blank=True, default='')
+    status_code = models.PositiveSmallIntegerField(null=True, blank=True)
+    resultado = models.CharField(max_length=20, choices=RESULTADO_CHOICES, default='SUCESSO')
+    recurso = models.CharField(max_length=40, blank=True, default='')
+    recurso_id = models.UUIDField(null=True, blank=True)
+    ip_hash = models.CharField(max_length=64, blank=True, default='')
+    user_agent = models.TextField(blank=True, default='')
+    metadata = models.JSONField(default=dict, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'EVENTO_AUDITORIA'
+        ordering = ['-criado_em']
+        indexes = [
+            models.Index(fields=['usuario', 'criado_em'], name='auditoria_usuario_idx'),
+            models.Index(fields=['acao', 'criado_em'], name='auditoria_acao_idx'),
+            models.Index(fields=['criado_em'], name='auditoria_data_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.criado_em} - {self.acao} - {self.ator_email or 'sistema'}"
