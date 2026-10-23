@@ -36,25 +36,6 @@ def admin(django_user_model):
     )
 
 
-def test_export_requires_authentication(client):
-    assert client.get(reverse('user-export')).status_code == 403
-
-
-def test_export_returns_profile_and_history(client, user):
-    client.force_login(user)
-
-    response = client.get(reverse('user-export'))
-
-    assert response.status_code == 200
-    assert 'attachment' in response['Content-Disposition']
-    payload = response.json()
-    assert payload['perfil']['id'] == str(user.pk)
-    assert payload['perfil']['email'] == user.email
-    assert 'execucoes' in payload
-    assert 'sessoes_chat' in payload
-    assert payload['perfil']['consentimento_revogado_em'] is None
-
-
 def test_delete_me_anonymizes_and_blocks_login(client, user, django_user_model):
     sessao = Sessao.objects.create(usuario=user)
     Mensagem.objects.create(
@@ -102,6 +83,39 @@ def test_delete_me_anonymizes_and_blocks_login(client, user, django_user_model):
     assert resposta.resposta_fornecida is None
     assert user.aceite_privacidade_em is None
     assert user.consentimento_revogado_em is not None
+
+
+def test_admin_export_by_email_returns_profile_and_audits(client, admin, django_user_model):
+    target = django_user_model.objects.create_user(
+        apelido='export_target',
+        nome='Export Target',
+        email='export@example.com',
+        password='test-password-123',
+    )
+    client.force_login(admin)
+
+    response = client.get(
+        reverse('user-admin-export') + '?email=export@example.com'
+    )
+
+    assert response.status_code == 200
+    assert 'attachment' in response['Content-Disposition']
+    assert response.json()['perfil']['email'] == target.email
+    evento = EventoAuditoria.objects.filter(
+        acao='EXPORTACAO_DADOS', recurso_id=target.pk
+    ).first()
+    assert evento is not None
+    assert evento.metadata['email_alvo'] == target.email
+
+
+def test_admin_export_requires_admin(client, user):
+    client.force_login(user)
+    assert client.get(reverse('user-admin-export') + '?email=alvo@example.com').status_code == 403
+
+
+def test_admin_export_rejects_unknown_email(client, admin):
+    client.force_login(admin)
+    assert client.get(reverse('user-admin-export') + '?email=naoexiste@example.com').status_code == 404
 
 
 def test_revisao_create_and_admin_response(client, user, admin):
