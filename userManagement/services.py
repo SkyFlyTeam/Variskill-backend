@@ -7,7 +7,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from activityManagement.models import ExecucaoAtividade, RespostaQuestao
-from .models import Consentimento, User
+from .models import User
 
 
 class GamificationService:
@@ -144,6 +144,9 @@ def anonimizar_usuario(usuario):
     locked.is_staff = False
     locked.is_superuser = False
     locked.last_login = None
+    locked.aceite_privacidade_versao = None
+    locked.aceite_privacidade_em = None
+    locked.consentimento_revogado_em = timezone.now()
     locked.anonimizado_em = timezone.now()
     locked.set_unusable_password()
     locked.groups.clear()
@@ -151,7 +154,6 @@ def anonimizar_usuario(usuario):
     locked.save()
 
     UsuarioInteresse.objects.filter(usuario=locked).delete()
-    Consentimento.objects.filter(usuario=locked).update(revogado_em=timezone.now())
     # Conversas e textos livres podem conter dado pessoal: removemos as sessões.
     Sessao.objects.filter(usuario=locked).delete()
 
@@ -240,12 +242,6 @@ def exportar_dados_usuario(usuario):
             ],
         })
 
-    consentimentos = list(
-        Consentimento.objects.filter(usuario=usuario).values(
-            'tipo', 'concedido_em', 'revogado_em', 'versao_documento',
-        )
-    )
-
     return {
         'exportado_em': timezone.now(),
         'perfil': {
@@ -261,11 +257,12 @@ def exportar_dados_usuario(usuario):
             'criado_em': usuario.criado_em,
             'aceite_privacidade_versao': usuario.aceite_privacidade_versao,
             'aceite_privacidade_em': usuario.aceite_privacidade_em,
+            'consentimento_revogado_em': usuario.consentimento_revogado_em,
+            'consentimento_ativo': usuario.consentimento_ativo,
         },
         'interesses': interesses,
         'matriculas': matriculas,
         'progresso_modulos': progresso,
         'execucoes': execucoes,
         'sessoes_chat': sessoes,
-        'consentimentos': consentimentos,
     }

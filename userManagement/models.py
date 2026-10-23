@@ -26,6 +26,7 @@ class User(AbstractUser):
     criado_em = models.DateTimeField(auto_now_add=True)
     aceite_privacidade_versao = models.CharField(max_length=50, null=True, blank=True)
     aceite_privacidade_em = models.DateTimeField(null=True, blank=True)
+    consentimento_revogado_em = models.DateTimeField(null=True, blank=True)
     anonimizado_em = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = 'apelido'
@@ -34,6 +35,13 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.apelido
+
+    @property
+    def consentimento_ativo(self) -> bool:
+        return (
+            self.aceite_privacidade_em is not None
+            and self.consentimento_revogado_em is None
+        )
 
 
 class Interesse(models.Model):
@@ -65,41 +73,6 @@ class UsuarioInteresse(models.Model):
 
     def __str__(self):
         return f"{self.usuario} -> {self.interesse}"
-
-
-class Consentimento(models.Model):
-    TIPO_CHOICES = [
-        ('TERMOS_DE_USO', 'Termos de uso'),
-        ('DADOS_OPCIONAIS', 'Dados opcionais'),
-        ('FOTO', 'Foto de perfil'),
-        ('MARKETING', 'Marketing'),
-        ('IA_EXTERNA', 'Uso de IA externa'),
-    ]
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    usuario = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='consentimentos'
-    )
-    tipo = models.CharField(max_length=30, choices=TIPO_CHOICES)
-    email_assinante = models.CharField(max_length=254, blank=True, default='')
-    concedido_em = models.DateTimeField(auto_now_add=True)
-    revogado_em = models.DateTimeField(null=True, blank=True)
-    versao_documento = models.CharField(max_length=50, blank=True, default='')
-
-    class Meta:
-        db_table = 'CONSENTIMENTO'
-        constraints = [
-            models.UniqueConstraint(
-                fields=['usuario', 'tipo'], name='unique_consentimento_usuario_tipo'
-            )
-        ]
-
-    @property
-    def ativo(self):
-        return self.revogado_em is None
-
-    def __str__(self):
-        return f"{self.usuario} - {self.tipo} ({'ativo' if self.ativo else 'revogado'})"
 
 
 class SolicitacaoRevisao(models.Model):
