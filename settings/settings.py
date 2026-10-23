@@ -48,6 +48,10 @@ ALLOWED_HOSTS = os.environ.get(
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = _env_bool('DJANGO_SESSION_COOKIE_SECURE', False)
 SESSION_COOKIE_SAMESITE = os.environ.get('DJANGO_SESSION_COOKIE_SAMESITE', 'Lax')
+# Expiração por inatividade. SESSION_SAVE_EVERY_REQUEST renova o prazo a cada
+# requisição autenticada, em vez de encerrar a sessão no horário fixo do login.
+SESSION_COOKIE_AGE = int(os.environ.get('DJANGO_SESSION_COOKIE_AGE', '1800'))
+SESSION_SAVE_EVERY_REQUEST = _env_bool('DJANGO_SESSION_SAVE_EVERY_REQUEST', True)
 CSRF_COOKIE_SECURE = _env_bool('DJANGO_CSRF_COOKIE_SECURE', False)
 CSRF_COOKIE_SAMESITE = os.environ.get('DJANGO_CSRF_COOKIE_SAMESITE', 'Lax')
 SECURE_SSL_REDIRECT = _env_bool('DJANGO_SECURE_SSL_REDIRECT', False)
@@ -68,6 +72,15 @@ LGPD_RETENCAO_DIAS = int(os.environ.get('LGPD_RETENCAO_DIAS', '365'))
 LGPD_AUDITORIA_RETENCAO_DIAS = int(os.environ.get('LGPD_AUDITORIA_RETENCAO_DIAS', '365'))
 LGPD_MAX_PROMPT_CHARS = int(os.environ.get('LGPD_MAX_PROMPT_CHARS', '500'))
 TERMOS_DE_USO_VERSAO = os.environ.get('TERMOS_DE_USO_VERSAO', '1.0')
+
+if not DEBUG and (
+    not LGPD_RESTRINGIR_USERS
+    or not LGPD_CAMPOS_READONLY
+):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        'Em produção, LGPD_RESTRINGIR_USERS e LGPD_CAMPOS_READONLY devem ser true.'
+    )
 
 
 # Application definition
@@ -190,6 +203,44 @@ STATIC_ROOT = os.environ.get('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles')
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Proteção mesmo quando o Django for exposto diretamente, sem nginx.
+    # O rate limit do nginx continua valendo para os endpoints de autenticação.
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': os.environ.get('DRF_THROTTLE_ANON', '120/min'),
+        'user': os.environ.get('DRF_THROTTLE_USER', '1200/min'),
+    },
+}
+
+# Logs: o filtro mascarará e-mail/IP. Conteúdo de mensagem, resposta, senha e
+# token não deve ser registrado pelo código.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {
+        'pii': {
+            '()': 'settings.logging_filters.PIIMaskingFilter',
+        },
+    },
+    'formatters': {
+        'default': {
+            'format': '%(asctime)s %(levelname)s %(name)s %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'default',
+            'filters': ['pii'],
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
+    },
 }
 
 

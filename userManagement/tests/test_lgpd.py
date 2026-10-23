@@ -118,6 +118,24 @@ def test_admin_export_rejects_unknown_email(client, admin):
     assert client.get(reverse('user-admin-export') + '?email=naoexiste@example.com').status_code == 404
 
 
+def test_profile_update_is_audited_without_values(client, user):
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-me'),
+        {'email': 'novo-email@example.com'},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    evento = EventoAuditoria.objects.filter(
+        acao='ALTERACAO_PERFIL', recurso_id=user.pk
+    ).latest('criado_em')
+    assert evento.metadata['campos'] == ['email']
+    assert evento.metadata['email_alterado'] is True
+    assert 'novo-email@example.com' not in str(evento.metadata)
+
+
 def test_revisao_create_and_admin_response(client, user, admin):
     client.force_login(user)
     response = client.post(

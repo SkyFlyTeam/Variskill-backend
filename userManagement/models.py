@@ -112,6 +112,7 @@ class EventoAuditoria(models.Model):
         ('LOGIN_FALHA', 'Falha de login'),
         ('LOGOUT', 'Logout'),
         ('CADASTRO', 'Cadastro'),
+        ('ALTERACAO_PERFIL', 'Alteração de perfil'),
         ('CONSENTIMENTO_CONCEDIDO', 'Consentimento concedido'),
         ('CONSENTIMENTO_REVOGADO', 'Consentimento revogado'),
         ('EXPORTACAO_DADOS', 'Exportação de dados'),
