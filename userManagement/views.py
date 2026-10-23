@@ -9,11 +9,10 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 
 from .audit import registrar_evento
-from .models import Consentimento, EventoAuditoria, Interesse, SolicitacaoRevisao, User
+from .models import EventoAuditoria, Interesse, SolicitacaoRevisao, User
 from .serializers import (
     AuthSerializer,
     ChangePasswordSerializer,
-    ConsentimentoSerializer,
     EventoAuditoriaSerializer,
     InteresseSerializer,
     SolicitacaoRevisaoAdminSerializer,
@@ -62,6 +61,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 acao='ANONIMIZACAO_CONTA',
                 request=request,
                 ator_email=email_original,
+            )
+            registrar_evento(
+                usuario=request.user,
+                acao='CONSENTIMENTO_REVOGADO',
+                request=request,
+                ator_email=email_original,
+                metadata={'motivo': 'exclusao_conta'},
             )
             anonimizar_usuario(request.user)
             logout(request)
@@ -138,8 +144,17 @@ class UserViewSet(viewsets.ModelViewSet):
                 recurso_id=target_id,
                 metadata={'email_alvo': target_email},
             )
+            registrar_evento(
+                usuario=request.user,
+                acao='CONSENTIMENTO_REVOGADO',
+                request=request,
+                ator_email=target_email,
+                recurso='USER',
+                recurso_id=target_id,
+                metadata={'email_alvo': target_email, 'motivo': 'hard_delete'},
+            )
             # CASCADE remove sessões, mensagens, matrículas, progresso,
-            # execuções, respostas, consentimentos, interesses e revisões.
+            # execuções, respostas, consentimento, interesses e revisões.
             target.delete()
 
         return Response(
@@ -170,6 +185,14 @@ class RegisterView(generics.GenericAPIView):
             request=request,
             recurso='USER',
             recurso_id=user.pk,
+        )
+        registrar_evento(
+            usuario=user,
+            acao='CONSENTIMENTO_CONCEDIDO',
+            request=request,
+            recurso='USER',
+            recurso_id=user.pk,
+            metadata={'versao': user.aceite_privacidade_versao},
         )
 
         return Response(
@@ -231,81 +254,6 @@ class InteresseListView(generics.ListAPIView):
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = InteresseSerializer
     queryset = Interesse.objects.filter(ativo=True)
-
-
-class ConsentimentoListView(generics.ListCreateAPIView):
-    authentication_classes = (SessionAuthentication,)
-    permission_classes = (permissions.IsAuthenticated,)
-    serializer_class = ConsentimentoSerializer
-
-    def get_queryset(self):
-        return Consentimento.objects.filter(usuario=self.request.user).order_by('tipo')
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        tipo = serializer.validated_data['tipo']
-        versao = serializer.validated_data.get('versao_documento', '')
-
-        consentimento, _ = Consentimento.objects.get_or_create(
-            usuario=request.user,
-            tipo=tipo,
-            defaults={
-                'versao_documento': versao,
-                'email_assinante': request.user.email,
-            },
-        )
-        Consentimento.objects.filter(pk=consentimento.pk).update(
-            concedido_em=timezone.now(),
-            revogado_em=None,
-            versao_documento=versao,
-            email_assinante=request.user.email,
-        )
-        consentimento.refresh_from_db()
-        registrar_evento(
-            usuario=request.user,
-            acao='CONSENTIMENTO_CONCEDIDO',
-            request=request,
-            recurso='CONSENTIMENTO',
-            recurso_id=consentimento.pk,
-            metadata={'tipo': tipo},
-        )
-
-        return Response(
-            ConsentimentoSerializer(consentimento).data,
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class ConsentimentoDetailView(generics.DestroyAPIView):
-    authentication_classes = (SessionAuthentication,)
-    permission_classes = (permissions.IsAuthenticated,)
-    serializer_class = ConsentimentoSerializer
-    lookup_field = 'tipo'
-
-    def get_queryset(self):
-        return Consentimento.objects.filter(usuario=self.request.user)
-
-    def perform_destroy(self, instance):
-        instance.revogado_em = timezone.now()
-        instance.save(update_fields=['revogado_em'])
-        registrar_evento(
-            usuario=self.request.user,
-            acao='CONSENTIMENTO_REVOGADO',
-            request=self.request,
-            recurso='CONSENTIMENTO',
-            recurso_id=instance.pk,
-            metadata={'tipo': instance.tipo},
-        )
-
-        if (
-            getattr(settings, 'LGPD_LIMPAR_AO_REVOGAR', False)
-            and instance.tipo == 'DADOS_OPCIONAIS'
-        ):
-            request_user = self.request.user
-            request_user.sexo = None
-            request_user.idade = None
-            request_user.save(update_fields=['sexo', 'idade'])
 
 
 class SolicitacaoRevisaoViewSet(viewsets.ModelViewSet):

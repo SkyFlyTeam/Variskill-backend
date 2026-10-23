@@ -4,7 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Consentimento, EventoAuditoria, Interesse, SolicitacaoRevisao, UsuarioInteresse
+from .models import EventoAuditoria, Interesse, SolicitacaoRevisao, UsuarioInteresse
 from .services import GamificationService
 
 User = get_user_model()
@@ -34,12 +34,14 @@ class UserSerializer(serializers.ModelSerializer):
             'xp_total', 'streak_dias', 'is_primeiro_acesso',
             'sexo', 'idade', 'interesses', 'interesses_ids',
             'nivel', 'progresso_nivel',
-            'aceite_privacidade_versao', 'aceite_privacidade_em', 'anonimizado_em',
+            'aceite_privacidade_versao', 'aceite_privacidade_em',
+            'consentimento_revogado_em', 'anonimizado_em',
             'aceite_versao', 'aceite_termos',
         )
         read_only_fields = (
             'id', 'criado_em', 'nivel', 'progresso_nivel',
-            'aceite_privacidade_versao', 'aceite_privacidade_em', 'anonimizado_em',
+            'aceite_privacidade_versao', 'aceite_privacidade_em',
+            'consentimento_revogado_em', 'anonimizado_em',
         )
         extra_kwargs = {
             'apelido': {'required': True},
@@ -74,25 +76,19 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('interesses_ids', None)
-        validated_data.pop('aceite_termos', None)
+        aceite_termos = validated_data.pop('aceite_termos', False)
         aceite_versao = validated_data.pop('aceite_versao', None)
         password = validated_data.pop('password')
         versao_termos = aceite_versao or getattr(settings, 'TERMOS_DE_USO_VERSAO', '1.0')
 
         with transaction.atomic():
             user = User(**validated_data)
-            user.aceite_privacidade_versao = versao_termos
-            user.aceite_privacidade_em = timezone.now()
+            if aceite_termos:
+                user.aceite_privacidade_versao = versao_termos
+                user.aceite_privacidade_em = timezone.now()
+                user.consentimento_revogado_em = None
             user.set_password(password)
             user.save()
-
-            # Consentimento automático do cadastro (Termos de Uso).
-            Consentimento.objects.create(
-                usuario=user,
-                tipo='TERMOS_DE_USO',
-                email_assinante=user.email,
-                versao_documento=versao_termos,
-            )
         return user
 
     def update(self, instance, validated_data):
@@ -108,6 +104,7 @@ class UserSerializer(serializers.ModelSerializer):
             if aceite_versao:
                 instance.aceite_privacidade_versao = aceite_versao
                 instance.aceite_privacidade_em = timezone.now()
+                instance.consentimento_revogado_em = None
 
             if password is not None:
                 instance.set_password(password)
@@ -140,18 +137,6 @@ class AuthSerializer(serializers.Serializer):
         if not attrs.get('apelido') and not attrs.get('email'):
             raise serializers.ValidationError('Informe o apelido ou o email.')
         return attrs
-
-
-class ConsentimentoSerializer(serializers.ModelSerializer):
-    ativo = serializers.BooleanField(read_only=True)
-
-    class Meta:
-        model = Consentimento
-        fields = (
-            'id', 'tipo', 'email_assinante', 'concedido_em', 'revogado_em',
-            'versao_documento', 'ativo',
-        )
-        read_only_fields = ('id', 'email_assinante', 'concedido_em', 'revogado_em', 'ativo')
 
 
 class SolicitacaoRevisaoSerializer(serializers.ModelSerializer):

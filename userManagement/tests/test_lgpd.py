@@ -10,7 +10,7 @@ from model_bakery import baker
 from activityManagement.models import ExecucaoAtividade, RespostaQuestao
 from assistantManagement.models import Mensagem, Sessao
 from questionsManagement.models import Questao
-from userManagement.models import Consentimento, EventoAuditoria, SolicitacaoRevisao
+from userManagement.models import EventoAuditoria, SolicitacaoRevisao
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
@@ -52,7 +52,7 @@ def test_export_returns_profile_and_history(client, user):
     assert payload['perfil']['email'] == user.email
     assert 'execucoes' in payload
     assert 'sessoes_chat' in payload
-    assert 'consentimentos' in payload
+    assert payload['perfil']['consentimento_revogado_em'] is None
 
 
 def test_delete_me_anonymizes_and_blocks_login(client, user, django_user_model):
@@ -77,7 +77,9 @@ def test_delete_me_anonymizes_and_blocks_login(client, user, django_user_model):
         resposta_fornecida='resposta pessoal',
         correta=False,
     )
-    Consentimento.objects.create(usuario=user, tipo='DADOS_OPCIONAIS')
+    user.aceite_privacidade_versao = '1.0'
+    user.aceite_privacidade_em = timezone.now()
+    user.save(update_fields=['aceite_privacidade_versao', 'aceite_privacidade_em'])
 
     client.force_login(user)
     response = client.delete(reverse('user-me'))
@@ -98,34 +100,8 @@ def test_delete_me_anonymizes_and_blocks_login(client, user, django_user_model):
     resposta.refresh_from_db()
     assert execucao.resposta == {}
     assert resposta.resposta_fornecida is None
-    assert Consentimento.objects.get(usuario=user).revogado_em is not None
-
-
-def test_consentimento_create_and_revoke(client, user):
-    client.force_login(user)
-
-    response = client.post(
-        reverse('consentimento-list'),
-        {'tipo': 'DADOS_OPCIONAIS', 'versao_documento': 'v1'},
-        format='json',
-    )
-    assert response.status_code == 201
-    assert response.data['tipo'] == 'DADOS_OPCIONAIS'
-    assert response.data['ativo'] is True
-
-    response = client.delete(
-        reverse('consentimento-detail', args=['DADOS_OPCIONAIS'])
-    )
-    assert response.status_code == 204
-
-    response = client.get(reverse('consentimento-list'))
-    assert response.status_code == 200
-    assert response.data[0]['ativo'] is False
-    assert response.data[0]['revogado_em'] is not None
-
-
-def test_consentimento_requires_authentication(client):
-    assert client.get(reverse('consentimento-list')).status_code == 403
+    assert user.aceite_privacidade_em is None
+    assert user.consentimento_revogado_em is not None
 
 
 def test_revisao_create_and_admin_response(client, user, admin):
@@ -230,7 +206,7 @@ def test_expurgar_dados_dry_run_and_execute(client, user):
     assert resposta.resposta_fornecida is None
 
 
-def test_registration_creates_termos_de_uso_consent(client, django_user_model):
+def test_registration_marks_consent_accepted(client, django_user_model):
     response = client.post(
         reverse('register'),
         {
@@ -245,11 +221,9 @@ def test_registration_creates_termos_de_uso_consent(client, django_user_model):
 
     assert response.status_code == 201
     user = django_user_model.objects.get(apelido='consent_user')
-    consentimento = Consentimento.objects.get(usuario=user, tipo='TERMOS_DE_USO')
-    assert consentimento.email_assinante == user.email
-    assert consentimento.concedido_em is not None
-    assert consentimento.versao_documento
     assert user.aceite_privacidade_em is not None
+    assert user.aceite_privacidade_versao
+    assert user.consentimento_revogado_em is None
 
 
 def test_audit_middleware_logs_authenticated_request(client, user):
@@ -305,11 +279,6 @@ def test_hard_delete_by_email_cascades_and_audits(client, admin, django_user_mod
         sessao=sessao,
         remetente=Mensagem.Remetente.ASSISTENTE,
         conteudo='mensagem do alvo',
-    )
-    Consentimento.objects.create(
-        usuario=target,
-        tipo='TERMOS_DE_USO',
-        email_assinante=target.email,
     )
     client.force_login(admin)
 
