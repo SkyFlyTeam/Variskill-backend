@@ -96,6 +96,10 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('aceite_termos', None)
         aceite_versao = validated_data.pop('aceite_versao', None)
         password = validated_data.pop('password', None)
+        if password is not None:
+            raise serializers.ValidationError({
+                'password': 'Use POST /api/users/me/alterar-senha/ para alterar a senha.'
+            })
 
         with transaction.atomic():
             for field, value in validated_data.items():
@@ -105,9 +109,6 @@ class UserSerializer(serializers.ModelSerializer):
                 instance.aceite_privacidade_versao = aceite_versao
                 instance.aceite_privacidade_em = timezone.now()
                 instance.consentimento_revogado_em = None
-
-            if password is not None:
-                instance.set_password(password)
 
             instance.save()
 
