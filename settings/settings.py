@@ -64,7 +64,6 @@ if _env_bool('DJANGO_USE_X_FORWARDED_PROTO', False):
 # Flags LGPD (defaults seguros; podem ser desligados para clientes legados).
 LGPD_RESTRINGIR_USERS = _env_bool('LGPD_RESTRINGIR_USERS', True)
 LGPD_CAMPOS_READONLY = _env_bool('LGPD_CAMPOS_READONLY', True)
-LGPD_LIMPAR_AO_REVOGAR = _env_bool('LGPD_LIMPAR_AO_REVOGAR', False)
 LGPD_RETENCAO_DIAS = int(os.environ.get('LGPD_RETENCAO_DIAS', '365'))
 LGPD_AUDITORIA_RETENCAO_DIAS = int(os.environ.get('LGPD_AUDITORIA_RETENCAO_DIAS', '365'))
 LGPD_MAX_PROMPT_CHARS = int(os.environ.get('LGPD_MAX_PROMPT_CHARS', '500'))
