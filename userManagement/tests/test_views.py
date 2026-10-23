@@ -278,16 +278,31 @@ def test_authenticated_user_can_update_user(client, user, method):
 
     response = getattr(client, method)(
         reverse('user-detail', args=[user.pk]),
-        {'apelido': 'updated', 'nome': user.nome, 'email': user.email, 'password': 'updated-password'},
+        {'apelido': 'updated', 'nome': user.nome, 'email': user.email},
         format='json',
     )
 
     assert response.status_code == 200
     user.refresh_from_db()
     assert user.apelido == 'updated'
-    assert user.check_password('updated-password')
+    assert user.check_password('test-password-123')
     assert response.data['id'] == str(user.pk)
     assert response.data['apelido'] == 'updated'
+
+
+def test_password_update_via_generic_endpoint_is_rejected(client, user):
+    client.force_login(user)
+
+    response = client.patch(
+        reverse('user-detail', args=[user.pk]),
+        {'password': 'updated-password'},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'password' in response.data
+    user.refresh_from_db()
+    assert user.check_password('test-password-123')
 
 
 def test_partial_update_preserves_password(client, user):

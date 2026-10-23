@@ -35,7 +35,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_permissions(self):
-        if self.action == 'hard_delete':
+        if self.action in ('hard_delete', 'admin_export'):
             return [permissions.IsAdminUser()]
         if self.action == 'create' and getattr(settings, 'LGPD_RESTRINGIR_USERS', True):
             return [permissions.IsAdminUser()]
@@ -82,14 +82,25 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.save()
         return Response(serializer.data)
 
-    @decorators.action(detail=False, methods=['get'], url_path='export')
-    def export(self, request):
-        response = Response(exportar_dados_usuario(request.user))
-        response['Content-Disposition'] = 'attachment; filename="variskill-meus-dados.json"'
+    @decorators.action(detail=False, methods=['get'], url_path='admin-export')
+    def admin_export(self, request):
+        email = (request.query_params.get('email') or '').strip()
+        if not email:
+            raise ValidationError({'email': 'Informe o e-mail do titular.'})
+
+        target = User.objects.filter(email__iexact=email).first()
+        if target is None:
+            raise NotFound('Usuário não encontrado para o e-mail informado.')
+
+        response = Response(exportar_dados_usuario(target))
+        response['Content-Disposition'] = 'attachment; filename="variskill-dados-titular.json"'
         registrar_evento(
             usuario=request.user,
             acao='EXPORTACAO_DADOS',
             request=request,
+            recurso='USER',
+            recurso_id=target.pk,
+            metadata={'email_alvo': target.email, 'canal': 'admin_email'},
         )
         return response
 
