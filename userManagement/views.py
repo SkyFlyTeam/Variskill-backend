@@ -137,7 +137,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         return response
 
-    @decorators.action(detail=False, methods=['post'], url_path='alterar-senha')
+    @decorators.action(detail=False, methods=['post'], url_path='me/alterar-senha')
     def change_password(self, request):
         serializer = ChangePasswordSerializer(
             data=request.data, context={'user': request.user}
