@@ -357,3 +357,129 @@ class SaudacaoComHistoricoPedagogicoTests(APITestCase):
         self.assertEqual(resp["conteudo"], "Olá, Carlos! Que bom ter você aqui.")
         self.assertIn("Ver trilhas disponíveis", resp["sugestoes_rapidas"])
         self.assertFalse(any("Quero revisar" in s for s in resp["sugestoes_rapidas"]))
+
+
+class ComandosNivelEProximaAtividadeTests(APITestCase):
+    """CONSULTAR_NIVEL e PROXIMA_ATIVIDADE: respostas determinísticas, sem IA externa."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            apelido="aluno_comandos",
+            nome="Bia",
+            email="aluno_comandos@example.com",
+            password="password123",
+        )
+        self.client.force_authenticate(user=self.user)
+        self.sessao = Sessao.objects.create(usuario=self.user)
+        self.url = f"/api/chat/sessao/{self.sessao.id}/mensagem/"
+
+        self.trilha = Trilha.objects.create(titulo="Python: Fundamentos", habilidade="Fundamentos", ativo=True)
+        self.modulo1 = Modulo.objects.create(trilha=self.trilha, titulo="Basico", nivel="Iniciante", ordem_modulo=1)
+        self.modulo2 = Modulo.objects.create(trilha=self.trilha, titulo="Avancado", nivel="Avancado", ordem_modulo=2)
+        Atividade.objects.create(
+            modulo=self.modulo1, titulo="Diagnostico", contexto_avaliacao="DIAGNOSTICO_INICIAL", ordem=0, ativo=True,
+        )
+        self.ativ1 = Atividade.objects.create(
+            modulo=self.modulo1, titulo="Variaveis", contexto_avaliacao="FORMATIVA", ordem=1, ativo=True,
+        )
+        self.ativ2 = Atividade.objects.create(
+            modulo=self.modulo1, titulo="Operadores", contexto_avaliacao="FORMATIVA", ordem=2, ativo=True,
+        )
+        self.ativ3 = Atividade.objects.create(
+            modulo=self.modulo2, titulo="Classes", contexto_avaliacao="FORMATIVA", ordem=1, ativo=True,
+        )
+
+        patchers = [
+            patch("assistantManagement.services.TextPreprocessor"),
+            patch("assistantManagement.services.EmbeddingService"),
+            patch("assistantManagement.services.IntentClassifier"),
+            patch("assistantManagement.services.HintService._call_external_ai"),
+        ]
+        mock_pre, mock_emb, mock_cls, self.mock_ia = [p.start() for p in patchers]
+        for p in patchers:
+            self.addCleanup(p.stop)
+        mock_pre.get_instance.return_value.processar.side_effect = lambda texto: texto
+        mock_emb.get_instance.return_value.gerar_embedding.return_value = [0.1] * 384
+        self.classifier = MagicMock()
+        mock_cls.return_value = self.classifier
+
+    def enviar(self, conteudo, intencao, resposta_texto, **extras):
+        self.classifier.classificar.return_value = {
+            "intencao": intencao, "similaridade": 0.85, "resposta_texto": resposta_texto, "dados_extras": {},
+        }
+        response = self.client.post(self.url, {"conteudo": conteudo, **extras}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.mock_ia.assert_not_called()
+        return response.data["resposta_assistente"]
+
+    def _matricular(self, status_modulo2="BLOQUEADO"):
+        matricula = Matricula.objects.create(usuario=self.user, trilha=self.trilha, status="EM_ANDAMENTO")
+        ProgressoModulo.objects.create(matricula=matricula, modulo=self.modulo1, status="EM_ANDAMENTO")
+        ProgressoModulo.objects.create(matricula=matricula, modulo=self.modulo2, status=status_modulo2)
+        return matricula
+
+    def _aprovar(self, atividade):
+        ExecucaoAtividade.objects.create(
+            usuario=self.user, atividade=atividade, resposta={}, pontuacao_obtida=10, aprovado=True,
+        )
+
+    # CONSULTAR_NIVEL
+    def test_consultar_nivel_interpola_nivel_e_xp_restante(self):
+        self.user.xp_total = 150
+        self.user.save()
+        resp = self.enviar(
+            "qual meu nível", "CONSULTAR_NIVEL",
+            "Você está no nível {nivel}, com {xp_atual} XP. Faltam {xp_restante} XP para o nível {proximo_nivel}!",
+        )
+        self.assertEqual(resp["intencao_detectada"], "CONSULTAR_NIVEL")
+        self.assertEqual(resp["acao"], "CONSULTAR_NIVEL")
+        self.assertEqual(resp["conteudo"], "Você está no nível 2, com 150 XP. Faltam 150 XP para o nível 3!")
+        self.assertEqual(resp["dados_acao"]["xp_restante"], 150)
+        self.assertEqual(resp["dados_acao"]["progresso_pct"], 25.0)
+
+    def test_consultar_nivel_usuario_sem_xp(self):
+        resp = self.enviar("em que nível estou", "CONSULTAR_NIVEL", "Nível {nivel}, faltam {xp_restante} XP.")
+        self.assertEqual(resp["conteudo"], "Nível 1, faltam 100 XP.")
+
+    # PROXIMA_ATIVIDADE
+    def test_proxima_atividade_ignora_diagnostico_e_aprovadas(self):
+        matricula = self._matricular()
+        self._aprovar(self.ativ1)
+        resp = self.enviar(
+            "o que estudar agora", "PROXIMA_ATIVIDADE",
+            "Sua próxima atividade é {titulo_atividade}, no módulo {titulo_modulo}.",
+        )
+        self.assertEqual(resp["acao"], "PROXIMA_ATIVIDADE")
+        self.assertEqual(resp["conteudo"], "Sua próxima atividade é Operadores, no módulo Basico.")
+        self.assertEqual(resp["redirecionar_para"], f"/trilhas/{self.trilha.id}/atividade/{self.ativ2.id}")
+        self.assertEqual(resp["dados_acao"]["matricula_id"], str(matricula.id))
+        self.sessao.refresh_from_db()
+        self.assertEqual(self.sessao.trilha_contexto, self.trilha)
+
+    def test_proxima_atividade_avanca_para_modulo_seguinte_quando_anterior_concluido(self):
+        self._matricular()
+        self._aprovar(self.ativ1)
+        self._aprovar(self.ativ2)
+        resp = self.enviar("qual minha próxima lição", "PROXIMA_ATIVIDADE", "{titulo_atividade}")
+        self.assertEqual(resp["redirecionar_para"], f"/trilhas/{self.trilha.id}/atividade/{self.ativ3.id}")
+
+    def test_proxima_atividade_pula_modulo_concluido_pelo_diagnostico(self):
+        matricula = self._matricular(status_modulo2="EM_ANDAMENTO")
+        ProgressoModulo.objects.filter(matricula=matricula, modulo=self.modulo1).update(status="CONCLUIDO")
+        resp = self.enviar("abrir próximo exercício", "PROXIMA_ATIVIDADE", "{titulo_atividade}")
+        self.assertEqual(resp["conteudo"], "Classes")
+
+    def test_proxima_atividade_trilha_concluida(self):
+        self._matricular()
+        for atividade in (self.ativ1, self.ativ2, self.ativ3):
+            self._aprovar(atividade)
+        resp = self.enviar("o que estudar agora", "PROXIMA_ATIVIDADE", "{titulo_atividade}")
+        self.assertIsNone(resp["acao"])
+        self.assertEqual(resp["redirecionar_para"], f"/trilhas/{self.trilha.id}")
+        self.assertNotIn("{titulo_atividade}", resp["conteudo"])
+
+    def test_proxima_atividade_sem_matricula_sugere_trilhas(self):
+        resp = self.enviar("o que estudar agora", "PROXIMA_ATIVIDADE", "{titulo_atividade}")
+        self.assertIsNone(resp["acao"])
+        self.assertEqual(len(resp["opcoes_trilhas"]), 1)
+        self.assertIn("Ver trilhas disponíveis", resp["sugestoes_rapidas"])
