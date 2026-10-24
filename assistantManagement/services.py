@@ -19,6 +19,7 @@ from semanticSearch.service.nlp.embedding_service import EmbeddingService
 from semanticSearch.models import EntradaCorpus
 from semanticSearch.service.corpus_search import CorpusSearch
 from semanticSearch.service.nlp.intent_classifier import IntentClassifier
+from userManagement.services import GamificationService
 
 SUGESTOES_INICIAIS = [
     "Ver trilhas disponíveis",
@@ -33,6 +34,8 @@ SUGESTOES_AJUDA = [
     "Quero começar do zero",
     "Pode me dar uma dica?",
     "Como definir uma variável em Python?",
+    "Qual meu nível?",
+    "O que estudar agora?",
 ]
 
 SUGESTOES_NIVELAMENTO = [
@@ -550,6 +553,114 @@ def _tratar_fallback(ctx: ContextoConversa) -> RespostaIntencao:
     return RespostaIntencao(ctx.resposta_base, sugestoes_rapidas=SUGESTOES_FALLBACK)
 
 
+def _tratar_consultar_nivel(ctx: ContextoConversa) -> RespostaIntencao:
+    progresso = GamificationService.obter_progresso_nivel(ctx.usuario.xp_total)
+    valores = {**progresso, "proximo_nivel": progresso["nivel"] + 1}
+    return RespostaIntencao(
+        conteudo=_preencher(ctx.resposta_base, **valores),
+        sugestoes_rapidas=["O que estudar agora?"],
+        acao="CONSULTAR_NIVEL",
+        dados_acao=valores,
+    )
+
+
+def _matricula_ativa(ctx: ContextoConversa) -> Optional[Matricula]:
+    """
+    Trilha ativa do estudante: a trilha em discussão (id, texto ou contexto da sessão), se ele
+    estiver matriculado nela; senão, a matrícula em andamento mais recente.
+    """
+    matriculas = Matricula.objects.filter(
+        usuario=ctx.usuario, status="EM_ANDAMENTO", trilha__ativo=True,
+    ).select_related("trilha")
+
+    trilha = ctx.resolver_trilha()
+    if trilha:
+        matricula = matriculas.filter(trilha=trilha).first()
+        if matricula:
+            return matricula
+    return matriculas.order_by("-criado_em").first()
+
+
+def _buscar_proxima_atividade(matricula: Matricula) -> Optional[Atividade]:
+    """
+    Primeira atividade ainda não aprovada da trilha, na ordem dos módulos, seguindo a mesma regra de
+    desbloqueio do roadmap: o módulo está acessível se não estiver BLOQUEADO ou se o anterior foi
+    concluído. Módulos já CONCLUIDO (ex.: após o diagnóstico) e a atividade diagnóstica são ignorados.
+    """
+    progresso = dict(
+        ProgressoModulo.objects.filter(matricula=matricula).values_list("modulo_id", "status")
+    )
+    atividades = (
+        Atividade.objects.filter(modulo__trilha_id=matricula.trilha_id, ativo=True)
+        .exclude(contexto_avaliacao="DIAGNOSTICO_INICIAL")
+        .select_related("modulo")
+        .order_by("modulo__ordem_modulo", "ordem")
+    )
+    aprovadas = set(
+        ExecucaoAtividade.objects.filter(
+            usuario=matricula.usuario, aprovado=True, atividade__modulo__trilha_id=matricula.trilha_id,
+        ).values_list("atividade_id", flat=True)
+    )
+
+    por_modulo = {}
+    for atividade in atividades:
+        por_modulo.setdefault(atividade.modulo, []).append(atividade)
+
+    anterior_concluido = True
+    for modulo, lista in por_modulo.items():
+        status_modulo = progresso.get(modulo.id, "BLOQUEADO")
+        if status_modulo == "CONCLUIDO":
+            anterior_concluido = True
+            continue
+
+        pendente = next((a for a in lista if a.id not in aprovadas), None)
+        if pendente is None:
+            anterior_concluido = True
+            continue
+        if status_modulo != "BLOQUEADO" or anterior_concluido:
+            return pendente
+        return None
+    return None
+
+
+def _tratar_proxima_atividade(ctx: ContextoConversa) -> RespostaIntencao:
+    matricula = _matricula_ativa(ctx)
+    if matricula is None:
+        return RespostaIntencao(
+            "Você ainda não tem uma trilha em andamento. Que tal escolher uma para começar?",
+            opcoes_trilhas=_opcoes_trilhas(ctx.trilhas_ativas),
+            sugestoes_rapidas=["Ver trilhas disponíveis", "Quero me matricular em uma trilha"],
+        )
+
+    trilha = matricula.trilha
+    ctx.definir_trilha(trilha)
+    dados = {"trilha_id": str(trilha.id), "matricula_id": str(matricula.id)}
+
+    atividade = _buscar_proxima_atividade(matricula)
+    if atividade is None:
+        return RespostaIntencao(
+            conteudo=(
+                f"Você não tem atividades pendentes liberadas na trilha {trilha.titulo}. "
+                f"Confira seu progresso no roadmap da trilha!"
+            ),
+            redirecionar_para=_rota_trilha(trilha),
+            dados_acao=dados,
+        )
+
+    return RespostaIntencao(
+        conteudo=_preencher(
+            ctx.resposta_base,
+            titulo_atividade=atividade.titulo,
+            titulo_modulo=atividade.modulo.titulo,
+            titulo_trilha=trilha.titulo,
+        ),
+        sugestoes_rapidas=["Pode me dar uma dica?", "Qual meu nível?"],
+        acao="PROXIMA_ATIVIDADE",
+        redirecionar_para=_rota_atividade(atividade),
+        dados_acao={**dados, "atividade_id": str(atividade.id), "modulo_id": str(atividade.modulo_id)},
+    )
+
+
 HANDLERS_INTENCAO = {
     "SAUDACAO": _tratar_saudacao,
     "AJUDA_COMANDOS": _tratar_ajuda,
@@ -559,6 +670,8 @@ HANDLERS_INTENCAO = {
     "INICIAR_DO_ZERO": _tratar_iniciar_do_zero,
     "PEDIR_DICA": _tratar_pedir_dica,
     "DUVIDA_CONTEUDO": _tratar_duvida_conteudo,
+    "CONSULTAR_NIVEL": _tratar_consultar_nivel,
+    "PROXIMA_ATIVIDADE": _tratar_proxima_atividade,
 }
 
 
