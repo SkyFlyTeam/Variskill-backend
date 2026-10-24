@@ -45,6 +45,43 @@ INTENCOES_CANONICAS = [
         ],
     },
     {"code": "PEDIR_DICA", "system_action": "FORNECER_DICA_PEDAGOGICA", "description": "Orientação pedagógica durante a atividade, sem entregar o gabarito (RFN06).", "examples": ["Pode me dar uma dica?", "Preciso de uma orientação para resolver", "Não entendi, me ajude sem dar a resposta", "Tem alguma pista para esta atividade?", "Como posso pensar nessa questão?"], "responses": ["Claro! Pense no primeiro passo e observe as informações mais importantes: {texto_dica}.", "Aqui vai uma pista, sem entregar o gabarito: {texto_dica}."]},
+    {
+        "code": "CONSULTAR_NIVEL",
+        "system_action": "INFORMAR_NIVEL_XP",
+        "description": "Consulta do nível de gamificação do estudante e do XP restante para o próximo nível.",
+        "examples": [
+            "qual meu nível",
+            "em que nível estou",
+            "quanto falta pro próximo nível",
+            "quanto XP eu tenho?",
+            "quantos pontos de experiência faltam para subir de nível?",
+            "qual é o meu nível atual?",
+            "quero ver meu XP",
+            "quanto XP falta para subir de nível?",
+        ],
+        "responses": [
+            "Você está no nível {nivel}, com {xp_atual} XP. Faltam {xp_restante} XP para o nível {proximo_nivel}!",
+            "{nome}, seu nível atual é {nivel} ({progresso_pct}% da faixa concluída). Mais {xp_restante} XP e você chega ao nível {proximo_nivel}.",
+        ],
+    },
+    {
+        "code": "PROXIMA_ATIVIDADE",
+        "system_action": "ABRIR_PROXIMA_ATIVIDADE",
+        "description": "Indicação e abertura da próxima atividade pendente da trilha ativa do estudante.",
+        "examples": [
+            "o que estudar agora",
+            "qual minha próxima lição",
+            "abrir próximo exercício",
+            "qual a próxima atividade?",
+            "o que eu faço agora na trilha?",
+            "me leva para o próximo exercício",
+            "quero seguir para a próxima lição",
+        ],
+        "responses": [
+            "Sua próxima atividade é {titulo_atividade}, no módulo {titulo_modulo}. Bora lá!",
+            "Próximo passo na trilha {titulo_trilha}: {titulo_atividade} ({titulo_modulo}). Vou te levar até lá.",
+        ],
+    },
 ]
 
 
@@ -53,7 +90,7 @@ def _get_embedding(text: str):
 
 
 class Command(BaseCommand):
-    help = "Cadastra a intenção INICIAR_DIAGNOSTICO e intenções canônicas no banco de dados."
+    help = "Cadastra as intenções canônicas (exemplos com embeddings e respostas) no banco de dados."
 
     def handle(self, *args, **options):
         self.stdout.write("Iniciando seed de intenções...")
