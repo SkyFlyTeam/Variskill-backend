@@ -180,11 +180,15 @@ def test_xp_and_streak_are_read_only(client, user):
     assert user.streak_dias == 0
 
 
+def test_change_password_route_uses_me_prefix():
+    assert reverse('user-change-password') == '/api/users/me/alterar-senha/'
+
+
 def test_change_password_requires_current_password(client, user):
     client.force_login(user)
 
     response = client.post(
-        reverse('user-change-password'),
+        '/api/users/me/alterar-senha/',
         {'senha_atual': 'errada', 'nova_senha': 'new-password-123'},
         format='json',
     )
@@ -192,7 +196,7 @@ def test_change_password_requires_current_password(client, user):
     assert 'senha_atual' in response.data
 
     response = client.post(
-        reverse('user-change-password'),
+        '/api/users/me/alterar-senha/',
         {'senha_atual': 'test-password-123', 'nova_senha': 'new-password-123'},
         format='json',
     )
