@@ -90,6 +90,7 @@ Com o backend em execução, crie um superusuário e carregue os dados iniciais:
 ```bash
 docker compose -f docker-compose-build.yaml exec app python manage.py createsuperuser
 docker compose -f docker-compose-build.yaml exec app python manage.py seed_intencoes
+docker compose -f docker-compose-build.yaml exec app python manage.py seed_interesses
 docker compose -f docker-compose-build.yaml exec app python seed_catalogo_completo.py
 ```
 

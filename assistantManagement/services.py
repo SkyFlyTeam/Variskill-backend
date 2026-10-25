@@ -9,7 +9,7 @@ from django.db import transaction
 from rest_framework.exceptions import NotFound, ValidationError
 from assistantManagement.models import Mensagem, Sessao
 from trackManagement.models import Trilha, Modulo, Matricula, ProgressoModulo
-from trackManagement.services import efetivar_matricula
+from trackManagement.services import efetivar_matricula, recomendar_trilhas_por_perfil
 from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
 from intents.models import Intention
 from learning.hint_service import CONTINGENCY_RESPONSE, HintService
@@ -164,6 +164,101 @@ def identificar_trilha_no_texto(texto: str, trilhas: list) -> Optional[Trilha]:
     return None if empate else melhor
 
 
+# Palavras que descrevem o pedido ou o nível desejado, não o assunto: não identificam módulos
+# (ex.: "básico" não deve casar com o módulo "Tipos Basicos e Anotacoes").
+PALAVRAS_IGNORADAS_MODULO = PALAVRAS_IGNORADAS | {
+    "quero", "queria", "aprender", "estudar", "entender", "saber", "sabe", "sobre", "onde", "comeco",
+    "comecar", "qual", "quais", "como", "usar", "fazer", "faco", "bem", "nivel", "basico", "basica",
+    "iniciante", "intermediario", "avancado", "zero", "modulo", "modulos", "que", "isso", "esse", "essa",
+}
+# Termos presentes em muitos módulos (ex.: "dados") não diferenciam nenhum deles.
+MAX_MODULOS_POR_TERMO = 4
+PONTUACAO_MINIMA_MODULO = 1.0
+
+
+def _singular(palavra: str) -> str:
+    """Reduz plurais regulares do português, para "variaveis" casar com "variavel"."""
+    if len(palavra) <= 3:
+        return palavra
+    for sufixo, troca in (("oes", "ao"), ("aes", "ao"), ("eis", "el"), ("ais", "al"), ("ois", "ol")):
+        if palavra.endswith(sufixo):
+            return palavra[: -len(sufixo)] + troca
+    if palavra.endswith(("res", "zes")):
+        return palavra[:-2]
+    if palavra.endswith("s"):
+        return palavra[:-1]
+    return palavra
+
+
+def _termos_modulo(texto: str) -> set:
+    return {
+        _singular(p) for p in _normalizar(texto).split()
+        if len(p) >= 3 and p not in PALAVRAS_IGNORADAS_MODULO
+    }
+
+
+@dataclass
+class ModuloEncontrado:
+    modulo: Modulo
+    pontuacao: float
+    termos: set
+
+
+def identificar_modulos_no_texto(texto: str, trilhas: list) -> list:
+    """
+    Ranqueia os módulos das trilhas cujo assunto aparece na mensagem. Cada termo vale mais quanto
+    menos módulos o contêm, e o dobro quando está no título do módulo (e não só na descrição).
+    """
+    termos_mensagem = _termos_modulo(texto)
+    if not termos_mensagem:
+        return []
+
+    modulos = list(
+        Modulo.objects.filter(trilha__in=trilhas).select_related("trilha").order_by("trilha__titulo", "ordem_modulo")
+    )
+    termos_por_modulo = [
+        (modulo, _termos_modulo(modulo.titulo), _termos_modulo(modulo.descricao or "")) for modulo in modulos
+    ]
+    frequencia = Counter(t for _, titulo, descricao in termos_por_modulo for t in titulo | descricao)
+
+    encontrados = []
+    for modulo, titulo, descricao in termos_por_modulo:
+        termos = {
+            t for t in termos_mensagem & (titulo | descricao) if frequencia[t] <= MAX_MODULOS_POR_TERMO
+        }
+        pontuacao = sum((2.0 if t in titulo else 1.0) / frequencia[t] for t in termos)
+        if pontuacao >= PONTUACAO_MINIMA_MODULO:
+            encontrados.append(ModuloEncontrado(modulo, pontuacao, termos))
+
+    encontrados.sort(key=lambda e: e.pontuacao, reverse=True)
+    return encontrados
+
+
+def _remover_termos(texto: str, frases: set, termos_singulares: set = frozenset()) -> str:
+    """Remove da mensagem normalizada as frases citadas e as palavras cujo singular está em `termos_singulares`."""
+    sem_termos = f" {_normalizar(texto)} "
+    for frase in sorted(frases, key=len, reverse=True):
+        while frase and f" {frase} " in sem_termos:
+            sem_termos = sem_termos.replace(f" {frase} ", " ")
+    return " ".join(p for p in sem_termos.split() if _singular(p) not in termos_singulares)
+
+
+def texto_sem_tema(conteudo: str, trilhas: list) -> Optional[str]:
+    """
+    Mensagem sem a trilha e os assuntos de módulo citados, ou None se nenhum módulo foi citado.
+    Serve para classificar só o pedido (ex.: "quero aprender ... por onde começo").
+    """
+    modulos = identificar_modulos_no_texto(conteudo, trilhas)
+    if not modulos:
+        return None
+    frases = set()
+    trilha = identificar_trilha_no_texto(conteudo, trilhas)
+    if trilha:
+        frases = _frases_trilha(trilha) | _palavras_chave(trilha)
+    termos = set().union(*(m.termos for m in modulos))
+    return _remover_termos(conteudo, frases, termos).strip() or None
+
+
 def texto_para_classificacao(preprocessor, conteudo: str, trilhas: list) -> str:
     """
     Pré-processa a mensagem para o classificador. Quando o estudante cita uma trilha pelo nome,
@@ -175,10 +270,7 @@ def texto_para_classificacao(preprocessor, conteudo: str, trilhas: list) -> str:
     if trilha:
         # A remoção ocorre antes do pré-processamento: a lematização depende do contexto da frase,
         # então os termos lematizados do título não coincidem com os da mensagem.
-        sem_trilha = f" {_normalizar(conteudo)} "
-        for frase in sorted(_frases_trilha(trilha) | _palavras_chave(trilha), key=len, reverse=True):
-            while f" {frase} " in sem_trilha:
-                sem_trilha = sem_trilha.replace(f" {frase} ", " ")
+        sem_trilha = _remover_termos(conteudo, _frases_trilha(trilha) | _palavras_chave(trilha))
         if sem_trilha.strip():
             texto = sem_trilha.strip()
 
@@ -647,9 +739,121 @@ def _recomendar_trilhas_contextual(usuario, trilhas_ativas: list[Trilha]) -> tup
     return trilhas_ranqueadas, interesses, motivo
 
 
+PALAVRAS_NIVEL_BASICO = {"basico", "basica", "iniciante", "zero", "comecando"}
+
+
+def _tema_da_mensagem(texto: str, trilhas: list) -> tuple[list, Optional[Modulo]]:
+    """
+    Trilhas (e, se citado, o módulo) sobre o tema da mensagem, combinando o nome da trilha com os
+    assuntos dos módulos. O módulo mais específico prevalece sobre a linguagem: "SQL com python" leva
+    ao módulo de SQL mesmo que "python" identifique outra trilha. Mais de uma trilha = tema ambíguo.
+    """
+    trilha = identificar_trilha_no_texto(texto, trilhas)
+    modulos = identificar_modulos_no_texto(texto, trilhas)
+
+    if trilha:
+        da_trilha = [m for m in modulos if m.modulo.trilha_id == trilha.id]
+        if da_trilha:
+            return [trilha], da_trilha[0].modulo
+        if not modulos:
+            return [trilha], None
+
+    if modulos:
+        melhores = [m for m in modulos if m.pontuacao == modulos[0].pontuacao]
+        trilhas_melhores = list({m.modulo.trilha_id: m.modulo.trilha for m in melhores}.values())
+        return trilhas_melhores, melhores[0].modulo if len(trilhas_melhores) == 1 else None
+
+    palavras = set(_normalizar(texto).split())
+    return [t for t in trilhas if _palavras_chave(t) & palavras], None
+
+
+def _texto_do_modulo(trilha: Trilha, modulo: Optional[Modulo], quer_basico: bool) -> str:
+    primeiro = trilha.modulos.order_by("ordem_modulo").first()
+    if modulo is None or primeiro is None:
+        return f"\n\nVocê começa pelo módulo **{primeiro.titulo}**." if primeiro else ""
+    if modulo.id == primeiro.id:
+        return f"\n\nEsse assunto está logo no primeiro módulo, **{modulo.titulo}**. É só começar!"
+
+    texto = (
+        f"\n\nEsse assunto é abordado no módulo {modulo.ordem_modulo}, **{modulo.titulo}** "
+        f"(nível {modulo.nivel.lower()})."
+    )
+    if quer_basico:
+        return texto + f" Como você quer começar pelo básico, comece pelo módulo 1, **{primeiro.titulo}**, e avance até ele."
+    return texto + f" Os módulos são liberados em sequência, começando por **{primeiro.titulo}**."
+
+
+def _recomendar_trilha_do_tema(ctx: ContextoConversa, trilha: Trilha, modulo: Optional[Modulo] = None) -> RespostaIntencao:
+    ctx.definir_trilha(trilha)
+    dados = {"trilha_id": str(trilha.id)}
+    if modulo:
+        dados["modulo_id"] = str(modulo.id)
+    matricula = Matricula.objects.filter(usuario=ctx.usuario, trilha=trilha).first()
+
+    if matricula and matricula.status == "CONCLUIDO":
+        proximas = recomendar_trilhas_por_perfil(ctx.usuario)
+        return RespostaIntencao(
+            conteudo=(
+                f"Você já concluiu a trilha **{trilha.titulo}**, que cobre esse tema. Parabéns! "
+                f"Que tal continuar evoluindo com uma destas trilhas?"
+            ),
+            opcoes_trilhas=_opcoes_trilhas(proximas),
+            sugestoes_rapidas=[f"Quero me matricular na trilha {t.titulo}" for t in proximas],
+            acao="RECOMENDACAO_TRILHA",
+            dados_acao=dados,
+        )
+
+    if matricula:
+        return RespostaIntencao(
+            conteudo=(
+                f"A trilha ideal para esse tema é **{trilha.titulo}**, e você já está matriculado nela! "
+                f"Continue de onde parou."
+            ),
+            opcoes_trilhas=_opcoes_trilhas([trilha]),
+            sugestoes_rapidas=["O que estudar agora?", "Ver trilhas disponíveis"],
+            acao="RECOMENDACAO_TRILHA",
+            redirecionar_para=_rota_trilha(trilha),
+            dados_acao=dados,
+        )
+
+    quer_basico = bool(PALAVRAS_NIVEL_BASICO & set(_normalizar(ctx.conteudo).split()))
+    conteudo = f"Para esse tema, recomendo a trilha **{trilha.titulo}**."
+    if trilha.descricao:
+        conteudo += f" {trilha.descricao}"
+    conteudo += _texto_do_modulo(trilha, modulo, quer_basico)
+    if quer_basico:
+        conteudo += "\n\nQuer que eu te matricule para começar do zero?"
+    else:
+        conteudo += (
+            "\n\nSe já tiver experiência no assunto, faça o teste de nivelamento para pular o que já sabe. "
+            "Se não, é só começar do zero."
+        )
+
+    return RespostaIntencao(
+        conteudo=conteudo,
+        opcoes_trilhas=_opcoes_trilhas([trilha]),
+        sugestoes_rapidas=["Quero começar do zero", "Quero fazer o teste de nivelamento", "Ver trilhas disponíveis"],
+        acao="RECOMENDACAO_TRILHA",
+        dados_acao=dados,
+    )
+
+
 def _tratar_recomendar_trilha(ctx: ContextoConversa) -> RespostaIntencao:
     if not ctx.trilhas_ativas:
         return RespostaIntencao("No momento não há trilhas ativas disponíveis para recomendação. Volte em breve!")
+
+    # Pedido com tema (ex.: "Quero aprender devops, qual trilha faço?") é respondido pela trilha do tema;
+    # sem tema, a recomendação usa os interesses e o histórico do estudante.
+    trilhas_tema, modulo = _tema_da_mensagem(ctx.conteudo, ctx.trilhas_ativas)
+    if len(trilhas_tema) == 1:
+        return _recomendar_trilha_do_tema(ctx, trilhas_tema[0], modulo)
+    if trilhas_tema:
+        return RespostaIntencao(
+            conteudo="Encontrei mais de uma trilha sobre esse tema. Qual delas combina mais com o que você quer aprender?",
+            opcoes_trilhas=_opcoes_trilhas(trilhas_tema),
+            sugestoes_rapidas=[f"Quero aprender {t.titulo}" for t in trilhas_tema],
+            acao="RECOMENDACAO_TRILHA",
+        )
 
     trilhas_ranqueadas, interesses, motivo = _recomendar_trilhas_contextual(ctx.usuario, ctx.trilhas_ativas)
     top_trilhas = trilhas_ranqueadas[:3]
@@ -866,6 +1070,23 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
         "lista_trilhas": lista_trilhas_formatada,
     }
     classificacao = classifier.classificar(vetor, contexto=contexto)
+
+    # Assuntos de módulo (ex.: "variaveis", "pandas") dominam o embedding e escondem pedidos como
+    # "quero aprender ..., por onde começo?". Classifica também só o pedido e, se for uma recomendação
+    # de trilha ao menos tão confiável, usa esse resultado. Dúvidas de conteúdo não são reavaliadas:
+    # sem o assunto, "Como definir uma variável?" vira só "como definir". O vetor original segue para
+    # os handlers, pois a busca no corpus depende do assunto.
+    pedido = texto_sem_tema(conteudo, trilhas_ativas)
+    if pedido and classificacao.get("intencao") not in ("RECOMENDAR_TRILHA", "DUVIDA_CONTEUDO"):
+        texto_pedido = preprocessor.processar(pedido) or pedido
+        classificacao_pedido = classifier.classificar(
+            embedding_service.gerar_embedding(texto_pedido), contexto=contexto,
+        )
+        if (
+            classificacao_pedido.get("intencao") == "RECOMENDAR_TRILHA"
+            and classificacao_pedido.get("similaridade", 0.0) >= classificacao.get("similaridade", 0.0)
+        ):
+            classificacao = classificacao_pedido
 
     intencao_codigo = classificacao.get("intencao", "FALLBACK")
     similaridade = classificacao.get("similaridade", 0.0)

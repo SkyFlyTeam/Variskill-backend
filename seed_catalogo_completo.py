@@ -1,6 +1,8 @@
 """
-Script para popular o banco de dados pedagógico com 3 Trilhas Python completas,
-5 Módulos em cada trilha e exatamente 5 Atividades por Módulo:
+Script para popular o banco de dados pedagógico com 10 Trilhas, uma para cada interesse
+de userManagement/management/commands/seed_interesses.py (o campo habilidade usa o nome
+exato do interesse). As 3 Trilhas Python têm 5 Módulos e as demais têm 2 Módulos;
+todo Módulo tem exatamente 5 Atividades:
   1. CONTEUDO (Teórico em Markdown)
   2. MULTIPLA_ESCOLHA (Conceitual, 4 opções)
   3. COMPLETE_CODIGO (Sintaxe básica, __BLANK_0__)
@@ -17,7 +19,7 @@ from trackManagement.models import Trilha, Modulo, Matricula, ProgressoModulo
 from activityManagement.models import Atividade, Conteudo, ExecucaoAtividade
 from questionsManagement.models import Questao, QuestaoOpcao
 
-print("Iniciando seed do catalogo completo de Python...")
+print("Iniciando seed do catalogo completo...")
 
 # Limpar dados anteriores
 ExecucaoAtividade.objects.all().delete()
@@ -36,7 +38,7 @@ Trilha.objects.all().delete()
 trilha_fundamentos = Trilha.objects.create(
     titulo="Python: Fundamentos",
     descricao="Aprenda a sintaxe basica, estruturas de controle, tipos de dados e funcoes essenciais em Python.",
-    habilidade="Fundamentos",
+    habilidade="Python",
     ativo=True
 )
 
@@ -575,7 +577,7 @@ modulos_fundamentos = [
 trilha_web = Trilha.objects.create(
     titulo="Python: Desenvolvimento Web",
     descricao="Construa APIs modernas de alta performance com FastAPI, Pydantic, SQLAlchemy e autenticacao JWT.",
-    habilidade="Desenvolvimento Web",
+    habilidade="Backend",
     ativo=True
 )
 
@@ -1130,7 +1132,7 @@ modulos_web = [
 trilha_dados = Trilha.objects.create(
     titulo="Python: Analise de Dados",
     descricao="Analise grandes volumes de informacao com NumPy, Pandas, agregacoes estatisticas e visualizacoes graficas.",
-    habilidade="Analise de Dados",
+    habilidade="Ciência de Dados",
     ativo=True
 )
 
@@ -1648,6 +1650,1463 @@ modulos_dados = [
         ]
     }
 ]
+# ==============================================================================
+# TRILHAS POR INTERESSE
+# Cobrem os interesses de userManagement/management/commands/seed_interesses.py
+# que ainda nao tinham trilha propria. O campo "habilidade" usa o nome exato do
+# interesse para que a recomendacao consiga relacionar trilha e interesse.
+# ==============================================================================
+
+# ==============================================================================
+# TRILHA 4: JavaScript: Fundamentos
+# ==============================================================================
+trilha_javascript = Trilha.objects.create(
+    titulo="JavaScript: Fundamentos",
+    descricao="Domine variaveis, funcoes, arrays e objetos na linguagem que move a web.",
+    habilidade="JavaScript",
+    ativo=True
+)
+
+modulos_javascript = [
+    {
+        "titulo": "Variaveis, Tipos e Operadores",
+        "descricao": "Declaracoes com let e const, tipos primitivos, comparacao estrita e template literals.",
+        "nivel": "INICIANTE",
+        "ordem_modulo": 1,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Declarando Variaveis e Conhecendo os Tipos",
+                "descricao": "Entenda let, const, os tipos primitivos do JavaScript e a diferenca entre == e ===.",
+                "xp": 50,
+                "texto": (
+                    "### Variaveis em JavaScript\n\n"
+                    "JavaScript possui tres formas de declarar variaveis, mas no codigo moderno usamos apenas duas:\n\n"
+                    "- **`const`**: cria uma referencia que **nao pode ser reatribuida**. Deve ser a sua escolha padrao.\n"
+                    "- **`let`**: cria uma variavel que pode receber um novo valor, com escopo de bloco (`{ }`).\n"
+                    "- **`var`**: forma antiga, com escopo de funcao e comportamento de *hoisting* confuso. Evite.\n\n"
+                    "### Tipos Primitivos\n\n"
+                    "- **`number`**: inteiros e decimais usam o mesmo tipo (ex: `42`, `3.14`).\n"
+                    "- **`string`**: textos entre aspas simples, duplas ou crases.\n"
+                    "- **`boolean`**: `true` ou `false`.\n"
+                    "- **`undefined`** e **`null`**: ausencia de valor (nao inicializado vs. vazio intencional).\n\n"
+                    "### Comparacao Estrita\n\n"
+                    "O operador `==` converte os tipos antes de comparar (`5 == '5'` e `true`), o que gera bugs sutis. "
+                    "Prefira sempre `===`, que compara **valor e tipo** (`5 === '5'` e `false`).\n\n"
+                    "```javascript\n"
+                    "const curso = 'VariSkill';\n"
+                    "let pontos = 10;\n"
+                    "pontos = pontos + 5;\n"
+                    "\n"
+                    "// Template literals permitem interpolar valores com ${}\n"
+                    "console.log(`Curso: ${curso} | Pontos: ${pontos}`);\n"
+                    "\n"
+                    "console.log(5 == '5');  // true  (conversao implicita)\n"
+                    "console.log(5 === '5'); // false (tipos diferentes)\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Comece declarando tudo com `const` e troque para `let` apenas quando precisar reatribuir o valor."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Declaracao de Variaveis",
+                "descricao": "Identifique a palavra-chave que impede reatribuicao.",
+                "xp": 100,
+                "enunciado": "Qual palavra-chave declara uma variavel que nao pode ser reatribuida em JavaScript?",
+                "opcoes": ["const", "let", "var", "static"],
+                "gabarito_idx": 0,
+                "dica": "Pense na abreviacao de 'constante'."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Exibindo no Console",
+                "descricao": "Complete o metodo que imprime mensagens no console.",
+                "xp": 100,
+                "enunciado": "Preencha a lacuna com o metodo do objeto console que exibe a mensagem de boas-vindas:",
+                "codigo_snippet": (
+                    "const nome = 'Ana';\n"
+                    "console.__BLANK_0__(`Ola, ${nome}!`);"
+                ),
+                "gabarito": "log",
+                "dica": "E o metodo mais usado para depuracao, com tres letras."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Acumulando Pontos",
+                "descricao": "Ordene as instrucoes para declarar, atualizar e exibir um total.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para iniciar o total, somar 10 pontos e exibir o resultado:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__"
+                ),
+                "blocos": [
+                    "let total = 0;",
+                    "total = total + 10;",
+                    "console.log(total);"
+                ],
+                "dica": "A variavel precisa existir antes de ser atualizada e exibida."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Comparacao Estrita",
+                "descricao": "Use o operador que compara valor e tipo.",
+                "xp": 150,
+                "enunciado": "Preencha o operador de igualdade estrita para que a comparacao entre o numero 5 e a string '5' resulte em false:",
+                "codigo_snippet": (
+                    "const iguais = 5 __BLANK_0__ '5';\n"
+                    "console.log(iguais); // false"
+                ),
+                "gabarito": "===",
+                "dica": "E o operador de igualdade com tres sinais de igual."
+            }
+        ]
+    },
+    {
+        "titulo": "Funcoes, Arrays e Objetos",
+        "descricao": "Arrow functions, metodos de array (map, filter) e manipulacao de objetos.",
+        "nivel": "INTERMEDIARIO",
+        "ordem_modulo": 2,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Funcoes e Colecoes em JavaScript",
+                "descricao": "Aprenda arrow functions, os metodos funcionais de array e a desestruturacao de objetos.",
+                "xp": 50,
+                "texto": (
+                    "### Funcoes\n\n"
+                    "Funcoes podem ser declaradas com `function` ou como **arrow functions** (`=>`), mais curtas e muito usadas em callbacks:\n\n"
+                    "```javascript\n"
+                    "function somar(a, b) {\n"
+                    "  return a + b;\n"
+                    "}\n"
+                    "\n"
+                    "const dobrar = (n) => n * 2; // retorno implicito\n"
+                    "```\n\n"
+                    "### Metodos de Array\n\n"
+                    "- **`map`**: transforma cada elemento e devolve um **novo array** do mesmo tamanho.\n"
+                    "- **`filter`**: devolve um novo array apenas com os elementos que passam no teste.\n"
+                    "- **`reduce`**: acumula os elementos em um unico valor (ex: soma total).\n"
+                    "- **`forEach`**: apenas percorre, sem retornar um novo array.\n\n"
+                    "### Objetos e Desestruturacao\n\n"
+                    "Objetos agrupam dados em pares chave-valor. A desestruturacao extrai propriedades em variaveis:\n\n"
+                    "```javascript\n"
+                    "const aluno = { nome: 'Rafa', xp: 320 };\n"
+                    "const { nome, xp } = aluno;\n"
+                    "\n"
+                    "const notas = [6, 8, 10];\n"
+                    "const aprovadas = notas.filter((nota) => nota >= 7); // [8, 10]\n"
+                    "const bonus = notas.map((nota) => nota + 1);          // [7, 9, 11]\n"
+                    "```\n\n"
+                    "> **Dica Pro**: `map` e `filter` nao alteram o array original, o que torna o codigo mais previsivel."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Metodos de Array",
+                "descricao": "Escolha o metodo que seleciona elementos por uma condicao.",
+                "xp": 100,
+                "enunciado": "Qual metodo de array cria um novo array apenas com os elementos que passam em um teste?",
+                "opcoes": ["filter", "map", "forEach", "push"],
+                "gabarito_idx": 0,
+                "dica": "O nome do metodo significa 'filtrar' em ingles."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Arrow Function",
+                "descricao": "Complete a sintaxe de uma arrow function.",
+                "xp": 100,
+                "enunciado": "Preencha a lacuna com o operador que define uma arrow function:",
+                "codigo_snippet": (
+                    "const dobro = (n) __BLANK_0__ n * 2;\n"
+                    "console.log(dobro(4)); // 8"
+                ),
+                "gabarito": "=>",
+                "dica": "O operador lembra uma seta."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Filtrando Numeros Pares",
+                "descricao": "Ordene as instrucoes para filtrar e exibir os numeros pares.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para criar a lista, filtrar os pares e exibir o resultado:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__"
+                ),
+                "blocos": [
+                    "const numeros = [1, 2, 3, 4];",
+                    "const pares = numeros.filter((n) => n % 2 === 0);",
+                    "console.log(pares);"
+                ],
+                "dica": "Os dados de origem vem primeiro, depois a transformacao e por fim a exibicao."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Transformando com map",
+                "descricao": "Gere um novo array com o quadrado de cada numero.",
+                "xp": 150,
+                "enunciado": "Preencha o metodo de array que transforma cada elemento e devolve um novo array:",
+                "codigo_snippet": (
+                    "const quadrados = [1, 2, 3].__BLANK_0__((n) => n * n);\n"
+                    "console.log(quadrados); // [1, 4, 9]"
+                ),
+                "gabarito": "map",
+                "dica": "O metodo 'mapeia' cada valor para um novo valor."
+            }
+        ]
+    }
+]
+
+# ==============================================================================
+# TRILHA 5: TypeScript: Tipagem Estatica
+# ==============================================================================
+trilha_typescript = Trilha.objects.create(
+    titulo="TypeScript: Tipagem Estatica",
+    descricao="Escreva JavaScript mais seguro com tipos, interfaces e generics.",
+    habilidade="TypeScript",
+    ativo=True
+)
+
+modulos_typescript = [
+    {
+        "titulo": "Tipos Basicos e Anotacoes",
+        "descricao": "Anotacoes de tipo, tipos primitivos, arrays, union types e a diferenca entre any e unknown.",
+        "nivel": "INICIANTE",
+        "ordem_modulo": 1,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "O que o TypeScript Adiciona ao JavaScript",
+                "descricao": "Entenda a compilacao para JavaScript, as anotacoes de tipo e os union types.",
+                "xp": 50,
+                "texto": (
+                    "### TypeScript em Uma Frase\n\n"
+                    "TypeScript e um **superconjunto do JavaScript** que adiciona tipos estaticos. O compilador (`tsc`) verifica os tipos e "
+                    "gera JavaScript puro: os tipos sao **removidos** no codigo final (*type erasure*), entao nao existem em tempo de execucao.\n\n"
+                    "### Anotacoes de Tipo\n\n"
+                    "- **Primitivos**: `string`, `number`, `boolean`.\n"
+                    "- **Arrays**: `number[]` ou `Array<number>`.\n"
+                    "- **Union types**: um valor que pode ter mais de um tipo, como `string | number`.\n"
+                    "- **`any`**: desliga a verificacao (evite). **`unknown`**: aceita qualquer valor, mas exige checagem antes do uso.\n\n"
+                    "```typescript\n"
+                    "let nome: string = 'Bia';\n"
+                    "let idade: number = 21;\n"
+                    "const notas: number[] = [7, 8.5, 10];\n"
+                    "\n"
+                    "let codigo: string | number = 'A1';\n"
+                    "codigo = 42; // permitido pelo union type\n"
+                    "\n"
+                    "function saudar(pessoa: string): string {\n"
+                    "  return `Ola, ${pessoa}`;\n"
+                    "}\n"
+                    "\n"
+                    "saudar(10); // Erro de compilacao: number nao e string\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Na maioria das vezes o TypeScript **infere** o tipo sozinho (`let x = 5` ja e `number`). Anote parametros e retornos de funcoes."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Compilacao do TypeScript",
+                "descricao": "Entenda o que acontece com os tipos apos a compilacao.",
+                "xp": 100,
+                "enunciado": "O que acontece com as anotacoes de tipo do TypeScript quando o codigo e compilado para JavaScript?",
+                "opcoes": [
+                    "Sao removidas (type erasure)",
+                    "Viram validacoes em tempo de execucao",
+                    "Sao convertidas em comentarios obrigatorios",
+                    "Geram classes JavaScript equivalentes"
+                ],
+                "gabarito_idx": 0,
+                "dica": "Os tipos so existem durante a verificacao do compilador."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Anotando uma Variavel",
+                "descricao": "Complete a anotacao de tipo numerico.",
+                "xp": 100,
+                "enunciado": "Preencha a lacuna com o tipo adequado para armazenar a idade do estudante:",
+                "codigo_snippet": (
+                    "let idade: __BLANK_0__ = 25;"
+                ),
+                "gabarito": "number",
+                "dica": "Em TypeScript, inteiros e decimais compartilham o mesmo tipo."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Funcao Tipada",
+                "descricao": "Ordene a declaracao de uma funcao com parametro e retorno tipados.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para declarar a funcao saudar e utiliza-la em seguida:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__\n"
+                    "__SLOT_3__"
+                ),
+                "blocos": [
+                    "function saudar(nome: string): string {",
+                    "return `Ola, ${nome}`;",
+                    "}",
+                    "console.log(saudar('Bia'));"
+                ],
+                "dica": "A assinatura abre a funcao, o retorno fica dentro do bloco e a chamada vem depois do fechamento."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Union Type",
+                "descricao": "Permita que o identificador seja texto ou numero.",
+                "xp": 150,
+                "enunciado": "Preencha o operador que cria um union type, permitindo string ou number:",
+                "codigo_snippet": (
+                    "let id: string __BLANK_0__ number;\n"
+                    "id = 'abc';\n"
+                    "id = 123;"
+                ),
+                "gabarito": "|",
+                "dica": "E o mesmo caractere usado como 'ou' bit a bit."
+            }
+        ]
+    },
+    {
+        "titulo": "Interfaces, Types e Generics",
+        "descricao": "Modelagem de objetos com interface e type, propriedades opcionais e funcoes genericas.",
+        "nivel": "INTERMEDIARIO",
+        "ordem_modulo": 2,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Modelando Dados com Interfaces e Generics",
+                "descricao": "Descreva o formato de objetos e crie funcoes reutilizaveis para qualquer tipo.",
+                "xp": 50,
+                "texto": (
+                    "### Interfaces e Type Aliases\n\n"
+                    "Uma `interface` descreve o **formato de um objeto**. Um `type` pode fazer o mesmo e tambem nomear unions e outros tipos compostos.\n\n"
+                    "- **Propriedade opcional**: `email?: string` pode estar ausente.\n"
+                    "- **Somente leitura**: `readonly id: number` nao pode ser alterado apos a criacao.\n\n"
+                    "```typescript\n"
+                    "interface Usuario {\n"
+                    "  readonly id: number;\n"
+                    "  nome: string;\n"
+                    "  email?: string;\n"
+                    "}\n"
+                    "\n"
+                    "type Status = 'ATIVO' | 'INATIVO';\n"
+                    "```\n\n"
+                    "### Generics\n\n"
+                    "Generics permitem escrever codigo que funciona com **qualquer tipo** sem perder a verificacao. "
+                    "O parametro de tipo (por convencao `T`) e definido entre `< >`:\n\n"
+                    "```typescript\n"
+                    "function primeiro<T>(itens: T[]): T | undefined {\n"
+                    "  return itens[0];\n"
+                    "}\n"
+                    "\n"
+                    "const n = primeiro([1, 2, 3]);      // n: number | undefined\n"
+                    "const s = primeiro(['a', 'b']);     // s: string | undefined\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Use `interface` para objetos que podem ser estendidos e `type` para unions e composicoes."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Propriedades Opcionais",
+                "descricao": "Identifique a sintaxe de propriedade opcional.",
+                "xp": 100,
+                "enunciado": "Como indicar que a propriedade 'email' de uma interface e opcional?",
+                "opcoes": ["email?: string", "email!: string", "optional email: string", "email: string | required"],
+                "gabarito_idx": 0,
+                "dica": "Um ponto de interrogacao logo apos o nome da propriedade."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Declarando uma Interface",
+                "descricao": "Complete a palavra-chave que define o formato de um objeto.",
+                "xp": 100,
+                "enunciado": "Preencha a lacuna com a palavra-chave que declara o contrato de um objeto Usuario:",
+                "codigo_snippet": (
+                    "__BLANK_0__ Usuario {\n"
+                    "  nome: string;\n"
+                    "  idade: number;\n"
+                    "}"
+                ),
+                "gabarito": "interface",
+                "dica": "A palavra significa 'interface' em ingles."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Funcao Generica",
+                "descricao": "Ordene a declaracao e o uso de uma funcao generica.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para declarar a funcao generica primeiro e chama-la com uma lista de numeros:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__\n"
+                    "__SLOT_3__"
+                ),
+                "blocos": [
+                    "function primeiro<T>(itens: T[]): T | undefined {",
+                    "return itens[0];",
+                    "}",
+                    "const n = primeiro([1, 2, 3]);"
+                ],
+                "dica": "Declare a funcao completa antes de usa-la."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Parametro de Tipo",
+                "descricao": "Declare o parametro generico de uma funcao identidade.",
+                "xp": 150,
+                "enunciado": "Preencha o nome do parametro de tipo generico usado pela funcao identidade:",
+                "codigo_snippet": (
+                    "function identidade<__BLANK_0__>(valor: T): T {\n"
+                    "  return valor;\n"
+                    "}"
+                ),
+                "gabarito": "T",
+                "dica": "Por convencao, o primeiro parametro generico e uma letra maiuscula usada no proprio parametro valor."
+            }
+        ]
+    }
+]
+
+# ==============================================================================
+# TRILHA 6: Frontend: HTML, CSS e React
+# ==============================================================================
+trilha_frontend = Trilha.objects.create(
+    titulo="Frontend: HTML, CSS e React",
+    descricao="Construa interfaces acessiveis com HTML semantico, layouts com Flexbox e componentes React.",
+    habilidade="Frontend",
+    ativo=True
+)
+
+modulos_frontend = [
+    {
+        "titulo": "HTML Semantico e CSS",
+        "descricao": "Estrutura semantica, acessibilidade, box model e layouts com Flexbox.",
+        "nivel": "INICIANTE",
+        "ordem_modulo": 1,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Estrutura e Estilo de Paginas Web",
+                "descricao": "Use as tags semanticas certas e organize elementos na tela com Flexbox.",
+                "xp": 50,
+                "texto": (
+                    "### HTML Semantico\n\n"
+                    "Tags semanticas descrevem o **significado** do conteudo, o que melhora acessibilidade e SEO:\n\n"
+                    "- **`<header>`** e **`<footer>`**: cabecalho e rodape.\n"
+                    "- **`<nav>`**: bloco de navegacao.\n"
+                    "- **`<main>`**: conteudo principal e unico da pagina (apenas um por pagina).\n"
+                    "- **`<section>`** e **`<article>`**: agrupamentos tematicos e conteudos independentes.\n\n"
+                    "Imagens devem ter o atributo `alt`, que descreve a imagem para leitores de tela.\n\n"
+                    "### Box Model e Flexbox\n\n"
+                    "Todo elemento e uma caixa formada por **content**, **padding**, **border** e **margin**. "
+                    "Para alinhar elementos, o **Flexbox** e a ferramenta mais pratica:\n\n"
+                    "```css\n"
+                    ".barra {\n"
+                    "  display: flex;            /* ativa o Flexbox */\n"
+                    "  justify-content: space-between; /* eixo principal */\n"
+                    "  align-items: center;      /* eixo cruzado */\n"
+                    "  gap: 16px;\n"
+                    "}\n"
+                    "```\n\n"
+                    "```html\n"
+                    "<header class=\"barra\">\n"
+                    "  <img src=\"logo.png\" alt=\"Logo do VariSkill\">\n"
+                    "  <nav><a href=\"/trilhas\">Trilhas</a></nav>\n"
+                    "</header>\n"
+                    "<main>...</main>\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Antes de usar uma `<div>`, pergunte se existe uma tag semantica que descreva melhor aquele conteudo."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Tags Semanticas",
+                "descricao": "Reconheca a tag do conteudo principal.",
+                "xp": 100,
+                "enunciado": "Qual tag HTML representa o conteudo principal e unico de uma pagina?",
+                "opcoes": ["<main>", "<div>", "<section>", "<body>"],
+                "gabarito_idx": 0,
+                "dica": "A palavra significa 'principal' em ingles."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Ativando o Flexbox",
+                "descricao": "Complete a propriedade que transforma o container em flex.",
+                "xp": 100,
+                "enunciado": "Preencha o valor da propriedade display que ativa o Flexbox no container:",
+                "codigo_snippet": (
+                    ".container {\n"
+                    "  display: __BLANK_0__;\n"
+                    "  justify-content: center;\n"
+                    "}"
+                ),
+                "gabarito": "flex",
+                "dica": "O valor tem o mesmo nome do modelo de layout."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Montando a Navegacao",
+                "descricao": "Ordene as tags para criar um bloco de navegacao.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para abrir o bloco de navegacao, inserir o link e fecha-lo:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__"
+                ),
+                "blocos": [
+                    "<nav>",
+                    "<a href=\"/\">Inicio</a>",
+                    "</nav>"
+                ],
+                "dica": "Toda tag aberta precisa envolver seu conteudo antes de ser fechada."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Imagem Acessivel",
+                "descricao": "Adicione o texto alternativo de uma imagem.",
+                "xp": 150,
+                "enunciado": "Preencha o atributo que descreve a imagem para leitores de tela:",
+                "codigo_snippet": (
+                    "<img src=\"logo.png\" __BLANK_0__=\"Logo do VariSkill\">"
+                ),
+                "gabarito": "alt",
+                "dica": "E a abreviacao de 'alternative'."
+            }
+        ]
+    },
+    {
+        "titulo": "Componentes e Estado com React",
+        "descricao": "Componentes funcionais, JSX, props, estado com useState e renderizacao de listas.",
+        "nivel": "INTERMEDIARIO",
+        "ordem_modulo": 2,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Pensando em Componentes",
+                "descricao": "Crie componentes reutilizaveis com props e estado.",
+                "xp": 50,
+                "texto": (
+                    "### Componentes e JSX\n\n"
+                    "No React, a interface e dividida em **componentes**: funcoes que recebem dados (**props**) e retornam **JSX**, "
+                    "uma sintaxe parecida com HTML dentro do JavaScript.\n\n"
+                    "```jsx\n"
+                    "function Saudacao({ nome }) {\n"
+                    "  return <h1>Ola, {nome}!</h1>;\n"
+                    "}\n"
+                    "\n"
+                    "<Saudacao nome=\"Lia\" />\n"
+                    "```\n\n"
+                    "### Estado com useState\n\n"
+                    "Props vem de fora; **estado** e a memoria interna do componente. Quando o estado muda, o React renderiza o componente novamente:\n\n"
+                    "```jsx\n"
+                    "import { useState } from 'react';\n"
+                    "\n"
+                    "function Contador() {\n"
+                    "  const [contador, setContador] = useState(0);\n"
+                    "  return (\n"
+                    "    <button onClick={() => setContador(contador + 1)}>\n"
+                    "      Cliques: {contador}\n"
+                    "    </button>\n"
+                    "  );\n"
+                    "}\n"
+                    "```\n\n"
+                    "### Listas e a Prop key\n\n"
+                    "Ao renderizar listas com `map`, cada item precisa de uma prop **`key`** unica e estavel, para o React identificar o que mudou.\n\n"
+                    "> **Dica Pro**: Nunca altere o estado diretamente (`contador++`); sempre use a funcao setter."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Hooks do React",
+                "descricao": "Escolha o hook que guarda estado local.",
+                "xp": 100,
+                "enunciado": "Qual hook do React e usado para guardar estado local em um componente funcional?",
+                "opcoes": ["useState", "useEffect", "useRef", "useContext"],
+                "gabarito_idx": 0,
+                "dica": "O nome do hook contem a palavra 'estado' em ingles."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Criando um Estado",
+                "descricao": "Complete a criacao de um estado numerico.",
+                "xp": 100,
+                "enunciado": "Preencha o hook que cria o estado contador iniciando em zero:",
+                "codigo_snippet": (
+                    "const [contador, setContador] = __BLANK_0__(0);"
+                ),
+                "gabarito": "useState",
+                "dica": "Ele retorna um par: o valor atual e a funcao para atualiza-lo."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Componente com Props",
+                "descricao": "Ordene as linhas de um componente funcional.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para declarar o componente Saudacao, que recebe a prop nome:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__"
+                ),
+                "blocos": [
+                    "function Saudacao({ nome }) {",
+                    "return <h1>Ola, {nome}!</h1>;",
+                    "}"
+                ],
+                "dica": "A assinatura da funcao vem primeiro, o JSX e retornado dentro dela."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Renderizando Listas",
+                "descricao": "Identifique cada item de uma lista renderizada.",
+                "xp": 150,
+                "enunciado": "Preencha a prop especial que identifica cada item ao renderizar uma lista no React:",
+                "codigo_snippet": (
+                    "{itens.map((item) => (\n"
+                    "  <li __BLANK_0__={item.id}>{item.nome}</li>\n"
+                    "))}"
+                ),
+                "gabarito": "key",
+                "dica": "A palavra significa 'chave' em ingles."
+            }
+        ]
+    }
+]
+
+# ==============================================================================
+# TRILHA 7: Banco de Dados: SQL e Modelagem
+# ==============================================================================
+trilha_banco = Trilha.objects.create(
+    titulo="Banco de Dados: SQL e Modelagem",
+    descricao="Consulte, filtre e relacione dados com SQL e modele tabelas relacionais.",
+    habilidade="Banco de Dados",
+    ativo=True
+)
+
+modulos_banco = [
+    {
+        "titulo": "Consultas SQL Essenciais",
+        "descricao": "SELECT, WHERE, ORDER BY, agregacoes e comandos de escrita (INSERT, UPDATE, DELETE).",
+        "nivel": "INICIANTE",
+        "ordem_modulo": 1,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Lendo e Escrevendo Dados com SQL",
+                "descricao": "Aprenda a estrutura de uma consulta SQL e os comandos basicos de manipulacao.",
+                "xp": 50,
+                "texto": (
+                    "### Tabelas e Consultas\n\n"
+                    "Em um banco relacional, os dados ficam em **tabelas** formadas por colunas (atributos) e linhas (registros). "
+                    "A linguagem **SQL** e usada para consultar e alterar esses dados.\n\n"
+                    "### Estrutura de um SELECT\n\n"
+                    "- **`SELECT`**: quais colunas retornar.\n"
+                    "- **`FROM`**: de qual tabela.\n"
+                    "- **`WHERE`**: filtra as linhas por uma condicao.\n"
+                    "- **`ORDER BY`**: ordena o resultado (`ASC` ou `DESC`).\n"
+                    "- **`GROUP BY`** + funcoes de agregacao (`COUNT`, `SUM`, `AVG`): resume grupos de linhas.\n\n"
+                    "```sql\n"
+                    "SELECT nome, nota\n"
+                    "FROM alunos\n"
+                    "WHERE nota >= 7\n"
+                    "ORDER BY nota DESC;\n"
+                    "\n"
+                    "SELECT trilha_id, COUNT(*) AS total\n"
+                    "FROM matriculas\n"
+                    "GROUP BY trilha_id;\n"
+                    "```\n\n"
+                    "### Escrita de Dados\n\n"
+                    "```sql\n"
+                    "INSERT INTO alunos (nome, nota) VALUES ('Caio', 8.5);\n"
+                    "UPDATE alunos SET nota = 9 WHERE nome = 'Caio';\n"
+                    "DELETE FROM alunos WHERE nota < 2;\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Sempre teste a condicao com um `SELECT` antes de rodar um `UPDATE` ou `DELETE`. Sem `WHERE`, eles afetam a tabela inteira."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Filtrando Linhas",
+                "descricao": "Identifique a clausula de filtro do SQL.",
+                "xp": 100,
+                "enunciado": "Qual clausula SQL filtra as linhas retornadas por uma consulta de acordo com uma condicao?",
+                "opcoes": ["WHERE", "ORDER BY", "GROUP BY", "FROM"],
+                "gabarito_idx": 0,
+                "dica": "A palavra significa 'onde' em ingles."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Alunos Maiores de Idade",
+                "descricao": "Complete a consulta que filtra por idade.",
+                "xp": 100,
+                "enunciado": "Preencha a clausula que retorna apenas os alunos com 18 anos ou mais:",
+                "codigo_snippet": (
+                    "SELECT nome, email\n"
+                    "FROM alunos\n"
+                    "__BLANK_0__ idade >= 18;"
+                ),
+                "gabarito": "WHERE",
+                "dica": "E a mesma clausula de filtro vista no exercicio anterior."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Ranking de Notas",
+                "descricao": "Ordene as clausulas de uma consulta com ordenacao.",
+                "xp": 100,
+                "enunciado": "Organize as clausulas para listar nome e nota dos alunos, da maior para a menor nota:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__"
+                ),
+                "blocos": [
+                    "SELECT nome, nota",
+                    "FROM alunos",
+                    "ORDER BY nota DESC;"
+                ],
+                "dica": "A ordem obrigatoria e: SELECT, FROM e por ultimo ORDER BY."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Agrupando Matriculas",
+                "descricao": "Conte quantas matriculas existem por trilha.",
+                "xp": 150,
+                "enunciado": "Preencha a palavra-chave que agrupa as linhas por trilha antes de contar as matriculas:",
+                "codigo_snippet": (
+                    "SELECT trilha_id, COUNT(*)\n"
+                    "FROM matriculas\n"
+                    "__BLANK_0__ BY trilha_id;"
+                ),
+                "gabarito": "GROUP",
+                "dica": "A palavra significa 'grupo' em ingles."
+            }
+        ]
+    },
+    {
+        "titulo": "Modelagem Relacional e JOINs",
+        "descricao": "Chaves primarias e estrangeiras, relacionamentos 1:N e N:N, normalizacao e JOINs.",
+        "nivel": "INTERMEDIARIO",
+        "ordem_modulo": 2,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Relacionando Tabelas",
+                "descricao": "Modele relacionamentos com chaves e combine tabelas com JOIN.",
+                "xp": 50,
+                "texto": (
+                    "### Chaves e Relacionamentos\n\n"
+                    "- **Chave primaria (PK)**: identifica cada linha de forma unica (ex: `id`).\n"
+                    "- **Chave estrangeira (FK)**: coluna que aponta para a PK de outra tabela, garantindo integridade referencial.\n"
+                    "- **1:N**: um aluno possui varias matriculas.\n"
+                    "- **N:N**: alunos e trilhas se relacionam por uma tabela intermediaria (`matriculas`).\n\n"
+                    "**Normalizar** e evitar dados duplicados: em vez de repetir o nome da trilha em cada matricula, guardamos apenas o `trilha_id`.\n\n"
+                    "```sql\n"
+                    "CREATE TABLE matriculas (\n"
+                    "  id SERIAL PRIMARY KEY,\n"
+                    "  aluno_id INTEGER REFERENCES alunos(id),\n"
+                    "  trilha_id INTEGER REFERENCES trilhas(id)\n"
+                    ");\n"
+                    "```\n\n"
+                    "### Tipos de JOIN\n\n"
+                    "- **`INNER JOIN`**: apenas linhas com correspondencia nas duas tabelas.\n"
+                    "- **`LEFT JOIN`**: todas as linhas da tabela da esquerda, com `NULL` quando nao ha correspondencia.\n\n"
+                    "```sql\n"
+                    "SELECT a.nome, t.titulo\n"
+                    "FROM matriculas m\n"
+                    "JOIN alunos a ON a.id = m.aluno_id\n"
+                    "JOIN trilhas t ON t.id = m.trilha_id;\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Use `LEFT JOIN` para encontrar ausencias, como alunos que ainda nao se matricularam em nenhuma trilha."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Tipos de JOIN",
+                "descricao": "Reconheca o JOIN que preserva a tabela da esquerda.",
+                "xp": 100,
+                "enunciado": "Qual JOIN retorna todas as linhas da tabela da esquerda, mesmo quando nao ha correspondencia na tabela da direita?",
+                "opcoes": ["LEFT JOIN", "INNER JOIN", "CROSS JOIN", "SELF JOIN"],
+                "gabarito_idx": 0,
+                "dica": "O nome do JOIN indica o lado que e preservado."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Chave Estrangeira",
+                "descricao": "Complete a definicao de uma chave estrangeira.",
+                "xp": 100,
+                "enunciado": "Preencha a palavra-chave que faz a coluna aluno_id apontar para a tabela alunos:",
+                "codigo_snippet": (
+                    "CREATE TABLE matriculas (\n"
+                    "  id SERIAL PRIMARY KEY,\n"
+                    "  aluno_id INTEGER __BLANK_0__ alunos(id)\n"
+                    ");"
+                ),
+                "gabarito": "REFERENCES",
+                "dica": "A coluna 'referencia' outra tabela."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Consulta com JOINs",
+                "descricao": "Ordene uma consulta que combina tres tabelas.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para listar o nome do aluno e o titulo da trilha de cada matricula:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__\n"
+                    "__SLOT_3__"
+                ),
+                "blocos": [
+                    "SELECT a.nome, t.titulo",
+                    "FROM matriculas m",
+                    "JOIN alunos a ON a.id = m.aluno_id",
+                    "JOIN trilhas t ON t.id = m.trilha_id;"
+                ],
+                "dica": "Depois do SELECT e do FROM, cada JOIN acrescenta uma tabela relacionada."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Apenas Alunos Matriculados",
+                "descricao": "Escolha o JOIN que descarta alunos sem matricula.",
+                "xp": 150,
+                "enunciado": "Preencha o tipo de JOIN para listar somente os alunos que possuem ao menos uma matricula:",
+                "codigo_snippet": (
+                    "SELECT a.nome\n"
+                    "FROM alunos a\n"
+                    "__BLANK_0__ JOIN matriculas m ON m.aluno_id = a.id;"
+                ),
+                "gabarito": "INNER",
+                "dica": "E o JOIN que retorna apenas as linhas com correspondencia nas duas tabelas."
+            }
+        ]
+    }
+]
+
+# ==============================================================================
+# TRILHA 8: Inteligencia Artificial: Machine Learning
+# ==============================================================================
+trilha_ia = Trilha.objects.create(
+    titulo="Inteligencia Artificial: Machine Learning",
+    descricao="Entenda os fundamentos de Machine Learning e treine seus primeiros modelos com scikit-learn.",
+    habilidade="Inteligência Artificial",
+    ativo=True
+)
+
+modulos_ia = [
+    {
+        "titulo": "Conceitos de Machine Learning",
+        "descricao": "IA, ML e Deep Learning, aprendizado supervisionado, features, rotulos e divisao treino/teste.",
+        "nivel": "INICIANTE",
+        "ordem_modulo": 1,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Como uma Maquina Aprende",
+                "descricao": "Diferencie os tipos de aprendizado e conheca o fluxo de treino de um modelo.",
+                "xp": 50,
+                "texto": (
+                    "### IA, Machine Learning e Deep Learning\n\n"
+                    "- **Inteligencia Artificial**: area ampla que busca sistemas capazes de tarefas que exigem inteligencia.\n"
+                    "- **Machine Learning (ML)**: subarea em que o sistema **aprende padroes a partir de dados**, em vez de seguir regras escritas manualmente.\n"
+                    "- **Deep Learning**: ML com redes neurais de muitas camadas.\n\n"
+                    "### Tipos de Aprendizado\n\n"
+                    "- **Supervisionado**: os dados possuem **rotulos** (respostas conhecidas). Ex: prever o preco de um imovel.\n"
+                    "- **Nao supervisionado**: sem rotulos; o modelo encontra grupos ou estruturas. Ex: segmentar clientes.\n"
+                    "- **Por reforco**: um agente aprende com recompensas e penalidades.\n\n"
+                    "### Fluxo Basico com scikit-learn\n\n"
+                    "As **features** (`X`) sao as caracteristicas de entrada e o **alvo** (`y`) e o que queremos prever. "
+                    "Separamos parte dos dados para **teste**, para medir o desempenho em exemplos que o modelo nunca viu:\n\n"
+                    "```python\n"
+                    "from sklearn.model_selection import train_test_split\n"
+                    "from sklearn.linear_model import LinearRegression\n"
+                    "\n"
+                    "X_treino, X_teste, y_treino, y_teste = train_test_split(X, y, test_size=0.2)\n"
+                    "\n"
+                    "modelo = LinearRegression()\n"
+                    "modelo.fit(X_treino, y_treino)     # treino\n"
+                    "previsoes = modelo.predict(X_teste) # inferencia\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Nunca avalie o modelo com os mesmos dados usados no treino; o resultado parecera melhor do que realmente e."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Aprendizado Supervisionado",
+                "descricao": "Identifique a base do aprendizado supervisionado.",
+                "xp": 100,
+                "enunciado": "Em aprendizado supervisionado, o modelo aprende a partir de:",
+                "opcoes": [
+                    "Exemplos com rotulos (respostas conhecidas)",
+                    "Dados sem nenhum rotulo",
+                    "Recompensas recebidas de um ambiente",
+                    "Regras escritas manualmente pelo programador"
+                ],
+                "gabarito_idx": 0,
+                "dica": "A 'supervisao' vem das respostas corretas fornecidas junto aos dados."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Separando Treino e Teste",
+                "descricao": "Complete a importacao da funcao que divide os dados.",
+                "xp": 100,
+                "enunciado": "Preencha a funcao do scikit-learn que separa os dados em conjuntos de treino e teste:",
+                "codigo_snippet": (
+                    "from sklearn.model_selection import __BLANK_0__\n"
+                    "X_treino, X_teste, y_treino, y_teste = train_test_split(X, y, test_size=0.2)"
+                ),
+                "gabarito": "train_test_split",
+                "dica": "E a mesma funcao chamada na segunda linha."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Ciclo de Treino",
+                "descricao": "Ordene as etapas de criacao, treino e previsao de um modelo.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para criar o modelo, treina-lo e gerar previsoes:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__"
+                ),
+                "blocos": [
+                    "modelo = LinearRegression()",
+                    "modelo.fit(X_treino, y_treino)",
+                    "previsoes = modelo.predict(X_teste)"
+                ],
+                "dica": "Um modelo precisa existir e ser treinado antes de prever."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Gerando Previsoes",
+                "descricao": "Use o metodo de inferencia de um modelo treinado.",
+                "xp": 150,
+                "enunciado": "Preencha o metodo que gera previsoes para os dados de teste:",
+                "codigo_snippet": (
+                    "modelo.fit(X_treino, y_treino)\n"
+                    "previsoes = modelo.__BLANK_0__(X_teste)"
+                ),
+                "gabarito": "predict",
+                "dica": "A palavra significa 'prever' em ingles."
+            }
+        ]
+    },
+    {
+        "titulo": "Avaliacao de Modelos",
+        "descricao": "Metricas de classificacao, matriz de confusao, overfitting e underfitting.",
+        "nivel": "INTERMEDIARIO",
+        "ordem_modulo": 2,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Medindo a Qualidade de um Modelo",
+                "descricao": "Escolha as metricas certas e reconheca overfitting.",
+                "xp": 50,
+                "texto": (
+                    "### Metricas de Classificacao\n\n"
+                    "- **Acuracia**: proporcao de acertos sobre o total. Engana em dados desbalanceados.\n"
+                    "- **Precisao**: dos que o modelo marcou como positivos, quantos realmente sao.\n"
+                    "- **Recall (revocacao)**: dos positivos reais, quantos o modelo encontrou.\n"
+                    "- **Matriz de confusao**: tabela com verdadeiros/falsos positivos e negativos.\n\n"
+                    "### Overfitting e Underfitting\n\n"
+                    "- **Overfitting**: o modelo decora o treino (desempenho alto) e falha em dados novos (desempenho baixo no teste).\n"
+                    "- **Underfitting**: o modelo e simples demais e vai mal ate no treino.\n\n"
+                    "Limitar a complexidade, como a profundidade de uma arvore de decisao, ajuda a evitar overfitting:\n\n"
+                    "```python\n"
+                    "from sklearn.tree import DecisionTreeClassifier\n"
+                    "from sklearn.metrics import accuracy_score\n"
+                    "\n"
+                    "modelo = DecisionTreeClassifier(max_depth=3)\n"
+                    "modelo.fit(X_treino, y_treino)\n"
+                    "\n"
+                    "acuracia_treino = accuracy_score(y_treino, modelo.predict(X_treino))\n"
+                    "acuracia_teste = accuracy_score(y_teste, modelo.predict(X_teste))\n"
+                    "print(acuracia_treino, acuracia_teste)\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Uma grande diferenca entre a metrica de treino e a de teste e o principal sinal de overfitting."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Diagnosticando o Modelo",
+                "descricao": "Interprete a diferenca entre treino e teste.",
+                "xp": 100,
+                "enunciado": "Um modelo com 99% de acuracia no treino e 60% no teste provavelmente esta sofrendo de:",
+                "opcoes": ["Overfitting", "Underfitting", "Vazamento de memoria", "Normalizacao excessiva"],
+                "gabarito_idx": 0,
+                "dica": "O modelo 'decorou' os dados de treino."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Calculando a Acuracia",
+                "descricao": "Complete a funcao de metrica de acuracia.",
+                "xp": 100,
+                "enunciado": "Preencha a funcao que calcula a acuracia comparando os rotulos reais com as previsoes:",
+                "codigo_snippet": (
+                    "from sklearn.metrics import accuracy_score\n"
+                    "acuracia = __BLANK_0__(y_teste, previsoes)"
+                ),
+                "gabarito": "accuracy_score",
+                "dica": "E a funcao importada na primeira linha."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Avaliando uma Arvore de Decisao",
+                "descricao": "Ordene a importacao, criacao, treino e avaliacao do modelo.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para importar, criar, treinar e avaliar uma arvore de decisao:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__\n"
+                    "__SLOT_3__"
+                ),
+                "blocos": [
+                    "from sklearn.tree import DecisionTreeClassifier",
+                    "modelo = DecisionTreeClassifier(max_depth=3)",
+                    "modelo.fit(X_treino, y_treino)",
+                    "print(modelo.score(X_teste, y_teste))"
+                ],
+                "dica": "Importe a classe, instancie, treine e so entao avalie."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Controlando a Complexidade",
+                "descricao": "Limite a profundidade da arvore para reduzir overfitting.",
+                "xp": 150,
+                "enunciado": "Preencha o parametro que limita a profundidade maxima da arvore de decisao:",
+                "codigo_snippet": (
+                    "modelo = DecisionTreeClassifier(__BLANK_0__=3)"
+                ),
+                "gabarito": "max_depth",
+                "dica": "O nome combina 'maximo' e 'profundidade' em ingles, separados por underline."
+            }
+        ]
+    }
+]
+
+# ==============================================================================
+# TRILHA 9: DevOps e Cloud: Docker e CI/CD
+# ==============================================================================
+trilha_devops = Trilha.objects.create(
+    titulo="DevOps e Cloud: Docker e CI/CD",
+    descricao="Empacote aplicacoes em containers e automatize testes e deploys com pipelines de CI/CD.",
+    habilidade="DevOps/Cloud",
+    ativo=True
+)
+
+modulos_devops = [
+    {
+        "titulo": "Containers com Docker",
+        "descricao": "Containers vs. maquinas virtuais, imagens, Dockerfile e execucao de containers.",
+        "nivel": "INICIANTE",
+        "ordem_modulo": 1,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Empacotando Aplicacoes com Docker",
+                "descricao": "Entenda imagens, containers e as instrucoes de um Dockerfile.",
+                "xp": 50,
+                "texto": (
+                    "### Por que Containers?\n\n"
+                    "Um **container** empacota a aplicacao com todas as suas dependencias, garantindo que ela rode igual no computador do desenvolvedor, "
+                    "no servidor de testes e em producao. Diferente de uma maquina virtual, ele compartilha o kernel do sistema, sendo mais leve e rapido.\n\n"
+                    "### Imagem vs. Container\n\n"
+                    "- **Imagem**: modelo imutavel, construido a partir de um `Dockerfile`.\n"
+                    "- **Container**: uma instancia em execucao de uma imagem.\n\n"
+                    "### Instrucoes do Dockerfile\n\n"
+                    "- **`FROM`**: imagem base.\n"
+                    "- **`WORKDIR`**: diretorio de trabalho.\n"
+                    "- **`COPY`**: copia arquivos para a imagem.\n"
+                    "- **`RUN`**: executa comandos durante o build (ex: instalar dependencias).\n"
+                    "- **`CMD`**: comando padrao ao iniciar o container.\n\n"
+                    "```dockerfile\n"
+                    "FROM python:3.13-slim\n"
+                    "WORKDIR /app\n"
+                    "COPY requirements.txt .\n"
+                    "RUN pip install -r requirements.txt\n"
+                    "COPY . .\n"
+                    "CMD [\"python\", \"main.py\"]\n"
+                    "```\n\n"
+                    "```bash\n"
+                    "docker build -t minha-api .\n"
+                    "docker run -p 8000:8000 minha-api   # porta do host:porta do container\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Copie o `requirements.txt` antes do restante do codigo para aproveitar o cache de camadas do Docker."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Imagem e Container",
+                "descricao": "Diferencie imagem e container.",
+                "xp": 100,
+                "enunciado": "Qual a diferenca entre imagem e container no Docker?",
+                "opcoes": [
+                    "A imagem e o modelo imutavel; o container e uma instancia em execucao dela",
+                    "Sao sinonimos e podem ser usados da mesma forma",
+                    "O container e o modelo; a imagem e a execucao",
+                    "A imagem so pode existir em provedores de nuvem"
+                ],
+                "gabarito_idx": 0,
+                "dica": "Pense na relacao entre uma classe e um objeto."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Instalando Dependencias",
+                "descricao": "Complete a instrucao que executa um comando durante o build.",
+                "xp": 100,
+                "enunciado": "Preencha a instrucao do Dockerfile que executa a instalacao das dependencias durante o build:",
+                "codigo_snippet": (
+                    "FROM python:3.13-slim\n"
+                    "WORKDIR /app\n"
+                    "COPY . .\n"
+                    "__BLANK_0__ pip install -r requirements.txt"
+                ),
+                "gabarito": "RUN",
+                "dica": "A instrucao significa 'executar' em ingles."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Montando um Dockerfile",
+                "descricao": "Ordene as instrucoes de um Dockerfile simples.",
+                "xp": 100,
+                "enunciado": "Organize as instrucoes para definir a imagem base, copiar o codigo e iniciar a aplicacao:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__"
+                ),
+                "blocos": [
+                    "FROM python:3.13-slim",
+                    "COPY . /app",
+                    "CMD [\"python\", \"/app/main.py\"]"
+                ],
+                "dica": "Todo Dockerfile comeca pela imagem base e termina com o comando de inicializacao."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Publicando a Porta",
+                "descricao": "Exponha a porta do container no host.",
+                "xp": 150,
+                "enunciado": "Preencha a flag que mapeia a porta 8000 do host para a porta 8000 do container:",
+                "codigo_snippet": (
+                    "docker run __BLANK_0__ 8000:8000 minha-api"
+                ),
+                "gabarito": "-p",
+                "dica": "E a flag curta de 'publish'."
+            }
+        ]
+    },
+    {
+        "titulo": "Integracao e Entrega Continuas",
+        "descricao": "Pipelines de CI/CD, GitHub Actions, Docker Compose e modelos de servico em nuvem.",
+        "nivel": "INTERMEDIARIO",
+        "ordem_modulo": 2,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Automatizando o Caminho ate Producao",
+                "descricao": "Entenda CI/CD, escreva um workflow e orquestre servicos com Docker Compose.",
+                "xp": 50,
+                "texto": (
+                    "### CI e CD\n\n"
+                    "- **Integracao Continua (CI)**: cada alteracao enviada ao repositorio dispara automaticamente build e testes.\n"
+                    "- **Entrega/Deploy Continuo (CD)**: versoes aprovadas sao publicadas automaticamente em homologacao ou producao.\n\n"
+                    "### Workflow no GitHub Actions\n\n"
+                    "Um workflow e um arquivo YAML em `.github/workflows/`. Ele define **quando** rodar (`on`) e **o que** rodar (`jobs` e `steps`):\n\n"
+                    "```yaml\n"
+                    "on:\n"
+                    "  push:\n"
+                    "    branches: [main]\n"
+                    "jobs:\n"
+                    "  testes:\n"
+                    "    runs-on: ubuntu-latest\n"
+                    "    steps:\n"
+                    "      - uses: actions/checkout@v4\n"
+                    "      - run: pip install -r requirements.txt\n"
+                    "      - run: pytest\n"
+                    "```\n\n"
+                    "### Docker Compose e Nuvem\n\n"
+                    "O **Docker Compose** sobe varios containers juntos (API + banco) com `docker compose up -d`. "
+                    "Na nuvem, os servicos se dividem em **IaaS** (maquinas virtuais), **PaaS** (plataforma gerenciada para rodar sua aplicacao) e **SaaS** (software pronto).\n\n"
+                    "> **Dica Pro**: Um pipeline que falha rapido e barato: rode lint e testes unitarios antes das etapas mais demoradas."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Objetivo da CI",
+                "descricao": "Reconheca o papel da integracao continua.",
+                "xp": 100,
+                "enunciado": "Qual o principal objetivo da Integracao Continua (CI)?",
+                "opcoes": [
+                    "Validar automaticamente cada alteracao com build e testes",
+                    "Substituir o controle de versao do projeto",
+                    "Publicar em producao sem executar testes",
+                    "Monitorar os custos da infraestrutura em nuvem"
+                ],
+                "gabarito_idx": 0,
+                "dica": "A ideia e detectar problemas logo apos cada alteracao."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Escolhendo o Runner",
+                "descricao": "Complete a chave que define a maquina do job.",
+                "xp": 100,
+                "enunciado": "Preencha a chave do GitHub Actions que define em qual sistema operacional o job sera executado:",
+                "codigo_snippet": (
+                    "jobs:\n"
+                    "  testes:\n"
+                    "    __BLANK_0__: ubuntu-latest"
+                ),
+                "gabarito": "runs-on",
+                "dica": "A chave significa 'roda em', com as palavras separadas por hifen."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Etapas do Pipeline",
+                "descricao": "Ordene os passos de um job de testes.",
+                "xp": 100,
+                "enunciado": "Organize os passos para baixar o codigo, instalar as dependencias e rodar os testes:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__"
+                ),
+                "blocos": [
+                    "- uses: actions/checkout@v4",
+                    "- run: pip install -r requirements.txt",
+                    "- run: pytest"
+                ],
+                "dica": "Nao e possivel instalar dependencias antes de ter o codigo do repositorio."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Subindo os Servicos",
+                "descricao": "Inicie todos os servicos do Compose em segundo plano.",
+                "xp": 150,
+                "enunciado": "Preencha o subcomando que cria e inicia todos os servicos definidos no docker-compose.yaml:",
+                "codigo_snippet": (
+                    "docker compose __BLANK_0__ -d"
+                ),
+                "gabarito": "up",
+                "dica": "O oposto do subcomando 'down'."
+            }
+        ]
+    }
+]
+
+# ==============================================================================
+# TRILHA 10: Algoritmos e Estruturas de Dados
+# ==============================================================================
+trilha_algoritmos = Trilha.objects.create(
+    titulo="Algoritmos e Estruturas de Dados",
+    descricao="Analise a eficiencia de algoritmos e use as estruturas de dados certas para cada problema.",
+    habilidade="Algoritmos",
+    ativo=True
+)
+
+modulos_algoritmos = [
+    {
+        "titulo": "Complexidade e Busca",
+        "descricao": "Notacao Big-O, busca linear e busca binaria.",
+        "nivel": "INICIANTE",
+        "ordem_modulo": 1,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Medindo a Eficiencia de Algoritmos",
+                "descricao": "Entenda a notacao Big-O e compare busca linear e busca binaria.",
+                "xp": 50,
+                "texto": (
+                    "### Notacao Big-O\n\n"
+                    "A notacao **Big-O** descreve como o tempo (ou memoria) de um algoritmo cresce conforme a entrada `n` aumenta:\n\n"
+                    "- **O(1)**: constante (acessar `lista[0]`).\n"
+                    "- **O(log n)**: logaritmica (busca binaria).\n"
+                    "- **O(n)**: linear (percorrer a lista uma vez).\n"
+                    "- **O(n^2)**: quadratica (dois lacos aninhados).\n\n"
+                    "### Busca Linear vs. Busca Binaria\n\n"
+                    "A **busca linear** verifica item por item: O(n). A **busca binaria** exige uma lista **ordenada** e descarta metade dos elementos a cada passo: O(log n).\n\n"
+                    "```python\n"
+                    "def busca_binaria(lista, alvo):\n"
+                    "    inicio, fim = 0, len(lista) - 1\n"
+                    "    while inicio <= fim:\n"
+                    "        meio = (inicio + fim) // 2\n"
+                    "        if lista[meio] == alvo:\n"
+                    "            return meio\n"
+                    "        if lista[meio] < alvo:\n"
+                    "            inicio = meio + 1\n"
+                    "        else:\n"
+                    "            fim = meio - 1\n"
+                    "    return -1\n"
+                    "\n"
+                    "print(busca_binaria([1, 3, 5, 7, 9], 7))  # 3\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Em uma lista de 1 milhao de itens, a busca binaria precisa de no maximo cerca de 20 comparacoes."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Complexidade da Busca Binaria",
+                "descricao": "Identifique a complexidade de tempo da busca binaria.",
+                "xp": 100,
+                "enunciado": "Qual a complexidade de tempo da busca binaria em uma lista ordenada?",
+                "opcoes": ["O(log n)", "O(n)", "O(1)", "O(n^2)"],
+                "gabarito_idx": 0,
+                "dica": "A cada passo, metade dos elementos e descartada."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Calculando o Meio",
+                "descricao": "Complete o calculo do indice central com divisao inteira.",
+                "xp": 100,
+                "enunciado": "Preencha o operador de divisao inteira que calcula o indice do meio da busca binaria:",
+                "codigo_snippet": (
+                    "inicio, fim = 0, 9\n"
+                    "meio = (inicio + fim) __BLANK_0__ 2"
+                ),
+                "gabarito": "//",
+                "dica": "Indices precisam ser inteiros: use o operador de divisao que descarta a parte decimal."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Preparando a Busca Binaria",
+                "descricao": "Ordene as etapas antes de executar uma busca binaria.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para criar a lista, ordena-la e entao buscar o valor 7:",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__"
+                ),
+                "blocos": [
+                    "numeros = [9, 3, 7, 1]",
+                    "numeros.sort()",
+                    "posicao = busca_binaria(numeros, 7)"
+                ],
+                "dica": "A busca binaria so funciona em listas ordenadas."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Condicao de Parada",
+                "descricao": "Defina ate quando a busca binaria deve continuar.",
+                "xp": 150,
+                "enunciado": "Preencha o operador de comparacao para que a busca continue enquanto ainda houver elementos no intervalo:",
+                "codigo_snippet": (
+                    "while inicio __BLANK_0__ fim:\n"
+                    "    meio = (inicio + fim) // 2"
+                ),
+                "gabarito": "<=",
+                "dica": "Quando inicio e fim sao iguais, ainda resta um elemento para verificar."
+            }
+        ]
+    },
+    {
+        "titulo": "Ordenacao e Estruturas de Dados",
+        "descricao": "Pilhas, filas, dicionarios e algoritmos de ordenacao.",
+        "nivel": "INTERMEDIARIO",
+        "ordem_modulo": 2,
+        "atividades": [
+            {
+                "tipo": "CONTEUDO",
+                "titulo": "Escolhendo a Estrutura Certa",
+                "descricao": "Conheca pilhas, filas e dicionarios e compare algoritmos de ordenacao.",
+                "xp": 50,
+                "texto": (
+                    "### Estruturas de Dados Essenciais\n\n"
+                    "- **Pilha (LIFO)**: o ultimo a entrar e o primeiro a sair. Em Python: `append()` e `pop()` em uma lista.\n"
+                    "- **Fila (FIFO)**: o primeiro a entrar e o primeiro a sair. Use `collections.deque` com `append()` e `popleft()`, ambos O(1).\n"
+                    "- **Dicionario (tabela hash)**: busca, insercao e remocao por chave em O(1) na media.\n\n"
+                    "```python\n"
+                    "from collections import deque\n"
+                    "\n"
+                    "pilha = []\n"
+                    "pilha.append('a'); pilha.append('b')\n"
+                    "print(pilha.pop())      # 'b'\n"
+                    "\n"
+                    "fila = deque(['a', 'b'])\n"
+                    "print(fila.popleft())   # 'a'\n"
+                    "```\n\n"
+                    "### Algoritmos de Ordenacao\n\n"
+                    "- **Bubble Sort**: troca vizinhos fora de ordem repetidamente. O(n^2), didatico mas lento.\n"
+                    "- **Merge Sort**: divide a lista, ordena as metades e as intercala. O(n log n).\n"
+                    "- **`sorted()` do Python**: usa o Timsort, O(n log n), e e a escolha no dia a dia.\n\n"
+                    "```python\n"
+                    "def bubble_sort(lista):\n"
+                    "    for i in range(len(lista)):\n"
+                    "        for j in range(len(lista) - 1 - i):\n"
+                    "            if lista[j] > lista[j + 1]:\n"
+                    "                lista[j], lista[j + 1] = lista[j + 1], lista[j]\n"
+                    "    return lista\n"
+                    "```\n\n"
+                    "> **Dica Pro**: Usar `pop(0)` em uma lista Python como fila custa O(n); prefira `deque.popleft()`."
+                )
+            },
+            {
+                "tipo": "MULTIPLA_ESCOLHA",
+                "titulo": "Exercicio: Principio LIFO",
+                "descricao": "Identifique a estrutura LIFO.",
+                "xp": 100,
+                "enunciado": "Qual estrutura de dados segue o principio LIFO (ultimo a entrar, primeiro a sair)?",
+                "opcoes": ["Pilha", "Fila", "Lista ligada", "Arvore binaria"],
+                "gabarito_idx": 0,
+                "dica": "Pense em uma pilha de pratos."
+            },
+            {
+                "tipo": "COMPLETE_CODIGO",
+                "titulo": "Pratica: Consumindo uma Fila",
+                "descricao": "Complete o metodo que remove o primeiro elemento de uma deque.",
+                "xp": 100,
+                "enunciado": "Preencha o metodo da deque que remove e retorna o primeiro elemento da fila em O(1):",
+                "codigo_snippet": (
+                    "from collections import deque\n"
+                    "fila = deque(['a', 'b', 'c'])\n"
+                    "primeiro = fila.__BLANK_0__()"
+                ),
+                "gabarito": "popleft",
+                "dica": "E o 'pop' feito pelo lado esquerdo."
+            },
+            {
+                "tipo": "ORDENAR_BLOCOS",
+                "titulo": "Pratica: Operacoes de Pilha",
+                "descricao": "Ordene as operacoes de empilhar e desempilhar.",
+                "xp": 100,
+                "enunciado": "Organize as linhas para criar a pilha, empilhar 1 e 2 e desempilhar o topo (que deve ser 2):",
+                "codigo_snippet": (
+                    "__SLOT_0__\n"
+                    "__SLOT_1__\n"
+                    "__SLOT_2__\n"
+                    "__SLOT_3__"
+                ),
+                "blocos": [
+                    "pilha = []",
+                    "pilha.append(1)",
+                    "pilha.append(2)",
+                    "topo = pilha.pop()"
+                ],
+                "dica": "O ultimo valor empilhado e o primeiro a sair."
+            },
+            {
+                "tipo": "DESAFIO",
+                "titulo": "Desafio do Modulo: Trocando Elementos",
+                "descricao": "Complete a troca de posicoes usada nos algoritmos de ordenacao.",
+                "xp": 150,
+                "enunciado": "Preencha a lacuna para trocar os valores das posicoes i e j em uma unica linha:",
+                "codigo_snippet": (
+                    "lista[i], lista[j] = lista[j], __BLANK_0__"
+                ),
+                "gabarito": "lista[i]",
+                "dica": "Do lado direito, os valores aparecem na ordem inversa do lado esquerdo."
+            }
+        ]
+    }
+]
+
 
 def popular_trilha(trilha, modulos_data):
     print(f"\nPopulando Trilha: {trilha.titulo}")
@@ -1780,15 +3239,22 @@ def popular_trilha(trilha, modulos_data):
 popular_trilha(trilha_fundamentos, modulos_fundamentos)
 popular_trilha(trilha_web, modulos_web)
 popular_trilha(trilha_dados, modulos_dados)
+popular_trilha(trilha_javascript, modulos_javascript)
+popular_trilha(trilha_typescript, modulos_typescript)
+popular_trilha(trilha_frontend, modulos_frontend)
+popular_trilha(trilha_banco, modulos_banco)
+popular_trilha(trilha_ia, modulos_ia)
+popular_trilha(trilha_devops, modulos_devops)
+popular_trilha(trilha_algoritmos, modulos_algoritmos)
 
 print("\n==========================================")
-print("--- RESUMO DO NOVO SEED PYTHON ---")
+print("--- RESUMO DO SEED DO CATALOGO ---")
 print("==========================================")
-print(f"Total Trilhas: {Trilha.objects.count()} (esperado: 3)")
-print(f"Total Modulos: {Modulo.objects.count()} (esperado: 15)")
-print(f"Total Atividades: {Atividade.objects.count()} (esperado: 75)")
-print(f"Total Conteudos: {Conteudo.objects.count()} (esperado: 15)")
-print(f"Total Questoes: {Questao.objects.count()} (esperado: 60)")
+print(f"Total Trilhas: {Trilha.objects.count()} (esperado: 10)")
+print(f"Total Modulos: {Modulo.objects.count()} (esperado: 29)")
+print(f"Total Atividades: {Atividade.objects.count()} (esperado: 145)")
+print(f"Total Conteudos: {Conteudo.objects.count()} (esperado: 29)")
+print(f"Total Questoes: {Questao.objects.count()} (esperado: 116)")
 print(f"Total Opcoes: {QuestaoOpcao.objects.count()}")
 print("==========================================")
 print("Seed executado com sucesso absoluto!")

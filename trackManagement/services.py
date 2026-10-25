@@ -1,14 +1,18 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List
 import uuid
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Count, Q, QuerySet
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
 from questionsManagement.models import Questao
 from trackManagement.models import Matricula, Modulo, ProgressoModulo, Trilha
+from userManagement.models import UsuarioInteresse
 
 DIAGNOSTICO_ERROS_THRESHOLD_PERCENT = 70.0
 
@@ -286,3 +290,147 @@ def obter_diagnostico_erros(usuario, modulo_id: uuid.UUID) -> DiagnosticoErrosRe
         parecer=parecer,
     )
 
+
+# Pesos da similaridade entre estudantes usada na recomendação "Recomendado para você".
+PESO_INTERESSES = 3.0
+PESO_IDADE_PROXIMA = 1.0
+PESO_IDADE_FAIXA = 0.5
+PESO_SEXO = 0.5
+IDADE_PROXIMA_ANOS = 3
+IDADE_FAIXA_ANOS = 7
+
+CRITERIO_PERFIL_SIMILAR = 'PERFIL_SIMILAR'
+CRITERIO_POPULARIDADE = 'POPULARIDADE'
+CRITERIO_CATALOGO = 'CATALOGO'
+
+
+def trilhas_ativas_com_contagens() -> QuerySet:
+    return Trilha.objects.filter(ativo=True).annotate(
+        total_modulos=Count('modulos', distinct=True),
+        total_atividades=Count(
+            'modulos__atividades',
+            filter=Q(modulos__atividades__ativo=True),
+            distinct=True,
+        ),
+    )
+
+
+def _similaridade_perfil(usuario, meus_interesses: set, outro, interesses_outro: set) -> tuple[float, set]:
+    """Pontua o quanto `outro` se parece com `usuario` e indica quais dimensões coincidiram."""
+    pontuacao, dimensoes = 0.0, set()
+
+    if meus_interesses and interesses_outro:
+        jaccard = len(meus_interesses & interesses_outro) / len(meus_interesses | interesses_outro)
+        if jaccard:
+            pontuacao += PESO_INTERESSES * jaccard
+            dimensoes.add('interesses')
+
+    if usuario.idade is not None and outro.idade is not None:
+        diferenca = abs(usuario.idade - outro.idade)
+        if diferenca <= IDADE_PROXIMA_ANOS:
+            pontuacao += PESO_IDADE_PROXIMA
+            dimensoes.add('idade')
+        elif diferenca <= IDADE_FAIXA_ANOS:
+            pontuacao += PESO_IDADE_FAIXA
+            dimensoes.add('idade')
+
+    if usuario.sexo and usuario.sexo == outro.sexo:
+        pontuacao += PESO_SEXO
+        dimensoes.add('sexo')
+
+    return pontuacao, dimensoes
+
+
+def _pontuar_por_perfis_similares(usuario, trilha_ids: list) -> tuple[Dict, Dict]:
+    """
+    Soma, por trilha, a similaridade dos estudantes parecidos com `usuario` que estão matriculados nela.
+    Estudantes anonimizados ou que revogaram o consentimento não entram no cálculo (LGPD).
+    """
+    meus_interesses = set(
+        UsuarioInteresse.objects.filter(usuario=usuario).values_list('interesse_id', flat=True)
+    )
+
+    filtro_similar = Q()
+    if meus_interesses:
+        filtro_similar |= Q(interesses_usuario__interesse_id__in=meus_interesses)
+    if usuario.idade is not None:
+        filtro_similar |= Q(idade__range=(usuario.idade - IDADE_FAIXA_ANOS, usuario.idade + IDADE_FAIXA_ANOS))
+    if usuario.sexo:
+        filtro_similar |= Q(sexo=usuario.sexo)
+    if not filtro_similar:
+        return {}, {}
+
+    candidatos = list(
+        get_user_model().objects.filter(
+            filtro_similar,
+            is_active=True,
+            anonimizado_em__isnull=True,
+            consentimento_revogado_em__isnull=True,
+            matriculas__trilha_id__in=trilha_ids,
+        ).exclude(pk=usuario.pk).distinct()
+    )
+
+    interesses_por_usuario = defaultdict(set)
+    for usuario_id, interesse_id in UsuarioInteresse.objects.filter(
+        usuario__in=candidatos,
+    ).values_list('usuario_id', 'interesse_id'):
+        interesses_por_usuario[usuario_id].add(interesse_id)
+
+    similares = {}
+    for outro in candidatos:
+        pontuacao, dimensoes = _similaridade_perfil(
+            usuario, meus_interesses, outro, interesses_por_usuario[outro.pk],
+        )
+        if pontuacao > 0:
+            similares[outro.pk] = (pontuacao, dimensoes)
+
+    pontuacoes, dimensoes_por_trilha = defaultdict(float), defaultdict(set)
+    for usuario_id, trilha_id in Matricula.objects.filter(
+        usuario_id__in=similares.keys(), trilha_id__in=trilha_ids,
+    ).values_list('usuario_id', 'trilha_id'):
+        pontuacao, dimensoes = similares[usuario_id]
+        pontuacoes[trilha_id] += pontuacao
+        dimensoes_por_trilha[trilha_id] |= dimensoes
+
+    return pontuacoes, dimensoes_por_trilha
+
+
+def _motivo_perfil_similar(dimensoes: set) -> str:
+    partes = []
+    if 'interesses' in dimensoes:
+        partes.append('interesses parecidos com os seus')
+    if 'idade' in dimensoes:
+        partes.append('idade próxima à sua')
+    if not partes:
+        return 'Estudantes com perfil parecido com o seu estão fazendo esta trilha.'
+    return f'Estudantes com {" e ".join(partes)} estão fazendo esta trilha.'
+
+
+def recomendar_trilhas_por_perfil(usuario, limite: int = 3) -> List[Trilha]:
+    """
+    Recomenda trilhas ativas em que o estudante ainda não está matriculado, priorizando as que
+    estudantes de perfil similar (interesses, idade e sexo) estão fazendo. Sem perfis similares,
+    recorre às trilhas mais procuradas e, por fim, ao catálogo em ordem alfabética.
+    Cada trilha retornada recebe os atributos `criterio` e `motivo`.
+    """
+    trilhas = list(
+        trilhas_ativas_com_contagens()
+        .exclude(matriculas__usuario=usuario)
+        .annotate(total_matriculas=Count('matriculas', distinct=True))
+    )
+    pontuacoes, dimensoes_por_trilha = _pontuar_por_perfis_similares(usuario, [t.id for t in trilhas])
+
+    trilhas.sort(key=lambda t: (-pontuacoes.get(t.id, 0.0), -t.total_matriculas, t.titulo))
+
+    for trilha in trilhas[:limite]:
+        if pontuacoes.get(trilha.id):
+            trilha.criterio = CRITERIO_PERFIL_SIMILAR
+            trilha.motivo = _motivo_perfil_similar(dimensoes_por_trilha[trilha.id])
+        elif trilha.total_matriculas:
+            trilha.criterio = CRITERIO_POPULARIDADE
+            trilha.motivo = 'Uma das trilhas mais procuradas pelos estudantes do VariSkill.'
+        else:
+            trilha.criterio = CRITERIO_CATALOGO
+            trilha.motivo = trilha.descricao or 'Uma boa trilha para começar sua jornada no VariSkill.'
+
+    return trilhas[:limite]

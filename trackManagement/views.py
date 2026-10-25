@@ -1,8 +1,8 @@
 import uuid
-from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import mixins, permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,8 +17,16 @@ from .serializers import (
     PosicionarNivelInputSerializer,
     PosicionarNivelOutputSerializer,
     TrilhaListaSerializer,
+    TrilhaRecomendadaSerializer,
+    TrilhaRecomendadasQuerySerializer,
 )
-from .services import efetivar_matricula, obter_diagnostico_erros, posicionar_nivel_pos_diagnostico
+from .services import (
+    efetivar_matricula,
+    obter_diagnostico_erros,
+    posicionar_nivel_pos_diagnostico,
+    recomendar_trilhas_por_perfil,
+    trilhas_ativas_com_contagens,
+)
 
 
 from django.utils import timezone
@@ -186,18 +194,19 @@ class TrilhaViewSet(viewsets.ReadOnlyModelViewSet):
     authentication_classes = (SessionAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = TrilhaListaSerializer
-    queryset = (
-        Trilha.objects.filter(ativo=True)
-        .annotate(
-            total_modulos=Count('modulos', distinct=True),
-            total_atividades=Count(
-                'modulos__atividades',
-                filter=Q(modulos__atividades__ativo=True),
-                distinct=True,
-            ),
-        )
-        .order_by('titulo')
+    queryset = trilhas_ativas_com_contagens().order_by('titulo')
+
+    @extend_schema(
+        parameters=[TrilhaRecomendadasQuerySerializer],
+        responses=TrilhaRecomendadaSerializer(many=True),
     )
+    @action(detail=False, methods=['get'], url_path='recomendadas')
+    def recomendadas(self, request):
+        """Trilhas recomendadas com base no que estudantes de perfil similar estão fazendo."""
+        query = TrilhaRecomendadasQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        trilhas = recomendar_trilhas_por_perfil(request.user, limite=query.validated_data['limite'])
+        return Response(TrilhaRecomendadaSerializer(trilhas, many=True).data)
 
 
 class MatriculaViewSet(

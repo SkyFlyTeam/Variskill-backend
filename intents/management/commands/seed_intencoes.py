@@ -48,7 +48,9 @@ INTENCOES_CANONICAS = [
     {
         "code": "RECOMENDAR_TRILHA",
         "system_action": "RECOMENDAR_TRILHAS_CONTEXTUAL",
-        "description": "Recomendação inteligente de trilhas com base nos interesses e histórico do estudante.",
+        "description": "Recomendação de trilhas pelo tema que o estudante quer aprender ou, sem tema, pelos interesses e histórico dele.",
+        # O tema citado (ex.: "python", "devops", "variaveis") é removido da mensagem antes da classificação
+        # quando identifica uma trilha ou um módulo, por isso há exemplos com e sem o tema.
         "examples": [
             "Qual trilha você me recomenda?",
             "Qual trilha devo estudar?",
@@ -59,6 +61,22 @@ INTENCOES_CANONICAS = [
             "Quais trilhas combinam com os meus interesses?",
             "Me dê uma sugestão de trilha de estudo",
             "O que você sugere que eu aprenda?",
+            "Quero aprender",
+            "Quero estudar",
+            "Quero entender",
+            "Quero aprender, por onde começo?",
+            "Quero entender, qual trilha faço?",
+            "Qual trilha faço?",
+            "Tenho interesse, o que faço?",
+            "Me indica uma trilha",
+            "Quero aprender programação, por onde começo?",
+            "Qual trilha faço para aprender esse assunto?",
+            "Tenho interesse nessa área, qual trilha você indica?",
+            "Quero aprender, o nível bem básico, sabe? Por onde começo?",
+            "Quero aprender do básico, por onde começo?",
+            "Sou iniciante nesse assunto, por onde começo?",
+            "Como aprendo isso?",
+            "Como aprendo a usar?",
         ],
         "responses": [
             "Com base no seu perfil e interesses, selecionei estas recomendações para você:",

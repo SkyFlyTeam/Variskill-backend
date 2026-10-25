@@ -102,6 +102,18 @@ class TrilhaListaSerializer(serializers.ModelSerializer):
         )
 
 
+class TrilhaRecomendadaSerializer(TrilhaListaSerializer):
+    criterio = serializers.CharField(read_only=True)
+    motivo = serializers.CharField(read_only=True)
+
+    class Meta(TrilhaListaSerializer.Meta):
+        fields = TrilhaListaSerializer.Meta.fields + ('criterio', 'motivo')
+
+
+class TrilhaRecomendadasQuerySerializer(serializers.Serializer):
+    limite = serializers.IntegerField(required=False, default=3, min_value=1, max_value=10)
+
+
 class MatriculaCriarSerializer(serializers.Serializer):
     trilha_id = serializers.UUIDField(required=True)
 
