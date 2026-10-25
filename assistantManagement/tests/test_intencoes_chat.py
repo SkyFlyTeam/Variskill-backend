@@ -319,7 +319,11 @@ class SaudacaoComHistoricoPedagogicoTests(APITestCase):
             enunciado="Q3", gabarito_esperado="c", ordem_questao=3,
         )
         execucao = ExecucaoAtividade.objects.create(
-            usuario=self.user, atividade=self.atividade, pontuacao_obtida=1, aprovado=False,
+            usuario=self.user,
+            atividade=self.atividade,
+            resposta={},
+            pontuacao_obtida=1,
+            aprovado=False,
         )
         RespostaQuestao.objects.bulk_create([
             RespostaQuestao(execucao=execucao, questao=q1, resposta_fornecida="a", correta=True),
