@@ -51,7 +51,7 @@ INTENCOES_CANONICAS = [
         "description": "Recomendação inteligente de trilhas com base nos interesses e histórico do estudante.",
         "examples": [
             "Qual trilha você me recomenda?",
-            "O que devo estudar agora?",
+            "Qual trilha devo estudar?",
             "Me sugira uma trilha",
             "Qual curso combina comigo?",
             "Recomende uma trilha complementar",
