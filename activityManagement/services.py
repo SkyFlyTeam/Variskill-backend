@@ -125,6 +125,13 @@ def submit_activity(user, atividade, answers):
     novo_nivel = gamification.calcular_nivel(locked_user.xp_total)
     level_up = (novo_nivel > nivel_anterior)
 
+    # Consolidação contínua da memória pedagógica do estudante (VAR-118)
+    try:
+        from assistantManagement.memory_service import PedagogicalMemoryService
+        PedagogicalMemoryService.consolidar_perfil(locked_user)
+    except Exception as exc:
+        logger.warning("Falha ao consolidar memória pedagógica para usuário %s: %s", locked_user.pk, exc)
+
     return SubmissionResult(
         execution=execution,
         approved=approved,
