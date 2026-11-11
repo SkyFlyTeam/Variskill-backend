@@ -24,6 +24,7 @@ class UserSerializer(serializers.ModelSerializer):
     )
     nivel = serializers.SerializerMethodField()
     progresso_nivel = serializers.SerializerMethodField()
+    streak = serializers.SerializerMethodField()
     aceite_versao = serializers.CharField(write_only=True, required=False, allow_blank=True)
     aceite_termos = serializers.BooleanField(write_only=True, required=False)
 
@@ -33,13 +34,13 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'apelido', 'nome', 'email', 'password',
             'xp_total', 'streak_dias', 'is_primeiro_acesso',
             'sexo', 'idade', 'interesses', 'interesses_ids',
-            'nivel', 'progresso_nivel',
+            'nivel', 'progresso_nivel', 'streak',
             'aceite_privacidade_versao', 'aceite_privacidade_em',
             'consentimento_revogado_em', 'anonimizado_em',
             'aceite_versao', 'aceite_termos',
         )
         read_only_fields = (
-            'id', 'criado_em', 'nivel', 'progresso_nivel',
+            'id', 'criado_em', 'nivel', 'progresso_nivel', 'streak',
             'aceite_privacidade_versao', 'aceite_privacidade_em',
             'consentimento_revogado_em', 'anonimizado_em',
         )
@@ -64,6 +65,14 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_progresso_nivel(self, obj) -> dict:
         return GamificationService.obter_progresso_nivel(obj.xp_total)
+
+    def get_streak(self, obj) -> dict:
+        return {
+            'atual': obj.streak_dias,
+            'recorde': obj.maior_streak,
+            'concluiu_hoje': obj.ultimo_dia_estudo == timezone.localdate(),
+            'ultimo_dia': obj.ultimo_dia_estudo,
+        }
 
     def get_interesses(self, obj):
         interesses = Interesse.objects.filter(usuarios_interessados__usuario=obj)
