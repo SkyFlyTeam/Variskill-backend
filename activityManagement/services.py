@@ -99,6 +99,13 @@ def submit_activity(user, atividade, answers):
         for questao, answer, correct in respostas_avaliadas
     ])
 
+    # Consolidação contínua da memória pedagógica do estudante (VAR-118)
+    try:
+        from assistantManagement.memory_service import PedagogicalMemoryService
+        PedagogicalMemoryService.consolidar_perfil(locked_user)
+    except Exception as exc:
+        logger.warning("Falha ao consolidar memória pedagógica para usuário %s: %s", locked_user.pk, exc)
+
     return SubmissionResult(
         execution=execution,
         approved=approved,

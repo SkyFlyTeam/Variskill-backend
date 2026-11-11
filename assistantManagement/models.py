@@ -36,3 +36,28 @@ class Mensagem(models.Model):
     class Meta:
         db_table = 'MENSAGEM'
         indexes = [models.Index(fields=['sessao'], name='mensagem_sessao_idx')]
+
+
+class MemoriaPedagogicaUsuario(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='memoria_pedagogica',
+        db_column='usuario_id',
+    )
+    pontos_fortes = models.JSONField(default=list, blank=True)
+    topicos_dificuldade = models.JSONField(default=list, blank=True)
+    total_atividades_avaliadas = models.PositiveIntegerField(default=0)
+    taxa_acerto_geral = models.FloatField(default=0.0)
+    resumo_perfil_didatico = models.TextField(blank=True, default='')
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'MEMORIA_PEDAGOGICA_USUARIO'
+        verbose_name = 'Memória Pedagógica do Usuário'
+        verbose_name_plural = 'Memórias Pedagógicas dos Usuários'
+
+    def __str__(self):
+        return f"Memória Pedagógica - {self.usuario}"
+
