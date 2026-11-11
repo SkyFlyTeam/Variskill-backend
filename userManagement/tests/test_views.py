@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 import pytest
 from django.contrib.auth.hashers import make_password
 from django.urls import reverse
+from django.utils import timezone
 from model_bakery import baker
 
 from userManagement.models import Interesse, UsuarioInteresse
@@ -398,6 +401,50 @@ def test_me_returns_level_and_progress(client, user):
         'xp_restante': 50,
         'progresso_pct': 75.0,
     }
+
+def test_me_returns_streak_block(client, user):
+    hoje = timezone.localdate()
+    user.streak_dias = 5
+    user.maior_streak = 8
+    user.ultimo_dia_estudo = hoje
+    user.save()
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.status_code == 200
+    assert response.data['streak'] == {
+        'atual': 5,
+        'recorde': 8,
+        'concluiu_hoje': True,
+        'ultimo_dia': hoje,
+    }
+
+
+def test_me_streak_concluiu_hoje_e_false_quando_ultimo_dia_nao_e_hoje(client, user):
+    user.streak_dias = 2
+    user.maior_streak = 2
+    user.ultimo_dia_estudo = timezone.localdate() - timedelta(days=1)
+    user.save()
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.data['streak']['concluiu_hoje'] is False
+
+
+def test_me_streak_sem_historico_retorna_zerado(client, user):
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.data['streak'] == {
+        'atual': 0,
+        'recorde': 0,
+        'concluiu_hoje': False,
+        'ultimo_dia': None,
+    }
+
 
 def test_me_returns_nested_interesses(client, user, interesse_python, interesse_django):
     UsuarioInteresse.objects.create(usuario=user, interesse=interesse_python)

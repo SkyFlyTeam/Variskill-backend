@@ -7,7 +7,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from activityManagement.models import ExecucaoAtividade, RespostaQuestao
-from .models import User
+from .models import RegistroAcessoDiario, User
 
 
 class GamificationService:
@@ -120,6 +120,53 @@ class GamificationService:
         User.objects.filter(pk=usuario.pk).update(streak_dias=novo_streak)
         usuario.refresh_from_db(fields=['streak_dias'])
         return usuario.streak_dias
+
+
+class StreakService:
+    @staticmethod
+    @transaction.atomic
+    def computar_atividade_diaria(usuario, xp_ganho=0) -> dict:
+        """Serviço determinístico de streaks (VAR-105).
+
+        A data corrente é obtida estritamente via timezone.localdate() (data local do
+        fuso configurado em TIME_ZONE) para evitar que a virada de dia em UTC, próxima
+        da meia-noite em UTC-3, quebre a regra de consecutividade.
+
+        Regras (aplicadas sobre o ultimo_dia_estudo já persistido no usuário):
+        - ultimo_dia_estudo == hoje: mantém streak_dias (mesmo dia, sem incrementos repetidos).
+        - ultimo_dia_estudo == ontem: streak_dias += 1.
+        - ultimo_dia_estudo < ontem ou None: streak_dias = 1.
+        """
+        hoje = timezone.localdate()
+        ontem = hoje - timedelta(days=1)
+
+        if usuario.ultimo_dia_estudo == hoje:
+            novo_streak = usuario.streak_dias
+        elif usuario.ultimo_dia_estudo == ontem:
+            novo_streak = usuario.streak_dias + 1
+        else:
+            novo_streak = 1
+
+        novo_maior_streak = max(usuario.maior_streak, novo_streak)
+
+        User.objects.filter(pk=usuario.pk).update(
+            streak_dias=novo_streak,
+            maior_streak=novo_maior_streak,
+            ultimo_dia_estudo=hoje,
+        )
+        usuario.refresh_from_db(fields=['streak_dias', 'maior_streak', 'ultimo_dia_estudo'])
+
+        registro, _ = RegistroAcessoDiario.objects.get_or_create(usuario=usuario, data=hoje)
+        RegistroAcessoDiario.objects.filter(pk=registro.pk).update(
+            atividades_concluidas=F('atividades_concluidas') + 1,
+            xp_obtido=F('xp_obtido') + xp_ganho,
+        )
+
+        return {
+            'streak_dias': usuario.streak_dias,
+            'maior_streak': usuario.maior_streak,
+            'ultimo_dia_estudo': usuario.ultimo_dia_estudo,
+        }
 
 
 @transaction.atomic
