@@ -6,7 +6,7 @@ from django.db import transaction
 
 from grading.validators import ResponseValidatorContext
 
-from userManagement.services import GamificationService
+from userManagement.services import GamificationService, StreakService
 from .models import ExecucaoAtividade, RespostaQuestao
 
 APPROVAL_THRESHOLD_PERCENT = 70
@@ -74,7 +74,7 @@ def submit_activity(user, atividade, answers):
 
     xp_granted = (atividade.xp_recompensa if approved and not already_approved else 0)
     if approved:
-        gamification.atualizar_streak(locked_user)
+        StreakService.computar_atividade_diaria(locked_user, xp_ganho=xp_granted)
         if not already_approved:
             gamification.creditar_xp(locked_user, atividade)
 
