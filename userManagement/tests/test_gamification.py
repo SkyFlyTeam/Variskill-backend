@@ -13,7 +13,7 @@ from activityManagement.models import Atividade, ExecucaoAtividade
 from trackManagement.models import Modulo, Trilha
 from questionsManagement.models import Questao
 from userManagement.models import User
-from userManagement.services import GamificationService
+from userManagement.services import GamificationService, StreakService
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
@@ -143,7 +143,7 @@ def test_submeter_atividade_chama_gamification_uma_unica_vez(client, usuario):
     client.force_login(usuario)
 
     with patch.object(GamificationService, 'creditar_xp', wraps=GamificationService().creditar_xp) as mock_xp, \
-         patch.object(GamificationService, 'atualizar_streak', wraps=GamificationService().atualizar_streak) as mock_streak:
+         patch.object(StreakService, 'computar_atividade_diaria', wraps=StreakService.computar_atividade_diaria) as mock_streak:
 
         response = client.post(
             f'/api/atividades/{atividade.pk}/submeter/',
@@ -175,7 +175,7 @@ def test_submeter_atividade_reprovada_nao_chama_gamification(client, usuario):
     client.force_login(usuario)
 
     with patch.object(GamificationService, 'creditar_xp') as mock_xp, \
-         patch.object(GamificationService, 'atualizar_streak') as mock_streak:
+         patch.object(StreakService, 'computar_atividade_diaria') as mock_streak:
 
         response = client.post(
             f'/api/atividades/{atividade.pk}/submeter/',
