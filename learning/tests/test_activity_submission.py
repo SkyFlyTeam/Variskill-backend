@@ -263,21 +263,19 @@ def test_rejected_submission_does_not_persist_any_resposta_questao(client, stude
     assert not RespostaQuestao.objects.exists()
 
 
-@pytest.mark.parametrize('days_since_last_approval, streak_before, streak_after', [
+@pytest.mark.parametrize('days_since_last_study, streak_before, streak_after', [
     (0, 4, 4),
     (1, 4, 5),
     (3, 4, 1),
 ])
-def test_daily_streak(client, student, atividade, days_since_last_approval, streak_before, streak_after):
+def test_daily_streak(client, student, atividade, days_since_last_study, streak_before, streak_after):
+    # VAR-105: o streak agora é guiado por User.ultimo_dia_estudo (StreakService),
+    # não mais pela data da última ExecucaoAtividade aprovada.
     questao = make_questao(atividade)
-    previous = baker.make(
-        ExecucaoAtividade, usuario=student, atividade=atividade, aprovado=True,
-        pontuacao_obtida=1, resposta={},
+    type(student).objects.filter(pk=student.pk).update(
+        streak_dias=streak_before,
+        ultimo_dia_estudo=timezone.localdate() - timedelta(days=days_since_last_study),
     )
-    ExecucaoAtividade.objects.filter(pk=previous.pk).update(
-        executado_em=timezone.now() - timedelta(days=days_since_last_approval),
-    )
-    type(student).objects.filter(pk=student.pk).update(streak_dias=streak_before)
     client.force_login(student)
 
     submit(client, atividade, {str(questao.pk): ['A']})

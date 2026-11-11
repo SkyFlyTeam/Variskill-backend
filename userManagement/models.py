@@ -20,6 +20,8 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     xp_total = models.IntegerField(default=0)
     streak_dias = models.IntegerField(default=0)
+    maior_streak = models.PositiveIntegerField(default=0)
+    ultimo_dia_estudo = models.DateField(null=True, blank=True)
     is_primeiro_acesso = models.BooleanField(default=True)
     sexo = models.CharField(max_length=20, choices=SEXO_CHOICES, null=True, blank=True)
     idade = models.PositiveIntegerField(null=True, blank=True)
@@ -73,6 +75,25 @@ class UsuarioInteresse(models.Model):
 
     def __str__(self):
         return f"{self.usuario} -> {self.interesse}"
+
+
+class RegistroAcessoDiario(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='registros_dias_estudo'
+    )
+    data = models.DateField(db_index=True)
+    atividades_concluidas = models.PositiveIntegerField(default=0)
+    xp_obtido = models.PositiveIntegerField(default=0)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'REGISTRO_ACESSO_DIARIO'
+        unique_together = ('usuario', 'data')
+        ordering = ['-data']
+
+    def __str__(self):
+        return f"{self.usuario} - {self.data}"
 
 
 class SolicitacaoRevisao(models.Model):
