@@ -16,8 +16,9 @@ User = get_user_model()
 @pytest.fixture
 def usuario(db):
     return User.objects.create_user(
+        apelido="alunomemoria",
         email="aluno_memoria@teste.com",
-        senha_hash="hash_teste",
+        password="hash_teste",
         nome="Aluno Memória",
     )
 
@@ -55,7 +56,8 @@ def atividade_condicionais(db, modulo_condicionais):
     return Atividade.objects.create(
         modulo=modulo_condicionais,
         titulo="Exercícios If/Else",
-        ordem_atividade=1,
+        contexto_avaliacao="FORMATIVA",
+        ordem=1,
     )
 
 
@@ -64,7 +66,8 @@ def atividade_repeticao(db, modulo_repeticao):
     return Atividade.objects.create(
         modulo=modulo_repeticao,
         titulo="Exercícios For/While",
-        ordem_atividade=2,
+        contexto_avaliacao="FORMATIVA",
+        ordem=2,
     )
 
 
@@ -102,8 +105,9 @@ def test_classifica_modulo_com_dominio_como_ponto_forte(
     execucao = ExecucaoAtividade.objects.create(
         usuario=usuario,
         atividade=atividade_condicionais,
-        nota_obtida=100.0,
-        xp_ganho=50,
+        resposta={},
+        pontuacao_obtida=100,
+        aprovado=True,
     )
 
     # 100% de acertos (>= 80%)
@@ -140,8 +144,9 @@ def test_classifica_modulo_com_baixo_aproveitamento_como_dificuldade(
     execucao = ExecucaoAtividade.objects.create(
         usuario=usuario,
         atividade=atividade_repeticao,
-        nota_obtida=0.0,
-        xp_ganho=0,
+        resposta={},
+        pontuacao_obtida=0,
+        aprovado=False,
     )
 
     # 0% de acertos (< 60%)
@@ -172,8 +177,9 @@ def test_considera_apenas_a_ultima_execucao_de_cada_atividade(
     exec1 = ExecucaoAtividade.objects.create(
         usuario=usuario,
         atividade=atividade_repeticao,
-        nota_obtida=0.0,
-        xp_ganho=0,
+        resposta={},
+        pontuacao_obtida=0,
+        aprovado=False,
     )
     RespostaQuestao.objects.create(execucao=exec1, questao=q1, correta=False)
 
@@ -181,8 +187,9 @@ def test_considera_apenas_a_ultima_execucao_de_cada_atividade(
     exec2 = ExecucaoAtividade.objects.create(
         usuario=usuario,
         atividade=atividade_repeticao,
-        nota_obtida=100.0,
-        xp_ganho=20,
+        resposta={},
+        pontuacao_obtida=100,
+        aprovado=True,
     )
     RespostaQuestao.objects.create(execucao=exec2, questao=q1, correta=True)
 
@@ -207,8 +214,9 @@ def test_idempotencia_da_consolidacao(usuario, modulo_condicionais, atividade_co
     execucao = ExecucaoAtividade.objects.create(
         usuario=usuario,
         atividade=atividade_condicionais,
-        nota_obtida=100.0,
-        xp_ganho=10,
+        resposta={},
+        pontuacao_obtida=100,
+        aprovado=True,
     )
     RespostaQuestao.objects.create(execucao=execucao, questao=q1, correta=True)
 
