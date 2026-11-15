@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 
 from django.contrib.auth import get_user_model
@@ -8,6 +9,8 @@ from grading.validators import ResponseValidatorContext
 
 from userManagement.services import GamificationService
 from .models import ExecucaoAtividade, RespostaQuestao
+
+logger = logging.getLogger(__name__)
 
 APPROVAL_THRESHOLD_PERCENT = 70
 
@@ -99,12 +102,12 @@ def submit_activity(user, atividade, answers):
         for questao, answer, correct in respostas_avaliadas
     ])
 
-    # Consolidação contínua da memória pedagógica do estudante (VAR-118)
+    # Consolidação assíncrona da memória pedagógica do estudante (VAR-118) sem travar a thread
     try:
         from assistantManagement.memory_service import PedagogicalMemoryService
-        PedagogicalMemoryService.consolidar_perfil(locked_user)
+        PedagogicalMemoryService.consolidar_perfil_async(locked_user)
     except Exception as exc:
-        logger.warning("Falha ao consolidar memória pedagógica para usuário %s: %s", locked_user.pk, exc)
+        logger.warning("Falha ao agendar consolidação de memória pedagógica para usuário %s: %s", locked_user.pk, exc)
 
     return SubmissionResult(
         execution=execution,
