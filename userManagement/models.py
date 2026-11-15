@@ -28,6 +28,15 @@ class User(AbstractUser):
     aceite_privacidade_em = models.DateTimeField(null=True, blank=True)
     consentimento_revogado_em = models.DateTimeField(null=True, blank=True)
     anonimizado_em = models.DateTimeField(null=True, blank=True)
+    avatar_equipado = models.ForeignKey(
+        'ItemCosmetico', null=True, blank=True, on_delete=models.SET_NULL, related_name='+'
+    )
+    titulo_equipado = models.ForeignKey(
+        'ItemCosmetico', null=True, blank=True, on_delete=models.SET_NULL, related_name='+'
+    )
+    borda_equipada = models.ForeignKey(
+        'ItemCosmetico', null=True, blank=True, on_delete=models.SET_NULL, related_name='+'
+    )
 
     USERNAME_FIELD = 'apelido'
     REQUIRED_FIELDS = []
@@ -73,6 +82,99 @@ class UsuarioInteresse(models.Model):
 
     def __str__(self):
         return f"{self.usuario} -> {self.interesse}"
+
+
+class Conquista(models.Model):
+    CATEGORIA_CHOICES = [
+        ('PROGRESSO', 'Progresso'),
+        ('STREAK', 'Sequência'),
+        ('PRECISAO', 'Precisão'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    codigo = models.CharField(max_length=50, unique=True)
+    titulo = models.CharField(max_length=100)
+    descricao = models.TextField()
+    categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES)
+    icone = models.CharField(max_length=255)
+    xp_recompensa = models.PositiveIntegerField(default=50)
+    ordem = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'CONQUISTA'
+        ordering = ['ordem']
+
+    def __str__(self):
+        return self.titulo
+
+
+class ItemCosmetico(models.Model):
+    TIPO_CHOICES = [
+        ('AVATAR', 'Avatar'),
+        ('TITULO', 'Título de Honra'),
+        ('BORDA', 'Borda de Perfil'),
+    ]
+    RARIDADE_CHOICES = [
+        ('COMUM', 'Comum'),
+        ('RARO', 'Raro'),
+        ('EPICO', 'Épico'),
+        ('LENDARIO', 'Lendário'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nome = models.CharField(max_length=100)
+    descricao = models.TextField(blank=True)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    raridade = models.CharField(max_length=20, default='COMUM', choices=RARIDADE_CHOICES)
+    recurso_visual = models.CharField(max_length=255)
+    asset_url = models.URLField(max_length=500, blank=True)
+    conquista_requisito = models.ForeignKey(
+        Conquista, null=True, blank=True, on_delete=models.SET_NULL, related_name='itens_cosmeticos'
+    )
+    padrao_desbloqueado = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'ITEM_COSMETICO'
+
+    def __str__(self):
+        return self.nome
+
+
+class UsuarioConquista(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='conquistas_usuario'
+    )
+    conquista = models.ForeignKey(
+        Conquista, on_delete=models.CASCADE, related_name='usuarios_que_desbloquearam'
+    )
+    desbloqueado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'USUARIO_CONQUISTA'
+        unique_together = ('usuario', 'conquista')
+
+    def __str__(self):
+        return f"{self.usuario} -> {self.conquista}"
+
+
+class UsuarioInventario(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='inventario_usuario'
+    )
+    item = models.ForeignKey(
+        ItemCosmetico, on_delete=models.CASCADE, related_name='usuarios_que_possuem'
+    )
+    desbloqueado_em = models.DateTimeField(auto_now_add=True)
+    equipado = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'USUARIO_INVENTARIO'
+        unique_together = ('usuario', 'item')
+
+    def __str__(self):
+        return f"{self.usuario} -> {self.item}"
 
 
 class SolicitacaoRevisao(models.Model):
