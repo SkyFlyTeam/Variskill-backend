@@ -8,6 +8,7 @@ from model_bakery import baker
 from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
 from trackManagement.models import Modulo
 from questionsManagement.models import Questao
+from userManagement.models import RegistroAcessoDiario
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
@@ -88,6 +89,28 @@ def test_approved_submission_persists_execution_and_credits_xp(client, student, 
     assert execution.resposta == {str(questao.pk): ['A']}
     student.refresh_from_db()
     assert student.xp_total == 200
+    assert student.streak_dias == 1
+
+
+def test_reenvio_de_atividade_ja_aprovada_nao_duplica_contador_do_dia(client, student, atividade):
+    # Review de VAR-105/PR#38, ponto 2: reenviar uma atividade já aprovada não concede
+    # XP de novo (comportamento preexistente) e, agora, também não deve contar como uma
+    # segunda "atividade concluída" no RegistroAcessoDiario do dia.
+    questao = make_questao(atividade, weight=10)
+    client.force_login(student)
+
+    primeira = submit(client, atividade, {str(questao.pk): ['A']})
+    assert primeira.data['xp_concedido'] == 50
+
+    segunda = submit(client, atividade, {str(questao.pk): ['A']})
+    assert segunda.data['aprovado'] is True
+    assert segunda.data['xp_concedido'] == 0
+
+    registro = RegistroAcessoDiario.objects.get(usuario=student, data=timezone.localdate())
+    assert registro.atividades_concluidas == 1
+    assert registro.xp_obtido == 50
+
+    student.refresh_from_db()
     assert student.streak_dias == 1
 
 

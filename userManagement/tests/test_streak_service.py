@@ -137,3 +137,39 @@ def test_registro_acesso_diario_unique_together_usuario_data(usuario):
 
     with pytest.raises(IntegrityError):
         RegistroAcessoDiario.objects.create(usuario=usuario, data=hoje)
+
+
+def test_servico_releh_do_banco_mesmo_com_objeto_em_memoria_desatualizado(usuario):
+    # Review de VAR-105/PR#38, ponto 1: o script de teste manual do PR alterava
+    # ultimo_dia_estudo via .update() sem dar refresh no objeto Python antes de
+    # chamar o serviço. Isso não deve mais confundir o cálculo, já que o serviço
+    # releh do banco no início da função, antes de aplicar a regra de consecutividade.
+    hoje = timezone.localdate()
+    usuario.streak_dias = 4
+    usuario.maior_streak = 4
+    usuario.ultimo_dia_estudo = hoje
+    usuario.save()
+
+    ontem = hoje - timedelta(days=1)
+    User.objects.filter(pk=usuario.pk).update(ultimo_dia_estudo=ontem)
+    # `usuario` em memória continua com ultimo_dia_estudo == hoje (desatualizado).
+
+    resultado = StreakService.computar_atividade_diaria(usuario)
+
+    assert resultado["streak_dias"] == 5
+
+
+def test_nova_conclusao_false_nao_incrementa_contador_mas_mantem_streak(usuario):
+    # Review de VAR-105/PR#38, ponto 2: reenvio de atividade já aprovada não deve
+    # contar como uma nova atividade concluída no dia, mas o streak continua valendo.
+    StreakService.computar_atividade_diaria(usuario, xp_ganho=100, nova_conclusao=True)
+    usuario.refresh_from_db()
+    assert usuario.streak_dias == 1
+
+    resultado = StreakService.computar_atividade_diaria(usuario, xp_ganho=0, nova_conclusao=False)
+
+    assert resultado["streak_dias"] == 1
+    hoje = timezone.localdate()
+    registro = RegistroAcessoDiario.objects.get(usuario=usuario, data=hoje)
+    assert registro.atividades_concluidas == 1
+    assert registro.xp_obtido == 100
