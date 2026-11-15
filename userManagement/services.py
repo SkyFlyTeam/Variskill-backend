@@ -125,7 +125,7 @@ class GamificationService:
 class StreakService:
     @staticmethod
     @transaction.atomic
-    def computar_atividade_diaria(usuario, xp_ganho=0) -> dict:
+    def computar_atividade_diaria(usuario, xp_ganho=0, nova_conclusao=True) -> dict:
         """Serviço determinístico de streaks (VAR-105).
 
         A data corrente é obtida estritamente via timezone.localdate() (data local do
@@ -136,7 +136,19 @@ class StreakService:
         - ultimo_dia_estudo == hoje: mantém streak_dias (mesmo dia, sem incrementos repetidos).
         - ultimo_dia_estudo == ontem: streak_dias += 1.
         - ultimo_dia_estudo < ontem ou None: streak_dias = 1.
+
+        Sempre relê streak_dias/maior_streak/ultimo_dia_estudo do banco antes de calcular,
+        em vez de confiar no estado em memória de `usuario`: evita um resultado incorreto
+        quando o chamador (ou um script manual) alterou esses campos via `.update()` sem
+        dar refresh no objeto Python (apontado na review de VAR-105/PR#38).
+
+        `nova_conclusao=False` marca o dia como estudado (streak) mas não incrementa
+        `RegistroAcessoDiario.atividades_concluidas`/`xp_obtido` — usado pelo reenvio de
+        uma atividade já aprovada anteriormente, para não contar a mesma atividade duas
+        vezes no registro diário (ponto 2 da review de VAR-105/PR#38).
         """
+        usuario.refresh_from_db(fields=['streak_dias', 'maior_streak', 'ultimo_dia_estudo'])
+
         hoje = timezone.localdate()
         ontem = hoje - timedelta(days=1)
 
@@ -157,10 +169,11 @@ class StreakService:
         usuario.refresh_from_db(fields=['streak_dias', 'maior_streak', 'ultimo_dia_estudo'])
 
         registro, _ = RegistroAcessoDiario.objects.get_or_create(usuario=usuario, data=hoje)
-        RegistroAcessoDiario.objects.filter(pk=registro.pk).update(
-            atividades_concluidas=F('atividades_concluidas') + 1,
-            xp_obtido=F('xp_obtido') + xp_ganho,
-        )
+        if nova_conclusao:
+            RegistroAcessoDiario.objects.filter(pk=registro.pk).update(
+                atividades_concluidas=F('atividades_concluidas') + 1,
+                xp_obtido=F('xp_obtido') + xp_ganho,
+            )
 
         return {
             'streak_dias': usuario.streak_dias,
