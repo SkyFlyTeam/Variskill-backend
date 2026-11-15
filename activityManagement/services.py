@@ -74,7 +74,9 @@ def submit_activity(user, atividade, answers):
 
     xp_granted = (atividade.xp_recompensa if approved and not already_approved else 0)
     if approved:
-        StreakService.computar_atividade_diaria(locked_user, xp_ganho=xp_granted)
+        StreakService.computar_atividade_diaria(
+            locked_user, xp_ganho=xp_granted, nova_conclusao=not already_approved,
+        )
         if not already_approved:
             gamification.creditar_xp(locked_user, atividade)
 
