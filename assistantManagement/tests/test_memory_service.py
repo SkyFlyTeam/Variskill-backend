@@ -8,7 +8,10 @@ from assistantManagement.memory_service import (
     PedagogicalMemoryService,
     LIMIAR_DOMINIO_PERCENT,
     LIMIAR_DIFICULDADE_PERCENT,
+    MIN_QUESTOES_PARA_PONTO_FORTE,
 )
+
+pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
 User = get_user_model()
 
@@ -86,7 +89,7 @@ def test_estudante_sem_atividades_gera_memoria_vazia(usuario):
 def test_classifica_modulo_com_dominio_como_ponto_forte(
     usuario, modulo_condicionais, atividade_condicionais
 ):
-    # Criar 2 questões no módulo de condicionais
+    # Criar 3 questões no módulo de condicionais (atendendo ao mínimo de 3 questões para Ponto Forte)
     q1 = Questao.objects.create(
         atividade=atividade_condicionais,
         tipo_exercicio="MULTIPLA_ESCOLHA",
@@ -101,6 +104,13 @@ def test_classifica_modulo_com_dominio_como_ponto_forte(
         gabarito_esperado="B",
         ordem_questao=2,
     )
+    q3 = Questao.objects.create(
+        atividade=atividade_condicionais,
+        tipo_exercicio="MULTIPLA_ESCOLHA",
+        enunciado="Questão 3",
+        gabarito_esperado="C",
+        ordem_questao=3,
+    )
 
     execucao = ExecucaoAtividade.objects.create(
         usuario=usuario,
@@ -110,9 +120,10 @@ def test_classifica_modulo_com_dominio_como_ponto_forte(
         aprovado=True,
     )
 
-    # 100% de acertos (>= 80%)
+    # 100% de acertos (>= 80% e total >= 3)
     RespostaQuestao.objects.create(execucao=execucao, questao=q1, correta=True)
     RespostaQuestao.objects.create(execucao=execucao, questao=q2, correta=True)
+    RespostaQuestao.objects.create(execucao=execucao, questao=q3, correta=True)
 
     memoria = PedagogicalMemoryService.consolidar_perfil(usuario)
 
@@ -172,6 +183,20 @@ def test_considera_apenas_a_ultima_execucao_de_cada_atividade(
         gabarito_esperado="A",
         ordem_questao=1,
     )
+    q2 = Questao.objects.create(
+        atividade=atividade_repeticao,
+        tipo_exercicio="MULTIPLA_ESCOLHA",
+        enunciado="Questão 2",
+        gabarito_esperado="B",
+        ordem_questao=2,
+    )
+    q3 = Questao.objects.create(
+        atividade=atividade_repeticao,
+        tipo_exercicio="MULTIPLA_ESCOLHA",
+        enunciado="Questão 3",
+        gabarito_esperado="C",
+        ordem_questao=3,
+    )
 
     # 1ª execução com erro
     exec1 = ExecucaoAtividade.objects.create(
@@ -182,6 +207,8 @@ def test_considera_apenas_a_ultima_execucao_de_cada_atividade(
         aprovado=False,
     )
     RespostaQuestao.objects.create(execucao=exec1, questao=q1, correta=False)
+    RespostaQuestao.objects.create(execucao=exec1, questao=q2, correta=False)
+    RespostaQuestao.objects.create(execucao=exec1, questao=q3, correta=False)
 
     # 2ª execução (mais recente) com acerto
     exec2 = ExecucaoAtividade.objects.create(
@@ -192,13 +219,36 @@ def test_considera_apenas_a_ultima_execucao_de_cada_atividade(
         aprovado=True,
     )
     RespostaQuestao.objects.create(execucao=exec2, questao=q1, correta=True)
+    RespostaQuestao.objects.create(execucao=exec2, questao=q2, correta=True)
+    RespostaQuestao.objects.create(execucao=exec2, questao=q3, correta=True)
 
     memoria = PedagogicalMemoryService.consolidar_perfil(usuario)
 
-    # Deve refletir a 2ª execução (100% de acerto -> Ponto Forte)
+    # Deve refletir a 2ª execução (100% de acerto com 3 questões -> Ponto Forte)
     assert memoria.total_atividades_avaliadas == 1
     assert memoria.taxa_acerto_geral == 100.0
     assert "Estruturas de Repetição" in memoria.pontos_fortes
+    assert memoria.topicos_dificuldade == []
+
+
+@pytest.mark.django_db
+def test_ignora_atividades_sem_questoes_no_total_avaliadas(
+    usuario, modulo_condicionais, atividade_condicionais
+):
+    """Atividades de leitura ou conteúdo teórico sem questões não devem contar como avaliadas."""
+    # Execução de atividade sem nenhuma RespostaQuestao criada
+    ExecucaoAtividade.objects.create(
+        usuario=usuario,
+        atividade=atividade_condicionais,
+        resposta={},
+        pontuacao_obtida=0,
+        aprovado=True,
+    )
+
+    memoria = PedagogicalMemoryService.consolidar_perfil(usuario)
+    assert memoria.total_atividades_avaliadas == 0
+    assert memoria.taxa_acerto_geral == 0.0
+    assert memoria.pontos_fortes == []
     assert memoria.topicos_dificuldade == []
 
 
