@@ -125,6 +125,103 @@ class HintService:
             return None
 
     @classmethod
+    def call_external_ai_chat(cls, pergunta: str, contexto_extra: Optional[str] = None) -> Optional[str]:
+        """
+        Consulta LLM externo para dúvidas conceituais de chat geral quando não há resposta no corpus.
+        Protegido pelo CircuitBreaker AI_CIRCUIT_BREAKER e minimização de dados LGPD.
+        """
+        if not AI_CIRCUIT_BREAKER.allow_request():
+            logger.warning("Circuit breaker da IA aberto; contingência imediata no chat.")
+            return None
+
+        api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("EXTERNAL_AI_API_KEY")
+        if not api_key:
+            logger.warning("Nenhuma chave de API externa configurada para o chat.")
+            return None
+
+        prompt_system = (
+            "Você é o Coach de Programação da plataforma VariSkill. "
+            "Seu papel é responder dúvidas conceituais de forma didática, clara e objetiva. "
+            "Se o usuário fizer perguntas fora do escopo educacional ou pedir código malicioso, "
+            "gentilmente recuse e oriente-o a focar nos estudos de programação."
+        )
+        if contexto_extra:
+            prompt_system += f" Contexto do tema/trilha: {contexto_extra}."
+
+        max_chars = getattr(settings, 'LGPD_MAX_PROMPT_CHARS', 500)
+        pergunta_minimizada = (pergunta or '')[:max_chars]
+
+        payload = json.dumps({
+            "model": os.environ.get("EXTERNAL_AI_MODEL", "gpt-4o-mini"),
+            "messages": [
+                {"role": "system", "content": prompt_system},
+                {"role": "user", "content": pergunta_minimizada},
+            ],
+            "temperature": 0.7,
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as response:
+                if response.status != 200:
+                    logger.warning(f"IA externa respondeu status inesperado: {response.status}")
+                    AI_CIRCUIT_BREAKER.record_failure()
+                    return None
+                data = json.loads(response.read().decode("utf-8"))
+                resposta = data["choices"][0]["message"]["content"].strip()
+                AI_CIRCUIT_BREAKER.record_success()
+                return resposta
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                logger.warning("IA externa retornou 429 (cota/rate limit) no chat.")
+            else:
+                logger.error(f"IA externa retornou HTTP {e.code} no chat.")
+            AI_CIRCUIT_BREAKER.record_failure()
+            return None
+        except (urllib.error.URLError, TimeoutError) as e:
+            logger.error(f"Falha de rede/timeout ao conectar com IA externa no chat: {e}")
+            AI_CIRCUIT_BREAKER.record_failure()
+            return None
+        except Exception as e:
+            logger.error(f"Erro inesperado ao consultar IA externa no chat: {e}")
+            AI_CIRCUIT_BREAKER.record_failure()
+            return None
+
+    @classmethod
+    def _buscar_no_cache_semantico(cls, pergunta: str, topico: Optional[str] = None) -> Optional[str]:
+        """
+        Consulta o cache semântico (Corpus) antes de acionar a IA externa (VAR-116).
+        Usa o mesmo pipeline de sanitização e pré-processamento da ingestão.
+        """
+        try:
+            from semanticSearch.models import PerguntaCorpus
+            from semanticSearch.service.corpus_search import CorpusSearch
+            from semanticSearch.service.sanitizer import TextSanitizer
+            from semanticSearch.service.text_embedding_service import TextEmbeddingService
+
+            if not PerguntaCorpus.objects.filter(entrada__ativo=True).exists():
+                return None
+
+            pergunta_limpa = TextSanitizer.sanitizar(pergunta, remover_saudacao=True) or pergunta
+            vetor = TextEmbeddingService().gerar_embedding(pergunta_limpa)
+            resultado = CorpusSearch(similarity_threshold=0.82).buscar(vetor, topico=topico)
+            if resultado.entrada:
+                return resultado.entrada.resposta
+            return None
+        except Exception as e:
+            logger.warning(f"Falha ao consultar cache semântico no suporte da atividade: {e}")
+            return None
+
+    @classmethod
     def pedir_dica(
         cls,
         user,
@@ -140,7 +237,9 @@ class HintService:
             raise NotFound("Sessão não encontrada para este usuário.")
 
         try:
-            questao = Questao.objects.get(pk=questao_id, atividade_id=atividade_id)
+            questao = Questao.objects.select_related("atividade__modulo").get(
+                pk=questao_id, atividade_id=atividade_id
+            )
         except (Questao.DoesNotExist, ValueError):
             raise NotFound("Questão não encontrada nesta atividade.")
 
@@ -149,6 +248,12 @@ class HintService:
             sessao=sessao,
             remetente=Mensagem.Remetente.USUARIO,
             conteudo=pergunta,
+        )
+
+        topico_dica = (
+            questao.atividade.modulo.titulo
+            if questao.atividade and questao.atividade.modulo
+            else "Geral"
         )
 
         # 2. Etapa 1: Consulta Local (dica_conceitual preenchida e correspondente)
@@ -160,12 +265,27 @@ class HintService:
             if cls._dica_corresponde(pergunta, dica_limpa):
                 resposta_text = dica_limpa
 
-        # 3. Etapa 2: Fallback para IA Externa se a dúvida for aberta / não coberta pela dica local
+        # 3. Etapa 2: Consulta ao Cache Semântico (dúvidas já assimiladas no corpus)
+        if not resposta_text:
+            resposta_cache = cls._buscar_no_cache_semantico(pergunta, topico=topico_dica)
+            if resposta_cache:
+                origem = "PLN_LOCAL"
+                resposta_text = resposta_cache
+
+        # 4. Etapa 3: Fallback para IA Externa se a dúvida for aberta / não coberta localmente
         if not resposta_text:
             origem = "IA_EXTERNA"
             resposta_text = cls._call_external_ai(questao, pergunta)
+            if resposta_text:
+                # Etapa 4: Ingestão assíncrona pós-IA (VAR-115)
+                from semanticSearch.service.ingestion_service import CorpusIngestionService
+                CorpusIngestionService.assimilar_duvida_async(
+                    pergunta=pergunta,
+                    resposta=resposta_text,
+                    topico=topico_dica,
+                )
 
-        # 4. Etapa 3: Resiliência em caso de falha da IA
+        # 5. Etapa 5: Resiliência em caso de falha da IA
         if not resposta_text:
             if questao.dica_conceitual and questao.dica_conceitual.strip():
                 origem = "PLN_LOCAL"

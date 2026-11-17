@@ -2,9 +2,10 @@ import logging
 import threading
 from typing import Optional
 
-from django.db import transaction
+from django.db import close_old_connections, transaction
 
 from semanticSearch.models import EntradaCorpus, PerguntaCorpus
+from semanticSearch.service.corpus_search import CorpusSearch
 from semanticSearch.service.sanitizer import TextSanitizer
 from semanticSearch.service.text_embedding_service import TextEmbeddingService
 
@@ -13,6 +14,9 @@ logger = logging.getLogger(__name__)
 # Tamanho mínimo razoável para uma dúvida conceitual (evita "oi", "valeu", "teste", etc.)
 MIN_CARACTERES_DUVIDA = 10
 MIN_CARACTERES_RESPOSTA = 20
+
+# Limiar de anti-duplicação semântica (VAR-115): perguntas quase idênticas (>= 0.95) reaproveitam a entrada existente.
+ANTI_DUPLICATION_THRESHOLD = 0.95
 
 
 class CorpusIngestionService:
@@ -47,10 +51,22 @@ class CorpusIngestionService:
             logger.error("Falha ao gerar embedding para assimilação de dúvida: %s", exc)
             return None
 
-        # 3. Persistência atômica e idempotente no banco vetorial
+        # 3. Persistência atômica e idempotente com proteção anti-duplicação semântica (>= 0.95)
         try:
             with transaction.atomic():
                 topico_limpo = (topico or "Dúvidas Frequentes").strip()[:100]
+
+                # Verifica se já existe dúvida assimilada quase idêntica (similaridade >= 0.95)
+                duplicata = CorpusSearch(similarity_threshold=ANTI_DUPLICATION_THRESHOLD).buscar(
+                    vetor, topico=topico_limpo
+                )
+                if duplicata.entrada is not None:
+                    logger.info(
+                        "Dúvida quase idêntica já existe no corpus (ID: %s, similaridade: %.4f); evitando duplicação.",
+                        duplicata.entrada.id,
+                        duplicata.similaridade,
+                    )
+                    return duplicata.entrada
 
                 entrada, criada = EntradaCorpus.objects.get_or_create(
                     pergunta=pergunta_limpa,
@@ -67,7 +83,7 @@ class CorpusIngestionService:
                     entrada.save(update_fields=["resposta"])
 
                 # Garante que a formulação da pergunta com seu embedding esteja registrada em PerguntaCorpus
-                pergunta_corpus, _ = PerguntaCorpus.objects.get_or_create(
+                PerguntaCorpus.objects.get_or_create(
                     entrada=entrada,
                     texto=pergunta_limpa,
                     defaults={"embedding": vetor},
@@ -94,13 +110,15 @@ class CorpusIngestionService:
     ) -> threading.Thread:
         """
         Dispara a assimilação e vetorização em background (thread daemon),
-        garantindo latência zero na resposta ao estudante.
+        garantindo latência zero na resposta ao estudante e liberando conexões do banco ao concluir.
         """
         def _target():
             try:
                 cls.assimilar_duvida(pergunta=pergunta, resposta=resposta, topico=topico)
             except Exception as e:
                 logger.error("Erro inesperado na thread de assimilação de dúvida: %s", e)
+            finally:
+                close_old_connections()
 
         thread = threading.Thread(target=_target, daemon=True)
         thread.start()
