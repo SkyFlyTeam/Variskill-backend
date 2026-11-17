@@ -25,10 +25,16 @@ class CorpusSearch:
         self.related_threshold = (float(os.getenv("CORPUS_RELATED_THRESHOLD", "0.60"))
                                   if related_threshold is None else related_threshold)
 
-    def buscar(self, vetor: list[float], limite_relacionadas: int = 3) -> ResultadoCorpus:
-        candidatos = (PerguntaCorpus.objects.filter(entrada__ativo=True)
-                      .annotate(distancia=CosineDistance("embedding", vetor))
-                      .order_by("distancia").select_related("entrada")[:20])
+    def _consultar_candidatos(self, vetor: list[float], topico: str | None = None) -> list[tuple[EntradaCorpus, float]]:
+        qs = PerguntaCorpus.objects.filter(entrada__ativo=True)
+        if topico:
+            qs = qs.filter(entrada__topico__iexact=topico.strip())
+
+        candidatos = (
+            qs.annotate(distancia=CosineDistance("embedding", vetor))
+            .order_by("distancia")
+            .select_related("entrada")[:20]
+        )
 
         # Uma entrada pode ter várias formulações; mantém apenas a mais próxima de cada uma.
         melhores: dict = {}
@@ -37,7 +43,23 @@ class CorpusSearch:
             if candidato.entrada_id not in melhores:
                 melhores[candidato.entrada_id] = (candidato.entrada, similaridade)
 
-        ranking = list(melhores.values())
+        return list(melhores.values())
+
+    def buscar(
+        self,
+        vetor: list[float],
+        limite_relacionadas: int = 3,
+        topico: str | None = None,
+        estrito: bool = False,
+    ) -> ResultadoCorpus:
+        ranking = self._consultar_candidatos(vetor, topico=topico) if topico else []
+
+        # Se filtrou por tópico sem modo estrito e não atingiu o limiar, consulta o corpus geral como fallback
+        if not topico or (not estrito and (not ranking or ranking[0][1] < self.similarity_threshold)):
+            ranking_geral = self._consultar_candidatos(vetor, topico=None)
+            if not ranking or (ranking_geral and ranking_geral[0][1] > ranking[0][1]):
+                ranking = ranking_geral
+
         if not ranking:
             return ResultadoCorpus(entrada=None, similaridade=0.0)
 
