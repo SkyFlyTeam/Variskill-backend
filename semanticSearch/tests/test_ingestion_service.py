@@ -24,7 +24,20 @@ def test_sanitizacao_remove_dados_pessoais():
     assert "[TELEFONE_REMOVIDO]" in r_limpa
 
     # Introdução pessoal removida
-    assert not p_limpa.startswith("Olá, meu nome é Maria")
+    assert not p_limpa.startswith("Olá")
+    assert "meu nome é Maria" not in p_limpa
+
+
+def test_sanitizacao_preserva_numeros_em_exemplos_de_codigo():
+    pergunta = "Oi Vari, pode me ajudar? Como iterar sobre 10000000 de elementos?"
+    resposta = "Para processar 10000000 ou 12345678 itens sem estourar memória, use range(10000000)."
+
+    p_limpa, r_limpa = TextSanitizer.preparar_para_corpus(pergunta, resposta)
+
+    assert p_limpa == "Como iterar sobre 10000000 de elementos?"
+    assert "10000000" in r_limpa
+    assert "12345678" in r_limpa
+    assert "[TELEFONE_REMOVIDO]" not in r_limpa
 
 
 def test_sanitizacao_trunca_pergunta_muito_longa():
@@ -78,9 +91,35 @@ def test_idempotencia_nao_duplica_pergunta_identica():
 
 
 @pytest.mark.django_db
+def test_anti_duplicacao_semantica_acima_095_nao_duplica_registro(monkeypatch):
+    vetor_fixo = [0.0] * 384
+    vetor_fixo[0] = 1.0
+    monkeypatch.setattr(
+        "semanticSearch.service.ingestion_service.TextEmbeddingService.gerar_embedding",
+        lambda self, texto: vetor_fixo,
+    )
+
+    resposta = "Listas são mutáveis (podem ser alteradas) enquanto tuplas são imutáveis após criadas."
+    entrada1 = CorpusIngestionService.assimilar_duvida(
+        "Qual a diferença entre tupla e lista no Python?", resposta, "Tipos de Dados"
+    )
+    entrada2 = CorpusIngestionService.assimilar_duvida(
+        "Qual é a diferença entre tupla e lista em Python?", resposta, "Tipos de Dados"
+    )
+
+    assert entrada1 is not None
+    assert entrada2 is not None
+    assert entrada1.id == entrada2.id
+    assert EntradaCorpus.objects.filter(topico="Tipos de Dados").count() == 1
+
+
+@pytest.mark.django_db
 def test_ignora_duvidas_curtas_ou_sem_conteudo():
     entrada_curta = CorpusIngestionService.assimilar_duvida("oi", "ola tudo bem com voce?")
     assert entrada_curta is None
+
+    entrada_operacional = CorpusIngestionService.assimilar_duvida("Oi Vari, como vai você?", "Vou bem e pronto para ajudar nos estudos!")
+    assert entrada_operacional is None
 
     entrada_resposta_curta = CorpusIngestionService.assimilar_duvida("Como usar decorators?", "sim")
     assert entrada_resposta_curta is None
