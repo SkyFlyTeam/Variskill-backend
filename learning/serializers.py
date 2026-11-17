@@ -90,6 +90,24 @@ class QuestionFeedbackSerializer(serializers.Serializer):
     explicacao = serializers.CharField(allow_blank=True)
 
 
+class ItemDesbloqueadoSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    nome = serializers.CharField()
+    tipo = serializers.CharField()
+    asset_url = serializers.CharField(allow_blank=True)
+
+
+class ConquistaDesbloqueadaSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    codigo = serializers.CharField()
+    titulo = serializers.CharField()
+    descricao = serializers.CharField()
+    icone = serializers.CharField()
+    xp_recompensa = serializers.IntegerField()
+    item_desbloqueado = ItemDesbloqueadoSerializer(allow_null=True)
+    itens_desbloqueados = ItemDesbloqueadoSerializer(many=True)
+
+
 class SubmissionResultSerializer(serializers.Serializer):
     execucao_id = serializers.UUIDField(source='execution.id')
     aprovado = serializers.BooleanField(source='approved')
@@ -102,6 +120,7 @@ class SubmissionResultSerializer(serializers.Serializer):
     novo_nivel = serializers.IntegerField()
     executado_em = serializers.DateTimeField(source='execution.executado_em')
     questoes_feedback = QuestionFeedbackSerializer(source='feedback', many=True)
+    conquistas_desbloqueadas = ConquistaDesbloqueadaSerializer(many=True)
 
 
 class HintRequestSerializer(serializers.Serializer):
