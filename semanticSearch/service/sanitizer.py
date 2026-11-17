@@ -11,22 +11,28 @@ class TextSanitizer:
     # Regex para e-mails comuns
     _EMAIL_REGEX = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 
-    # Regex para telefones (com ou sem DDD, fixo ou celular no padrão BR)
+    # Regex para telefones (com DDD entre parênteses, +55 ou separador hífen/espaço, evitando falsos positivos em números de código)
     _PHONE_REGEX = re.compile(
-        r"(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9\d{4}|\d{4})[-\s]?\d{4}"
+        r"(?<!\w)(?:\+55\s?)?(?:\(\d{2}\)\s?(?:9\d{4}|\d{4})[-\s]?\d{4}|\b\d{2}\s(?:9\d{4}|\d{4})[-\s]\d{4}|\b(?:9\d{4}|\d{4})-\d{4})\b"
     )
 
     # Regex para CPF (comum com pontuação ou sequência de 11 dígitos)
     _CPF_REGEX = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b")
 
-    # Regex para saudações e apresentações pessoais iniciais (ex.: "Olá, meu nome é João e...")
+    # Regex para saudações e apresentações pessoais iniciais (ex.: "Olá, meu nome é João!", "Oi Vari, pode me ajudar?")
     _INTRO_REGEX = re.compile(
-        r"^(?:ol[aá]|oi|bom dia|boa tarde|boa noite|meu nome [eé]|eu sou o|eu sou a)\b[^.?!,;]*[,.:;!\s]*",
+        r"^(?:ol[aá]|oi|opa|e a[ií]|bom dia|boa tarde|boa noite|meu nome [eé]|eu sou o|eu sou a|pode me ajudar|preciso de ajuda|vari\b)\b[^.?!,;]*[,.:;!\?\s]*",
+        re.IGNORECASE,
+    )
+
+    # Perguntas puramente operacionais ou cumprimentos sem conteúdo conceitual
+    _OPERATIONAL_NOISE_REGEX = re.compile(
+        r"^(?:ok|okay|beleza|blz|valeu|obrigad[oa]|tudo bem|como vai(?: voc[eê])?|teste|oi|ol[aá]|sim|n[aã]o|entendi)[.?!,\s]*$",
         re.IGNORECASE,
     )
 
     @classmethod
-    def sanitizar(cls, texto: str) -> str:
+    def sanitizar(cls, texto: str, remover_saudacao: bool = True) -> str:
         """
         Higieniza o texto removendo PII e normalizando espaçamentos.
         """
@@ -35,8 +41,16 @@ class TextSanitizer:
 
         texto_limpo = texto.strip()
 
-        # 1. Remover introduções e saudações pessoais
-        texto_limpo = cls._INTRO_REGEX.sub("", texto_limpo).strip()
+        # 1. Remover introduções e saudações pessoais iterativamente (ex.: "Olá, meu nome é Maria! Gostaria...")
+        if remover_saudacao:
+            while True:
+                novo_texto = cls._INTRO_REGEX.sub("", texto_limpo).strip()
+                if novo_texto == texto_limpo:
+                    break
+                texto_limpo = novo_texto
+
+            if cls._OPERATIONAL_NOISE_REGEX.match(texto_limpo):
+                return ""
 
         # 2. Mascarar/Remover e-mails
         texto_limpo = cls._EMAIL_REGEX.sub("[EMAIL_REMOVIDO]", texto_limpo)
@@ -58,8 +72,8 @@ class TextSanitizer:
         Higieniza e formata a pergunta e resposta para persistência no banco.
         Trunca a pergunta para caber na coluna se necessário de forma legível.
         """
-        pergunta_limpa = cls.sanitizar(pergunta)
-        resposta_limpa = cls.sanitizar(resposta)
+        pergunta_limpa = cls.sanitizar(pergunta, remover_saudacao=True)
+        resposta_limpa = cls.sanitizar(resposta, remover_saudacao=False)
 
         if len(pergunta_limpa) > max_chars_pergunta:
             # Trunca no último espaço antes do limite para não quebrar palavras
