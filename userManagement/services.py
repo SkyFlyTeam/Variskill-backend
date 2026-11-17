@@ -7,7 +7,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from activityManagement.models import ExecucaoAtividade, RespostaQuestao
-from .models import RegistroAcessoDiario, User
+from .models import ItemCosmetico, RegistroAcessoDiario, User, UsuarioInventario
 
 
 class GamificationService:
@@ -180,6 +180,34 @@ class StreakService:
             'maior_streak': usuario.maior_streak,
             'ultimo_dia_estudo': usuario.ultimo_dia_estudo,
         }
+
+
+def conceder_itens_padrao(usuarios, itens=None) -> int:
+    """Garante que os itens cosméticos padrão estejam no inventário dos usuários.
+
+    Idempotente: vínculos já existentes são ignorados (unique usuario+item).
+    Retorna a quantidade de vínculos efetivamente criados.
+    """
+    if isinstance(usuarios, User):
+        usuarios = [usuarios]
+    if itens is None:
+        itens = list(ItemCosmetico.objects.filter(padrao_desbloqueado=True))
+    if not itens:
+        return 0
+
+    usuario_ids = [u.pk for u in usuarios]
+    existentes = set(
+        UsuarioInventario.objects.filter(usuario_id__in=usuario_ids, item__in=itens)
+        .values_list('usuario_id', 'item_id')
+    )
+    novos = [
+        UsuarioInventario(usuario_id=uid, item=item)
+        for uid in usuario_ids
+        for item in itens
+        if (uid, item.pk) not in existentes
+    ]
+    UsuarioInventario.objects.bulk_create(novos, ignore_conflicts=True)
+    return len(novos)
 
 
 @transaction.atomic

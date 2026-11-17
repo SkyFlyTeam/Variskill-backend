@@ -1,11 +1,17 @@
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
 
 from grading.validators import ResponseValidatorContext
 
+from userManagement.gamification_engine import (
+    EVENTO_ATIVIDADE_CONCLUIDA,
+    EVENTO_MODULO_CONCLUIDO,
+    EVENTO_STREAK_ATUALIZADO,
+    GamificationEngine,
+)
 from userManagement.services import GamificationService, StreakService
 from .models import ExecucaoAtividade, RespostaQuestao
 
@@ -31,6 +37,7 @@ class SubmissionResult:
     level_up: bool
     nivel_anterior: int
     novo_nivel: int
+    conquistas_desbloqueadas: list = field(default_factory=list)
 
 
 def _is_correct(questao, answer):
@@ -73,15 +80,13 @@ def submit_activity(user, atividade, answers):
     nivel_anterior = gamification.calcular_nivel(locked_user.xp_total)
 
     xp_granted = (atividade.xp_recompensa if approved and not already_approved else 0)
+    streak_info = None
     if approved:
-        StreakService.computar_atividade_diaria(
+        streak_info = StreakService.computar_atividade_diaria(
             locked_user, xp_ganho=xp_granted, nova_conclusao=not already_approved,
         )
         if not already_approved:
             gamification.creditar_xp(locked_user, atividade)
-
-    novo_nivel = gamification.calcular_nivel(locked_user.xp_total)
-    level_up = (novo_nivel > nivel_anterior)
 
     execution = ExecucaoAtividade.objects.create(
         usuario=locked_user,
@@ -101,6 +106,25 @@ def submit_activity(user, atividade, answers):
         for questao, answer, correct in respostas_avaliadas
     ])
 
+    # Avaliada após persistir a execução: PRIMEIRO_PASSO e EXPLORADOR_MODULO dependem dela.
+    conquistas_desbloqueadas = []
+    if approved:
+        engine = GamificationEngine()
+        conquistas_desbloqueadas += engine.avaliar_conquistas_usuario(
+            locked_user, EVENTO_ATIVIDADE_CONCLUIDA, {'aprovado': approved, 'taxa_acerto': hit_rate},
+        )
+        if streak_info is not None:
+            conquistas_desbloqueadas += engine.avaliar_conquistas_usuario(
+                locked_user, EVENTO_STREAK_ATUALIZADO, {'streak_dias': streak_info['streak_dias']},
+            )
+        conquistas_desbloqueadas += engine.avaliar_conquistas_usuario(
+            locked_user, EVENTO_MODULO_CONCLUIDO, {'modulo_id': atividade.modulo_id},
+        )
+
+    # Calculado após as conquistas para que o XP bônus conte no level up.
+    novo_nivel = gamification.calcular_nivel(locked_user.xp_total)
+    level_up = (novo_nivel > nivel_anterior)
+
     return SubmissionResult(
         execution=execution,
         approved=approved,
@@ -112,4 +136,5 @@ def submit_activity(user, atividade, answers):
         level_up=level_up,
         nivel_anterior=nivel_anterior,
         novo_nivel=novo_nivel,
+        conquistas_desbloqueadas=conquistas_desbloqueadas,
     )
