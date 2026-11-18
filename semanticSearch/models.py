@@ -5,11 +5,6 @@ from pgvector.django import HnswIndex, VectorField
 
 from intents.models import EMBEDDING_DIMENSIONS
 
-# Dimensão do modelo de embedding usado para as dúvidas assimiladas (VAR-113), distinta da
-# EMBEDDING_DIMENSIONS (384) do corpus seedado: DuvidaAssimilada reserva espaço para um modelo
-# de embedding maior (768), a ser definido na ingestão (VAR-114/VAR-115).
-DUVIDA_ASSIMILADA_EMBEDDING_DIMENSIONS = 768
-
 
 class EntradaCorpus(models.Model):
     """Resposta conceitual da base de conhecimento do Coach (ex.: "Como definir uma variável em Python?")."""
@@ -55,6 +50,9 @@ class DuvidaAssimilada(models.Model):
     alimentada incrementalmente pela ingestão assíncrona pós-IA: nunca é apagada e recriada em
     massa, então o índice HNSW não sofre do problema de tuplas mortas documentado em
     0002_remove_hnsw_corpus.py.
+
+    O embedding usa EMBEDDING_DIMENSIONS (384), igual a PerguntaCorpus/IntentionExample, para
+    compatibilidade com o EmbeddingService já existente no projeto (all-MiniLM-L6-v2).
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -75,7 +73,7 @@ class DuvidaAssimilada(models.Model):
     pergunta_texto = models.TextField()
     pergunta_normalizada = models.TextField()
     resposta_didatica = models.TextField()
-    embedding = VectorField(dimensions=DUVIDA_ASSIMILADA_EMBEDDING_DIMENSIONS)
+    embedding = VectorField(dimensions=EMBEDDING_DIMENSIONS)
     contador_utilizacoes = models.PositiveIntegerField(default=1)
     feedbacks_positivos = models.PositiveIntegerField(default=0)
     feedbacks_negativos = models.PositiveIntegerField(default=0)

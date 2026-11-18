@@ -14,7 +14,7 @@ def test_tabela_usa_o_nome_especificado_na_task():
 
 
 def test_cria_duvida_assimilada_com_valores_default():
-    duvida = baker.make(DuvidaAssimilada, embedding=[0.1] * 768)
+    duvida = baker.make(DuvidaAssimilada, embedding=[0.1] * 384)
     duvida.refresh_from_db()
 
     assert duvida.contador_utilizacoes == 1
@@ -24,17 +24,17 @@ def test_cria_duvida_assimilada_com_valores_default():
     assert duvida.atualizado_em is not None
 
 
-def test_armazena_e_retorna_embedding_com_768_dimensoes():
-    embedding = [0.2] * 768
+def test_armazena_e_retorna_embedding_com_384_dimensoes():
+    embedding = [0.2] * 384
     duvida = baker.make(DuvidaAssimilada, embedding=embedding)
     duvida.refresh_from_db()
 
-    assert len(duvida.embedding) == 768
+    assert len(duvida.embedding) == 384
     assert list(duvida.embedding) == pytest.approx(embedding)
 
 
 def test_atividade_e_modulo_sao_opcionais():
-    duvida = baker.make(DuvidaAssimilada, atividade=None, modulo=None, embedding=[0.0] * 768)
+    duvida = baker.make(DuvidaAssimilada, atividade=None, modulo=None, embedding=[0.0] * 384)
     duvida.refresh_from_db()
 
     assert duvida.atividade is None
@@ -45,7 +45,7 @@ def test_related_names_de_atividade_e_modulo():
     atividade = baker.make(Atividade)
     modulo = baker.make(Modulo)
     duvida = baker.make(
-        DuvidaAssimilada, atividade=atividade, modulo=modulo, embedding=[0.0] * 768
+        DuvidaAssimilada, atividade=atividade, modulo=modulo, embedding=[0.0] * 384
     )
 
     assert duvida in atividade.duvidas_assimiladas.all()
@@ -54,7 +54,7 @@ def test_related_names_de_atividade_e_modulo():
 
 def test_exclusao_da_atividade_apaga_duvida_assimilada_em_cascata():
     atividade = baker.make(Atividade)
-    duvida = baker.make(DuvidaAssimilada, atividade=atividade, embedding=[0.0] * 768)
+    duvida = baker.make(DuvidaAssimilada, atividade=atividade, embedding=[0.0] * 384)
 
     atividade.delete()
 
@@ -63,7 +63,7 @@ def test_exclusao_da_atividade_apaga_duvida_assimilada_em_cascata():
 
 def test_exclusao_do_modulo_apaga_duvida_assimilada_em_cascata():
     modulo = baker.make(Modulo)
-    duvida = baker.make(DuvidaAssimilada, modulo=modulo, embedding=[0.0] * 768)
+    duvida = baker.make(DuvidaAssimilada, modulo=modulo, embedding=[0.0] * 384)
 
     modulo.delete()
 
