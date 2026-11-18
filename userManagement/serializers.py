@@ -4,7 +4,14 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import EventoAuditoria, Interesse, SolicitacaoRevisao, UsuarioInteresse
+from .models import (
+    Conquista,
+    EventoAuditoria,
+    Interesse,
+    SolicitacaoRevisao,
+    UsuarioInteresse,
+    UsuarioInventario,
+)
 from .services import GamificationService
 
 User = get_user_model()
@@ -188,5 +195,53 @@ class EventoAuditoriaSerializer(serializers.ModelSerializer):
             'id', 'usuario', 'ator_email', 'ator_is_staff', 'acao',
             'metodo', 'rota', 'status_code', 'resultado', 'recurso',
             'recurso_id', 'ip_hash', 'user_agent', 'metadata', 'criado_em',
+        )
+        read_only_fields = fields
+
+
+class ConquistaUsuarioSerializer(serializers.ModelSerializer):
+    """Conquista do catálogo com o status de desbloqueio do usuário autenticado.
+
+    Espera no contexto ``desbloqueios``: dict {conquista_id: datetime}.
+    """
+
+    desbloqueada = serializers.SerializerMethodField()
+    desbloqueada_em = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Conquista
+        fields = (
+            'id', 'codigo', 'titulo', 'descricao', 'categoria', 'icone',
+            'xp_recompensa', 'ordem', 'desbloqueada', 'desbloqueada_em',
+        )
+        read_only_fields = fields
+
+    def _data_desbloqueio(self, obj):
+        return self.context.get('desbloqueios', {}).get(obj.pk)
+
+    def get_desbloqueada(self, obj) -> bool:
+        return self._data_desbloqueio(obj) is not None
+
+    def get_desbloqueada_em(self, obj):
+        data = self._data_desbloqueio(obj)
+        return serializers.DateTimeField().to_representation(data) if data else None
+
+
+class ItemInventarioSerializer(serializers.ModelSerializer):
+    """Item cosmético possuído pelo usuário. ``id`` é o id do registro de inventário."""
+
+    item_id = serializers.UUIDField(source='item.id', read_only=True)
+    nome = serializers.CharField(source='item.nome', read_only=True)
+    descricao = serializers.CharField(source='item.descricao', read_only=True)
+    tipo = serializers.CharField(source='item.tipo', read_only=True)
+    raridade = serializers.CharField(source='item.raridade', read_only=True)
+    recurso_visual = serializers.CharField(source='item.recurso_visual', read_only=True)
+    asset_url = serializers.CharField(source='item.asset_url', read_only=True)
+
+    class Meta:
+        model = UsuarioInventario
+        fields = (
+            'id', 'item_id', 'nome', 'descricao', 'tipo', 'raridade',
+            'recurso_visual', 'asset_url', 'equipado', 'desbloqueado_em',
         )
         read_only_fields = fields

@@ -2,8 +2,11 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    ConquistaListView,
+    EquiparItemView,
     EventoAuditoriaListView,
     InteresseListView,
+    InventarioView,
     LoginView,
     LogoutView,
     RegisterView,
@@ -21,5 +24,12 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(), name='logout'),
     path('interesses/', InteresseListView.as_view(), name='interesse-list'),
     path('auditoria/', EventoAuditoriaListView.as_view(), name='auditoria-list'),
+    path('gamificacao/conquistas/', ConquistaListView.as_view(), name='gamificacao-conquistas'),
+    path('gamificacao/inventario/', InventarioView.as_view(), name='gamificacao-inventario'),
+    path(
+        'gamificacao/inventario/<uuid:inventario_id>/equipar/',
+        EquiparItemView.as_view(),
+        name='gamificacao-inventario-equipar',
+    ),
     *router.urls,
 ]

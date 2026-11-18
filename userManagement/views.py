@@ -9,12 +9,22 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 
 from .audit import registrar_evento
-from .models import EventoAuditoria, Interesse, SolicitacaoRevisao, User
+from .models import (
+    Conquista,
+    EventoAuditoria,
+    Interesse,
+    SolicitacaoRevisao,
+    User,
+    UsuarioConquista,
+    UsuarioInventario,
+)
 from .serializers import (
     AuthSerializer,
     ChangePasswordSerializer,
+    ConquistaUsuarioSerializer,
     EventoAuditoriaSerializer,
     InteresseSerializer,
+    ItemInventarioSerializer,
     SolicitacaoRevisaoAdminSerializer,
     SolicitacaoRevisaoCreateSerializer,
     SolicitacaoRevisaoSerializer,
@@ -396,3 +406,96 @@ class EventoAuditoriaListView(generics.ListAPIView):
             limite = 100
         limite = min(max(limite, 1), 500)
         return queryset[:limite]
+
+
+# Mapeia o tipo do item cosmético para a chave do agrupamento no inventário
+# e para a FK correspondente em User.
+CATEGORIAS_INVENTARIO = {
+    'AVATAR': ('avatares', 'avatar_equipado'),
+    'TITULO': ('titulos', 'titulo_equipado'),
+    'BORDA': ('bordas', 'borda_equipada'),
+}
+
+
+class ConquistaListView(generics.GenericAPIView):
+    """Catálogo de conquistas com o status de desbloqueio do usuário logado."""
+
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = ConquistaUsuarioSerializer
+
+    def get(self, request):
+        desbloqueios = dict(
+            UsuarioConquista.objects.filter(usuario=request.user)
+            .values_list('conquista_id', 'desbloqueado_em')
+        )
+        conquistas = Conquista.objects.order_by('ordem', 'titulo')
+        serializer = self.get_serializer(
+            conquistas, many=True, context={'desbloqueios': desbloqueios}
+        )
+        return Response(serializer.data)
+
+
+class InventarioView(generics.GenericAPIView):
+    """Inventário do usuário logado agrupado por categoria de item."""
+
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = ItemInventarioSerializer
+
+    def get(self, request):
+        itens = (
+            UsuarioInventario.objects.filter(usuario=request.user)
+            .select_related('item')
+            .order_by('item__nome')
+        )
+        agrupado = {chave: [] for chave, _ in CATEGORIAS_INVENTARIO.values()}
+        for dado, registro in zip(self.get_serializer(itens, many=True).data, itens):
+            chave, _ = CATEGORIAS_INVENTARIO[registro.item.tipo]
+            agrupado[chave].append(dado)
+        return Response(agrupado)
+
+
+class EquiparItemView(generics.GenericAPIView):
+    """Equipa um item do inventário, desequipando o anterior do mesmo tipo.
+
+    ``inventario_id`` é o id do registro em UsuarioInventario. Registros de
+    outros usuários retornam 404, sem revelar que existem.
+    """
+
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = None
+
+    def post(self, request, inventario_id):
+        with transaction.atomic():
+            # Trava a linha do usuário para serializar equipamentos concorrentes.
+            usuario = User.objects.select_for_update().get(pk=request.user.pk)
+            registro = (
+                UsuarioInventario.objects.select_related('item')
+                .filter(usuario=usuario, pk=inventario_id)
+                .first()
+            )
+            if registro is None:
+                raise NotFound('Item não encontrado no inventário do usuário.')
+
+            tipo = registro.item.tipo
+            if tipo not in CATEGORIAS_INVENTARIO:
+                raise ValidationError({'tipo': f'Tipo de item não equipável: {tipo}'})
+            _, campo_user = CATEGORIAS_INVENTARIO[tipo]
+
+            UsuarioInventario.objects.filter(
+                usuario=usuario, item__tipo=tipo, equipado=True
+            ).exclude(pk=registro.pk).update(equipado=False)
+
+            if not registro.equipado:
+                registro.equipado = True
+                registro.save(update_fields=['equipado'])
+
+            setattr(usuario, campo_user, registro.item)
+            usuario.save(update_fields=[campo_user])
+
+        return Response(
+            {'sucesso': True, 'item_equipado_id': str(registro.pk), 'tipo': tipo},
+            status=status.HTTP_200_OK,
+        )
