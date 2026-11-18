@@ -40,7 +40,11 @@ class CorpusIngestionService:
 
         # 1. Validação de conteúdo mínimo útil
         if len(pergunta_limpa) < MIN_CARACTERES_DUVIDA or len(resposta_limpa) < MIN_CARACTERES_RESPOSTA:
-            logger.info("Dúvida ou resposta muito curta para assimilação no corpus: '%s'", pergunta_limpa)
+            logger.info(
+                "Dúvida descartada por tamanho (pergunta=%d, resposta=%d chars)",
+                len(pergunta_limpa),
+                len(resposta_limpa),
+            )
             return None
 
         # 2. Gerar vetor de embedding da pergunta aplicando o pipeline padrão de PLN
@@ -90,10 +94,10 @@ class CorpusIngestionService:
                 )
 
                 logger.info(
-                    "Dúvida assimilada no corpus com sucesso (ID: %s, Criada: %s): '%s'",
+                    "Dúvida assimilada no corpus (ID: %s, criada=%s, %d chars)",
                     entrada.id,
                     criada,
-                    pergunta_limpa,
+                    len(pergunta_limpa),
                 )
                 return entrada
 
