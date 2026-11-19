@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass, field
 
 from django.contrib.auth import get_user_model
@@ -14,6 +15,8 @@ from userManagement.gamification_engine import (
 )
 from userManagement.services import GamificationService, StreakService
 from .models import ExecucaoAtividade, RespostaQuestao
+
+logger = logging.getLogger(__name__)
 
 APPROVAL_THRESHOLD_PERCENT = 70
 
@@ -124,6 +127,13 @@ def submit_activity(user, atividade, answers):
     # Calculado após as conquistas para que o XP bônus conte no level up.
     novo_nivel = gamification.calcular_nivel(locked_user.xp_total)
     level_up = (novo_nivel > nivel_anterior)
+
+    # Consolidação assíncrona da memória pedagógica do estudante (VAR-118) sem travar a thread
+    try:
+        from assistantManagement.memory_service import PedagogicalMemoryService
+        PedagogicalMemoryService.consolidar_perfil_async(locked_user)
+    except Exception as exc:
+        logger.warning("Falha ao agendar consolidação de memória pedagógica para usuário %s: %s", locked_user.pk, exc)
 
     return SubmissionResult(
         execution=execution,
