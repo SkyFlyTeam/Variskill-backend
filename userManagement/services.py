@@ -290,6 +290,8 @@ def exportar_dados_usuario(usuario):
     from assistantManagement.models import Sessao
     from trackManagement.models import Matricula, ProgressoModulo
 
+    responsavel = getattr(usuario, 'aceite_responsavel', None)
+
     interesses = list(
         usuario.interesses_usuario.select_related('interesse')
         .values('interesse__id', 'interesse__nome')
@@ -386,4 +388,77 @@ def exportar_dados_usuario(usuario):
         'progresso_modulos': progresso,
         'execucoes': execucoes,
         'sessoes_chat': sessoes,
+        'responsavel': (
+            {
+                'nome': responsavel.nome,
+                'cpf': responsavel.cpf,
+                'email': responsavel.email,
+                'criado_em': responsavel.criado_em,
+            }
+            if responsavel
+            else None
+        ),
     }
+
+
+def _valor_csv(valor):
+    """Serializa valores de forma estável para o CSV (sem depender do locale)."""
+    import json
+
+    if valor is None:
+        return ''
+    if isinstance(valor, bool):
+        return 'sim' if valor else 'nao'
+    if hasattr(valor, 'isoformat'):
+        return valor.isoformat()
+    if isinstance(valor, (dict, list)):
+        return json.dumps(valor, ensure_ascii=False, default=str)
+    return str(valor)
+
+
+def _linhas_csv(secao, valor, registro_id='', prefixo=''):
+    """Achata estruturas aninhadas no formato longo secao/registro/campo/valor."""
+    if isinstance(valor, dict):
+        registro = str(valor.get('id') or registro_id or '')
+        for campo, subvalor in valor.items():
+            if campo == 'id':
+                continue
+            nome_campo = f'{prefixo}.{campo}' if prefixo else campo
+            yield from _linhas_csv(secao, subvalor, registro, nome_campo)
+        return
+
+    if isinstance(valor, list):
+        if not valor:
+            yield [secao, registro_id, prefixo, '']
+            return
+        for item in valor:
+            if isinstance(item, (dict, list)):
+                yield from _linhas_csv(secao, item, registro_id, prefixo)
+            else:
+                yield [secao, registro_id, prefixo, _valor_csv(item)]
+        return
+
+    yield [secao, registro_id or '', prefixo, _valor_csv(valor)]
+
+
+def exportar_dados_csv(usuario):
+    """Gera um único CSV (formato longo) com todos os dados do titular."""
+    import csv
+    import io
+
+    dados = exportar_dados_usuario(usuario)
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator='\n')
+    writer.writerow(['secao', 'registro_id', 'campo', 'valor'])
+
+    for secao, valor in dados.items():
+        if secao == 'exportado_em':
+            writer.writerow(['exportacao', '', 'exportado_em', _valor_csv(valor)])
+            continue
+        for linha in _linhas_csv(secao, valor):
+            writer.writerow(linha)
+
+    # BOM para o Excel pt-BR reconhecer UTF-8 (acentos).
+    return '\ufeff' + buffer.getvalue()
+
