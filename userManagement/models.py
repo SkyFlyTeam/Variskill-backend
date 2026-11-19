@@ -30,6 +30,9 @@ class User(AbstractUser):
     aceite_privacidade_em = models.DateTimeField(null=True, blank=True)
     consentimento_revogado_em = models.DateTimeField(null=True, blank=True)
     anonimizado_em = models.DateTimeField(null=True, blank=True)
+    # Legal hold: enquanto a data estiver no futuro, o expurgo automático
+    # ignora a conta (investigação/obrigação legal).
+    retencao_suspensa_ate = models.DateField(null=True, blank=True)
     avatar_equipado = models.ForeignKey(
         'ItemCosmetico', null=True, blank=True, on_delete=models.SET_NULL, related_name='+'
     )
@@ -53,6 +56,45 @@ class User(AbstractUser):
             self.aceite_privacidade_em is not None
             and self.consentimento_revogado_em is None
         )
+
+    @property
+    def menor_de_idade(self) -> bool:
+        return self.idade is not None and self.idade < 18
+
+    @property
+    def responsavel(self):
+        """Aceite do responsável legal, quando o titular for menor."""
+        # Instâncias ainda não salvas não têm relação reversa; evita consulta.
+        if self._state.adding:
+            return None
+        return getattr(self, 'aceite_responsavel', None)
+
+
+class AceiteResponsavel(models.Model):
+    """Dados do responsável legal declarados no cadastro de um menor.
+
+    O projeto é acadêmico e não faz verificação documental: valida apenas CPF
+    (dígitos verificadores), nome e e-mail em formato válido.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='aceite_responsavel',
+    )
+    nome = models.CharField(max_length=150)
+    # Guardado somente em dígitos; a formatação é feita na serialização.
+    cpf = models.CharField(max_length=11)
+    email = models.EmailField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ACEITE_RESPONSAVEL'
+
+    def __str__(self):
+        return f'Responsável de {self.usuario_id}'
+
 
 
 class Interesse(models.Model):
@@ -235,6 +277,7 @@ class EventoAuditoria(models.Model):
         ('LOGIN_FALHA', 'Falha de login'),
         ('LOGOUT', 'Logout'),
         ('CADASTRO', 'Cadastro'),
+        ('ACEITE_RESPONSAVEL', 'Aceite do responsável legal'),
         ('ALTERACAO_PERFIL', 'Alteração de perfil'),
         ('CONSENTIMENTO_CONCEDIDO', 'Consentimento concedido'),
         ('CONSENTIMENTO_REVOGADO', 'Consentimento revogado'),
@@ -245,6 +288,7 @@ class EventoAuditoria(models.Model):
         ('REVISAO_SOLICITADA', 'Revisão solicitada'),
         ('REVISAO_RESPONDIDA', 'Revisão respondida'),
         ('EXPURGO_EXECUTADO', 'Expurgo executado'),
+        ('CHAMADA_IA_EXTERNA', 'Chamada a IA externa'),
     ]
     RESULTADO_CHOICES = [
         ('SUCESSO', 'Sucesso'),

@@ -100,7 +100,11 @@ def test_admin_export_by_email_returns_profile_and_audits(client, admin, django_
 
     assert response.status_code == 200
     assert 'attachment' in response['Content-Disposition']
-    assert response.json()['perfil']['email'] == target.email
+    assert response['Content-Disposition'].endswith('.csv"')
+    conteudo = response.content.decode('utf-8-sig')
+    assert conteudo.splitlines()[0] == 'secao,registro_id,campo,valor'
+    assert 'perfil' in conteudo
+    assert target.email in conteudo
     evento = EventoAuditoria.objects.filter(
         acao='EXPORTACAO_DADOS', recurso_id=target.pk
     ).first()
@@ -250,6 +254,7 @@ def test_registration_marks_consent_accepted(client, django_user_model):
             'nome': 'Consent User',
             'email': 'consent@example.com',
             'password': 'test-password-123',
+            'idade': 21,
             'aceite_termos': True,
         },
         format='json',
