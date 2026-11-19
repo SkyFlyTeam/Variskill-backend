@@ -52,6 +52,7 @@ class TestGamificationNivel:
 
     def test_user_serializer_inclui_nivel_e_progresso(self, monkeypatch):
         monkeypatch.setattr(UserSerializer, "get_interesses", lambda self, obj: [])
+        monkeypatch.setattr(UserSerializer, "get_conquistas_desbloqueadas", lambda self, obj: 0)
         user = User(id="00000000-0000-0000-0000-000000000001", apelido="coder", nome="Coder", email="coder@test.com", xp_total=250, streak_dias=3)
         serializer = UserSerializer(user)
         data = serializer.data

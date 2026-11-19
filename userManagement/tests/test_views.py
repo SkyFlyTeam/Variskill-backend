@@ -6,7 +6,13 @@ from django.urls import reverse
 from django.utils import timezone
 from model_bakery import baker
 
-from userManagement.models import Interesse, UsuarioInteresse
+from userManagement.models import (
+    Conquista,
+    Interesse,
+    ItemCosmetico,
+    UsuarioConquista,
+    UsuarioInteresse,
+)
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
@@ -444,6 +450,72 @@ def test_me_streak_sem_historico_retorna_zerado(client, user):
         'concluiu_hoje': False,
         'ultimo_dia': None,
     }
+
+
+def test_me_returns_itens_equipados(client, user):
+    avatar = ItemCosmetico.objects.create(
+        nome='Vari Clássico', tipo='AVATAR', recurso_visual='avatares/vari_classico.png'
+    )
+    titulo = ItemCosmetico.objects.create(
+        nome='Estudante VariSkill', tipo='TITULO', recurso_visual='titulos/estudante_variskill'
+    )
+    user.avatar_equipado = avatar
+    user.titulo_equipado = titulo
+    user.borda_equipada = None
+    user.save()
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.status_code == 200
+    assert response.data['avatar_equipado']['id'] == str(avatar.pk)
+    assert response.data['avatar_equipado']['nome'] == 'Vari Clássico'
+    assert response.data['avatar_equipado']['recurso_visual'] == 'avatares/vari_classico.png'
+    assert response.data['titulo_equipado']['nome'] == 'Estudante VariSkill'
+    assert response.data['borda_equipada'] is None
+
+
+def test_me_returns_quantidade_de_conquistas_desbloqueadas(client, user, django_user_model):
+    conquistas = [
+        Conquista.objects.create(
+            codigo=f'C{i}', titulo=f'C{i}', descricao='...',
+            categoria='PROGRESSO', icone='icone.svg', ordem=i,
+        )
+        for i in range(3)
+    ]
+    UsuarioConquista.objects.create(usuario=user, conquista=conquistas[0])
+    UsuarioConquista.objects.create(usuario=user, conquista=conquistas[1])
+    UsuarioConquista.objects.create(
+        usuario=baker.make(django_user_model), conquista=conquistas[2]
+    )
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.status_code == 200
+    assert response.data['conquistas_desbloqueadas'] == 2
+
+
+def test_me_conquistas_desbloqueadas_zero_sem_conquistas(client, user):
+    client.force_login(user)
+
+    response = client.get(reverse('user-me'))
+
+    assert response.data['conquistas_desbloqueadas'] == 0
+
+
+def test_me_patch_nao_altera_itens_equipados(client, user):
+    item = ItemCosmetico.objects.create(nome='x', tipo='AVATAR', recurso_visual='x.png')
+    client.force_login(user)
+
+    client.patch(
+        reverse('user-me'),
+        data={'avatar_equipado': str(item.pk)},
+        content_type='application/json',
+    )
+
+    user.refresh_from_db()
+    assert user.avatar_equipado is None
 
 
 def test_me_returns_nested_interesses(client, user, interesse_python, interesse_django):
