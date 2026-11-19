@@ -188,6 +188,29 @@ class ChangePasswordSerializer(serializers.Serializer):
         return value
 
 
+class DiagnosticoPedagogicoSerializer(serializers.Serializer):
+    """Raio-X de aprendizado do estudante (VAR-126), lido da memória pedagógica (VAR-118)."""
+
+    pontos_fortes = serializers.ListField(
+        child=serializers.CharField(),
+        help_text='Tópicos (módulos) em que o estudante demonstra domínio.',
+    )
+    topicos_dificuldade = serializers.ListField(
+        child=serializers.CharField(),
+        help_text='Tópicos (módulos) com erros recorrentes, a praticar.',
+    )
+    taxa_acerto_geral = serializers.FloatField(
+        help_text='Percentual de acerto em todas as questões avaliadas (0 a 100).',
+    )
+    total_atividades_avaliadas = serializers.IntegerField(
+        help_text='Quantidade de atividades com questões consideradas no diagnóstico.',
+    )
+    ultima_atualizacao = serializers.DateTimeField(
+        allow_null=True,
+        help_text='Data da última consolidação da memória; null se ainda não houver.',
+    )
+
+
 class EventoAuditoriaSerializer(serializers.ModelSerializer):
     class Meta:
         model = EventoAuditoria

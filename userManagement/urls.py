@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     ConquistaListView,
+    DiagnosticoPedagogicoView,
     EquiparItemView,
     EventoAuditoriaListView,
     InteresseListView,
@@ -30,6 +31,12 @@ urlpatterns = [
         'gamificacao/inventario/<uuid:inventario_id>/equipar/',
         EquiparItemView.as_view(),
         name='gamificacao-inventario-equipar',
+    ),
+    # Antes do router: rota fixa sob users/me/, fora do UserViewSet (VAR-126).
+    path(
+        'users/me/diagnostico-pedagogico/',
+        DiagnosticoPedagogicoView.as_view(),
+        name='diagnostico-pedagogico',
     ),
     *router.urls,
 ]

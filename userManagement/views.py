@@ -3,10 +3,13 @@ from django.contrib.auth import authenticate, login, logout
 from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import decorators, generics, permissions, status, viewsets
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
+
+from assistantManagement.models import MemoriaPedagogicaUsuario
 
 from .audit import registrar_evento
 from .models import (
@@ -22,6 +25,7 @@ from .serializers import (
     AuthSerializer,
     ChangePasswordSerializer,
     ConquistaUsuarioSerializer,
+    DiagnosticoPedagogicoSerializer,
     EventoAuditoriaSerializer,
     InteresseSerializer,
     ItemInventarioSerializer,
@@ -308,6 +312,61 @@ class InteresseListView(generics.ListAPIView):
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = InteresseSerializer
     queryset = Interesse.objects.filter(ativo=True)
+
+
+class DiagnosticoPedagogicoView(generics.GenericAPIView):
+    """Raio-X de aprendizado do usuário logado (VAR-126).
+
+    Só lê a MemoriaPedagogicaUsuario já consolidada (uma consulta), sem recalcular:
+    a consolidação roda em segundo plano a cada submissão de atividade (VAR-118).
+    """
+
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = DiagnosticoPedagogicoSerializer
+
+    @extend_schema(
+        summary='Diagnóstico pedagógico do estudante logado',
+        description=(
+            'Retorna os pontos fortes, os tópicos com dificuldade, a taxa de acerto geral, '
+            'o total de atividades avaliadas e a data da última consolidação da memória '
+            'pedagógica do usuário autenticado. Usuários sem memória consolidada recebem '
+            '200 com listas vazias, taxa 0 e ultima_atualizacao nula.'
+        ),
+        responses={
+            200: OpenApiResponse(
+                response=DiagnosticoPedagogicoSerializer,
+                description='Diagnóstico do usuário (ou payload padrão sem histórico).',
+            ),
+        },
+        tags=['users'],
+    )
+    def get(self, request):
+        memoria = (
+            MemoriaPedagogicaUsuario.objects.filter(usuario=request.user)
+            .only(
+                'pontos_fortes', 'topicos_dificuldade', 'taxa_acerto_geral',
+                'total_atividades_avaliadas', 'atualizado_em',
+            )
+            .first()
+        )
+        if memoria is None:
+            dados = {
+                'pontos_fortes': [],
+                'topicos_dificuldade': [],
+                'taxa_acerto_geral': 0.0,
+                'total_atividades_avaliadas': 0,
+                'ultima_atualizacao': None,
+            }
+        else:
+            dados = {
+                'pontos_fortes': memoria.pontos_fortes or [],
+                'topicos_dificuldade': memoria.topicos_dificuldade or [],
+                'taxa_acerto_geral': memoria.taxa_acerto_geral,
+                'total_atividades_avaliadas': memoria.total_atividades_avaliadas,
+                'ultima_atualizacao': memoria.atualizado_em,
+            }
+        return Response(self.get_serializer(dados).data)
 
 
 class SolicitacaoRevisaoViewSet(viewsets.ModelViewSet):
