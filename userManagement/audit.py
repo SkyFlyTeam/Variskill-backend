@@ -63,3 +63,14 @@ def registrar_evento(
         )
     except Exception:
         logger.exception('Falha ao registrar evento de auditoria.')
+
+
+def registrar_chamada_ia_externa(modelo: str, origem: str = 'OPENAI', resultado='SUCESSO'):
+    """Registra a chamada externa sem conteúdo da pergunta/resposta (LGPD)."""
+    registrar_evento(
+        usuario=None,
+        acao='CHAMADA_IA_EXTERNA',
+        resultado=resultado,
+        recurso='IA_EXTERNA',
+        metadata={'modelo': modelo, 'origem': origem},
+    )

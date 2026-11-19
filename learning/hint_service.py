@@ -11,6 +11,8 @@ from rest_framework.exceptions import NotFound
 
 from assistantManagement.models import Mensagem, Sessao
 from questionsManagement.models import Questao
+from semanticSearch.service.sanitizer import TextSanitizer
+from userManagement.audit import registrar_chamada_ia_externa
 
 from .circuit_breaker import CircuitBreaker
 
@@ -74,14 +76,16 @@ class HintService:
             f"NUNCA revele a resposta ou o gabarito final."
         )
 
-        # Minimização (LGPD): não enviamos o código da questão e limitamos o texto
-        # livre do aluno. A transferência internacional ainda exige base/instrumento
-        # documentado pelo controlador (ver docs de LGPD).
+        # Minimização (LGPD): removemos PII do texto livre e limitamos o tamanho
+        # antes de qualquer chamada externa.
         max_chars = getattr(settings, 'LGPD_MAX_PROMPT_CHARS', 500)
-        pergunta_minimizada = (pergunta or '')[:max_chars]
+        pergunta_limpa = TextSanitizer.sanitizar(pergunta or '', remover_saudacao=False)
+        pergunta_minimizada = (pergunta_limpa or pergunta or '')[:max_chars]
+        modelo = os.environ.get("EXTERNAL_AI_MODEL", "gpt-4o-mini")
+        registrar_chamada_ia_externa(modelo)
 
         payload = json.dumps({
-            "model": os.environ.get("EXTERNAL_AI_MODEL", "gpt-4o-mini"),
+            "model": modelo,
             "messages": [
                 {"role": "system", "content": prompt_system},
                 {"role": "user", "content": pergunta_minimizada},
@@ -151,10 +155,13 @@ class HintService:
             prompt_system += f" Contexto do tema/trilha: {contexto_extra}."
 
         max_chars = getattr(settings, 'LGPD_MAX_PROMPT_CHARS', 500)
-        pergunta_minimizada = (pergunta or '')[:max_chars]
+        pergunta_limpa = TextSanitizer.sanitizar(pergunta or '', remover_saudacao=False)
+        pergunta_minimizada = (pergunta_limpa or pergunta or '')[:max_chars]
+        modelo = os.environ.get("EXTERNAL_AI_MODEL", "gpt-4o-mini")
+        registrar_chamada_ia_externa(modelo)
 
         payload = json.dumps({
-            "model": os.environ.get("EXTERNAL_AI_MODEL", "gpt-4o-mini"),
+            "model": modelo,
             "messages": [
                 {"role": "system", "content": prompt_system},
                 {"role": "user", "content": pergunta_minimizada},
