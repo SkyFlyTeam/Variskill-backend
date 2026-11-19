@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -5,6 +7,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
+    AceiteResponsavel,
     Conquista,
     EventoAuditoria,
     Interesse,
@@ -13,6 +16,12 @@ from .models import (
     UsuarioInventario,
 )
 from .services import GamificationService
+from .utils import (
+    MENSAGEM_MENOR_SEM_RESPONSAVEL,
+    apenas_digitos,
+    formatar_cpf,
+    validar_cpf,
+)
 
 User = get_user_model()
 
@@ -21,6 +30,29 @@ class InteresseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Interesse
         fields = ('id', 'nome')
+
+
+class ResponsavelSerializer(serializers.ModelSerializer):
+    """Dados do responsável legal (somente para titulares menores de 18)."""
+
+    cpf = serializers.CharField(max_length=14)
+
+    class Meta:
+        model = AceiteResponsavel
+        fields = ('nome', 'cpf', 'email', 'criado_em')
+        read_only_fields = ('criado_em',)
+
+    def validate_cpf(self, value):
+        if not validar_cpf(value):
+            raise serializers.ValidationError('Informe um CPF válido.')
+        return apenas_digitos(value)
+
+    def to_representation(self, instance):
+        dados = super().to_representation(instance)
+        # Devolve o CPF formatado apenas para o próprio titular/admin.
+        dados['cpf'] = formatar_cpf(instance.cpf)
+        return dados
+
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -34,6 +66,10 @@ class UserSerializer(serializers.ModelSerializer):
     streak = serializers.SerializerMethodField()
     aceite_versao = serializers.CharField(write_only=True, required=False, allow_blank=True)
     aceite_termos = serializers.BooleanField(write_only=True, required=False)
+    idade = serializers.IntegerField(
+        min_value=1, max_value=120, required=False, allow_null=True
+    )
+    responsavel = ResponsavelSerializer(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -44,6 +80,7 @@ class UserSerializer(serializers.ModelSerializer):
             'nivel', 'progresso_nivel', 'streak',
             'aceite_privacidade_versao', 'aceite_privacidade_em',
             'consentimento_revogado_em', 'anonimizado_em',
+            'responsavel',
             'aceite_versao', 'aceite_termos',
         )
         read_only_fields = (
@@ -88,14 +125,42 @@ class UserSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if self.instance is None and not attrs.get('password'):
             raise serializers.ValidationError({'password': 'This field is required.'})
+
+        idade = attrs.get('idade', self.instance.idade if self.instance else None)
+
+        if self.instance is None and idade is None:
+            raise serializers.ValidationError({'idade': 'Informe a idade.'})
+
+        if self.instance is not None and 'idade' in attrs and idade is None:
+            raise serializers.ValidationError({'idade': 'Informe a idade.'})
+
+        responsavel = attrs.get('responsavel', serializers.empty)
+        tem_aceite = (
+            self.instance is not None
+            and getattr(self.instance, 'aceite_responsavel', None) is not None
+        )
+
+        if idade is not None and idade < 18:
+            if responsavel is serializers.empty and not tem_aceite:
+                raise serializers.ValidationError(
+                    {'responsavel': MENSAGEM_MENOR_SEM_RESPONSAVEL}
+                )
+        elif responsavel not in (serializers.empty, None):
+            raise serializers.ValidationError({
+                'responsavel': (
+                    'Dados do responsável só são necessários para menores de 18 anos.'
+                )
+            })
+
         return attrs
 
     def create(self, validated_data):
         validated_data.pop('interesses_ids', None)
         aceite_termos = validated_data.pop('aceite_termos', False)
         aceite_versao = validated_data.pop('aceite_versao', None)
+        responsavel = validated_data.pop('responsavel', None)
         password = validated_data.pop('password')
-        versao_termos = aceite_versao or getattr(settings, 'TERMOS_DE_USO_VERSAO', '1.0')
+        versao_termos = aceite_versao or getattr(settings, 'TERMOS_DE_USO_VERSAO', '1.1')
 
         with transaction.atomic():
             user = User(**validated_data)
@@ -105,12 +170,15 @@ class UserSerializer(serializers.ModelSerializer):
                 user.consentimento_revogado_em = None
             user.set_password(password)
             user.save()
+            if responsavel:
+                AceiteResponsavel.objects.create(usuario=user, **responsavel)
         return user
 
     def update(self, instance, validated_data):
         interesses_ids = validated_data.pop('interesses_ids', None)
         validated_data.pop('aceite_termos', None)
         aceite_versao = validated_data.pop('aceite_versao', None)
+        responsavel = validated_data.pop('responsavel', None)
         password = validated_data.pop('password', None)
         if password is not None:
             raise serializers.ValidationError({
@@ -127,6 +195,12 @@ class UserSerializer(serializers.ModelSerializer):
                 instance.consentimento_revogado_em = None
 
             instance.save()
+
+            if responsavel:
+                AceiteResponsavel.objects.update_or_create(
+                    usuario=instance,
+                    defaults=responsavel,
+                )
 
             if interesses_ids is not None:
                 UsuarioInteresse.objects.filter(usuario=instance).delete()
@@ -157,13 +231,19 @@ class AuthSerializer(serializers.Serializer):
 
 
 class SolicitacaoRevisaoSerializer(serializers.ModelSerializer):
+    prazo_resposta = serializers.SerializerMethodField()
+
     class Meta:
         model = SolicitacaoRevisao
         fields = (
             'id', 'tipo', 'referencia_id', 'status',
-            'criado_em', 'respondido_em', 'resposta',
+            'criado_em', 'respondido_em', 'resposta', 'prazo_resposta',
         )
         read_only_fields = ('id', 'criado_em', 'respondido_em', 'resposta')
+
+    def get_prazo_resposta(self, obj):
+        dias = getattr(settings, 'LGPD_SLA_REVISAO_DIAS', 15)
+        return obj.criado_em + timedelta(days=dias)
 
 
 class SolicitacaoRevisaoCreateSerializer(serializers.ModelSerializer):
@@ -173,9 +253,15 @@ class SolicitacaoRevisaoCreateSerializer(serializers.ModelSerializer):
 
 
 class SolicitacaoRevisaoAdminSerializer(serializers.ModelSerializer):
+    prazo_resposta = serializers.SerializerMethodField()
+
     class Meta:
         model = SolicitacaoRevisao
-        fields = ('status', 'resposta')
+        fields = ('status', 'resposta', 'prazo_resposta')
+
+    def get_prazo_resposta(self, obj):
+        dias = getattr(settings, 'LGPD_SLA_REVISAO_DIAS', 15)
+        return obj.criado_em + timedelta(days=dias)
 
 
 class ChangePasswordSerializer(serializers.Serializer):

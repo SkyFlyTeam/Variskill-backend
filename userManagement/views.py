@@ -1,8 +1,10 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.db import transaction
+from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.text import slugify
 from rest_framework import decorators, generics, permissions, status, viewsets
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -30,13 +32,33 @@ from .serializers import (
     SolicitacaoRevisaoSerializer,
     UserSerializer,
 )
-from .services import anonimizar_usuario, exportar_dados_usuario
+from .services import (
+    anonimizar_usuario,
+    exportar_dados_csv,
+)
 
 PROFILE_AUDIT_FIELDS = ('nome', 'apelido', 'email', 'sexo', 'idade')
 
 
 def _profile_snapshot(user):
     return {field: getattr(user, field) for field in PROFILE_AUDIT_FIELDS}
+
+
+def _registrar_aceite_responsavel(request, usuario):
+    """Registra em auditoria quando dados do responsável foram criados/atualizados."""
+    dados = getattr(request, 'data', None) or {}
+    if not isinstance(dados, dict) or 'responsavel' not in dados:
+        return
+    if getattr(usuario, 'aceite_responsavel', None) is None:
+        return
+    registrar_evento(
+        usuario=request.user,
+        acao='ACEITE_RESPONSAVEL',
+        request=request,
+        recurso='USER',
+        recurso_id=usuario.pk,
+        metadata={'menor_de_idade': usuario.menor_de_idade},
+    )
 
 
 def _registrar_alteracao_perfil(request, usuario, antes):
@@ -70,7 +92,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_permissions(self):
-        if self.action in ('hard_delete', 'admin_export'):
+        if self.action in ('hard_delete', 'admin_export', 'revogar_consentimento'):
             return [permissions.IsAdminUser()]
         if self.action == 'create' and getattr(settings, 'LGPD_RESTRINGIR_USERS', True):
             return [permissions.IsAdminUser()]
@@ -117,6 +139,7 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         _registrar_alteracao_perfil(request, request.user, antes)
+        _registrar_aceite_responsavel(request, request.user)
         return Response(serializer.data)
 
     def perform_update(self, serializer):
@@ -124,6 +147,70 @@ class UserViewSet(viewsets.ModelViewSet):
         antes = _profile_snapshot(instance)
         serializer.save()
         _registrar_alteracao_perfil(self.request, instance, antes)
+        _registrar_aceite_responsavel(self.request, instance)
+
+    @decorators.action(detail=False, methods=['get'], url_path='me/exportar-csv')
+    def exportar_csv(self, request):
+        """Exportação self-service: sempre o próprio titular, nunca outro e-mail."""
+        conteudo = exportar_dados_csv(request.user)
+        apelido = slugify(request.user.apelido) or 'titular'
+        response = HttpResponse(conteudo, content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = (
+            f'attachment; filename="variskill-dados-{apelido}.csv"'
+        )
+        registrar_evento(
+            usuario=request.user,
+            acao='EXPORTACAO_DADOS',
+            request=request,
+            recurso='USER',
+            recurso_id=request.user.pk,
+            metadata={'canal': 'self_service'},
+        )
+        return response
+
+    @decorators.action(
+        detail=False,
+        methods=['post'],
+        url_path='revogar-consentimento',
+    )
+    def revogar_consentimento(self, request):
+        """Revogação administrativa do consentimento (sem anonimizar a conta)."""
+        email = (
+            request.query_params.get('email')
+            or (request.data.get('email') if isinstance(request.data, dict) else '')
+            or ''
+        ).strip()
+        if not email:
+            raise ValidationError({'email': 'Informe o e-mail do titular.'})
+
+        target = User.objects.filter(email__iexact=email).first()
+        if target is None:
+            raise NotFound('Usuário não encontrado para o e-mail informado.')
+
+        ja_revogado = target.consentimento_revogado_em is not None
+        if not ja_revogado:
+            target.consentimento_revogado_em = timezone.now()
+            target.save(update_fields=['consentimento_revogado_em'])
+
+        registrar_evento(
+            usuario=request.user,
+            acao='CONSENTIMENTO_REVOGADO',
+            request=request,
+            recurso='USER',
+            recurso_id=target.pk,
+            metadata={
+                'email_alvo': target.email,
+                'canal': 'admin',
+                'ja_revogado': ja_revogado,
+            },
+        )
+
+        return Response({
+            'id': str(target.pk),
+            'email': target.email,
+            'consentimento_revogado_em': target.consentimento_revogado_em,
+            'ja_revogado': ja_revogado,
+        })
 
     @decorators.action(detail=False, methods=['get'], url_path='admin-export')
     def admin_export(self, request):
@@ -135,8 +222,11 @@ class UserViewSet(viewsets.ModelViewSet):
         if target is None:
             raise NotFound('Usuário não encontrado para o e-mail informado.')
 
-        response = Response(exportar_dados_usuario(target))
-        response['Content-Disposition'] = 'attachment; filename="variskill-dados-titular.json"'
+        conteudo = exportar_dados_csv(target)
+        response = HttpResponse(conteudo, content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = (
+            'attachment; filename="variskill-dados-titular.csv"'
+        )
         registrar_evento(
             usuario=request.user,
             acao='EXPORTACAO_DADOS',
@@ -239,7 +329,20 @@ class RegisterView(generics.GenericAPIView):
             request=request,
             recurso='USER',
             recurso_id=user.pk,
+            metadata={
+                'menor_de_idade': user.menor_de_idade,
+                'responsavel_registrado': user.responsavel is not None,
+            },
         )
+        if user.responsavel is not None:
+            registrar_evento(
+                usuario=user,
+                acao='ACEITE_RESPONSAVEL',
+                request=request,
+                recurso='USER',
+                recurso_id=user.pk,
+                metadata={'menor_de_idade': True},
+            )
         registrar_evento(
             usuario=user,
             acao='CONSENTIMENTO_CONCEDIDO',

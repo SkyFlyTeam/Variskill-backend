@@ -71,7 +71,20 @@ LGPD_CAMPOS_READONLY = _env_bool('LGPD_CAMPOS_READONLY', True)
 LGPD_RETENCAO_DIAS = int(os.environ.get('LGPD_RETENCAO_DIAS', '365'))
 LGPD_AUDITORIA_RETENCAO_DIAS = int(os.environ.get('LGPD_AUDITORIA_RETENCAO_DIAS', '365'))
 LGPD_MAX_PROMPT_CHARS = int(os.environ.get('LGPD_MAX_PROMPT_CHARS', '500'))
-TERMOS_DE_USO_VERSAO = os.environ.get('TERMOS_DE_USO_VERSAO', '1.0')
+# Prazos de retenção por categoria (fallback no prazo único acima).
+LGPD_RETENCAO_MENSAGENS_DIAS = int(
+    os.environ.get('LGPD_RETENCAO_MENSAGENS_DIAS', str(LGPD_RETENCAO_DIAS))
+)
+LGPD_RETENCAO_EXECUCOES_DIAS = int(
+    os.environ.get('LGPD_RETENCAO_EXECUCOES_DIAS', str(LGPD_RETENCAO_DIAS))
+)
+LGPD_RETENCAO_AUDITORIA_DIAS = int(
+    os.environ.get('LGPD_RETENCAO_AUDITORIA_DIAS', str(LGPD_AUDITORIA_RETENCAO_DIAS))
+)
+# SLA de resposta às solicitações de revisão do titular.
+LGPD_SLA_REVISAO_DIAS = int(os.environ.get('LGPD_SLA_REVISAO_DIAS', '15'))
+# Versão do documento único de Termos + Aviso (public/docs/Termos_uso.md).
+TERMOS_DE_USO_VERSAO = '1.1'
 
 if not DEBUG and (
     not LGPD_RESTRINGIR_USERS
