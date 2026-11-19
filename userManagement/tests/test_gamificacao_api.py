@@ -65,26 +65,33 @@ def test_lista_conquistas_ordenadas_com_status_de_desbloqueio(cliente, usuario):
     assert parse_datetime(dados[1]['desbloqueada_em']) == desbloqueio.desbloqueado_em
 
 
-def test_inventario_agrupado_por_categoria(cliente, usuario):
+def test_inventario_lista_todos_os_itens_com_status_de_desbloqueio(cliente, usuario):
     avatar = _item('avatar', 'AVATAR')
     titulo = _item('titulo', 'TITULO')
-    _item('fora_do_inventario', 'BORDA')
+    bloqueada = _item('bloqueada', 'BORDA')
+    alheia = _item('alheia', 'BORDA')
     inv_avatar = UsuarioInventario.objects.create(usuario=usuario, item=avatar, equipado=True)
     inv_titulo = UsuarioInventario.objects.create(usuario=usuario, item=titulo)
-    UsuarioInventario.objects.create(usuario=baker.make(User), item=_item('alheio', 'BORDA'))
+    UsuarioInventario.objects.create(usuario=baker.make(User), item=alheia, equipado=True)
 
     response = cliente.get(reverse('gamificacao-inventario'))
 
     assert response.status_code == 200
     dados = response.json()
     assert set(dados) == {'avatares', 'titulos', 'bordas'}
-    assert [(i['id'], i['item_id'], i['equipado']) for i in dados['avatares']] == [
-        (str(inv_avatar.pk), str(avatar.pk), True)
+
+    def resumo(itens):
+        return [(i['id'], i['item_id'], i['desbloqueado'], i['equipado']) for i in itens]
+
+    assert resumo(dados['avatares']) == [(str(inv_avatar.pk), str(avatar.pk), True, True)]
+    assert resumo(dados['titulos']) == [(str(inv_titulo.pk), str(titulo.pk), True, False)]
+    # Itens não desbloqueados aparecem, sem id de inventário e sem vazar dados de outros usuários.
+    assert resumo(dados['bordas']) == [
+        (None, str(alheia.pk), False, False),
+        (None, str(bloqueada.pk), False, False),
     ]
-    assert [(i['id'], i['item_id'], i['equipado']) for i in dados['titulos']] == [
-        (str(inv_titulo.pk), str(titulo.pk), False)
-    ]
-    assert dados['bordas'] == []
+    assert all(i['desbloqueado_em'] is None for i in dados['bordas'])
+    assert dados['avatares'][0]['desbloqueado_em'] is not None
 
 
 def test_equipar_item_desequipa_anterior_do_mesmo_tipo(cliente, usuario):

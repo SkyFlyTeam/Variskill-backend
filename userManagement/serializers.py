@@ -8,9 +8,9 @@ from .models import (
     Conquista,
     EventoAuditoria,
     Interesse,
+    ItemCosmetico,
     SolicitacaoRevisao,
     UsuarioInteresse,
-    UsuarioInventario,
 )
 from .services import GamificationService
 
@@ -23,8 +23,25 @@ class InteresseSerializer(serializers.ModelSerializer):
         fields = ('id', 'nome')
 
 
+class ItemEquipadoSerializer(serializers.ModelSerializer):
+    """Resumo de um item cosmético equipado no perfil."""
+
+    class Meta:
+        model = ItemCosmetico
+        fields = (
+            'id', 'nome', 'descricao', 'tipo', 'raridade',
+            'recurso_visual', 'asset_url',
+        )
+        read_only_fields = fields
+
+
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
+    # Somente leitura: para trocar, use POST /gamificacao/inventario/<id>/equipar/.
+    avatar_equipado = ItemEquipadoSerializer(read_only=True)
+    titulo_equipado = ItemEquipadoSerializer(read_only=True)
+    borda_equipada = ItemEquipadoSerializer(read_only=True)
+    conquistas_desbloqueadas = serializers.SerializerMethodField()
     interesses = serializers.SerializerMethodField(read_only=True)
     interesses_ids = serializers.ListField(
         child=serializers.UUIDField(), write_only=True, required=False
@@ -42,6 +59,8 @@ class UserSerializer(serializers.ModelSerializer):
             'xp_total', 'streak_dias', 'is_primeiro_acesso',
             'sexo', 'idade', 'interesses', 'interesses_ids',
             'nivel', 'progresso_nivel', 'streak',
+            'avatar_equipado', 'titulo_equipado', 'borda_equipada',
+            'conquistas_desbloqueadas',
             'aceite_privacidade_versao', 'aceite_privacidade_em',
             'consentimento_revogado_em', 'anonimizado_em',
             'aceite_versao', 'aceite_termos',
@@ -80,6 +99,9 @@ class UserSerializer(serializers.ModelSerializer):
             'concluiu_hoje': obj.ultimo_dia_estudo == timezone.localdate(),
             'ultimo_dia': obj.ultimo_dia_estudo,
         }
+
+    def get_conquistas_desbloqueadas(self, obj) -> int:
+        return obj.conquistas_usuario.count()
 
     def get_interesses(self, obj):
         interesses = Interesse.objects.filter(usuarios_interessados__usuario=obj)
@@ -251,20 +273,44 @@ class ConquistaUsuarioSerializer(serializers.ModelSerializer):
 
 
 class ItemInventarioSerializer(serializers.ModelSerializer):
-    """Item cosmético possuído pelo usuário. ``id`` é o id do registro de inventário."""
+    """Item cosmético do catálogo com o status de posse do usuário autenticado.
 
-    item_id = serializers.UUIDField(source='item.id', read_only=True)
-    nome = serializers.CharField(source='item.nome', read_only=True)
-    descricao = serializers.CharField(source='item.descricao', read_only=True)
-    tipo = serializers.CharField(source='item.tipo', read_only=True)
-    raridade = serializers.CharField(source='item.raridade', read_only=True)
-    recurso_visual = serializers.CharField(source='item.recurso_visual', read_only=True)
-    asset_url = serializers.CharField(source='item.asset_url', read_only=True)
+    Espera no contexto ``registros``: dict {item_id: UsuarioInventario}.
+    ``id`` é o id do registro de inventário (usado para equipar) e é ``None``
+    quando o item ainda não foi desbloqueado.
+    """
+
+    id = serializers.SerializerMethodField()
+    item_id = serializers.UUIDField(source='pk', read_only=True)
+    desbloqueado = serializers.SerializerMethodField()
+    equipado = serializers.SerializerMethodField()
+    desbloqueado_em = serializers.SerializerMethodField()
 
     class Meta:
-        model = UsuarioInventario
+        model = ItemCosmetico
         fields = (
             'id', 'item_id', 'nome', 'descricao', 'tipo', 'raridade',
-            'recurso_visual', 'asset_url', 'equipado', 'desbloqueado_em',
+            'recurso_visual', 'asset_url', 'desbloqueado', 'equipado',
+            'desbloqueado_em',
         )
         read_only_fields = fields
+
+    def _registro(self, obj):
+        return self.context.get('registros', {}).get(obj.pk)
+
+    def get_id(self, obj):
+        registro = self._registro(obj)
+        return str(registro.pk) if registro else None
+
+    def get_desbloqueado(self, obj) -> bool:
+        return self._registro(obj) is not None
+
+    def get_equipado(self, obj) -> bool:
+        registro = self._registro(obj)
+        return bool(registro and registro.equipado)
+
+    def get_desbloqueado_em(self, obj):
+        registro = self._registro(obj)
+        if registro is None:
+            return None
+        return serializers.DateTimeField().to_representation(registro.desbloqueado_em)
