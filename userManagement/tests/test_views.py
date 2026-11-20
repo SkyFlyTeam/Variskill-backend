@@ -36,7 +36,7 @@ def interesse_django():
 def test_register_creates_user_and_session(client, django_user_model):
     response = client.post(
         reverse('register'),
-        {'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123', 'aceite_termos': True},
+        {'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123', 'idade': 21, 'aceite_termos': True},
         format='json',
     )
 
@@ -51,7 +51,7 @@ def test_register_creates_user_and_session(client, django_user_model):
     assert response.data['streak_dias'] == 0
     assert response.data['is_primeiro_acesso'] is True
     assert response.data['sexo'] is None
-    assert response.data['idade'] is None
+    assert response.data['idade'] == 21
     assert response.data['interesses'] == []
     assert response.data['nivel'] == 1
     assert response.data['progresso_nivel'] == {
@@ -75,6 +75,7 @@ def test_register_requires_aceite_termos(client, django_user_model):
             'nome': 'Sem Termos',
             'email': 'sem-termos@example.com',
             'password': 'test-password-123',
+            'idade': 21,
         },
         format='json',
     )
@@ -85,9 +86,9 @@ def test_register_requires_aceite_termos(client, django_user_model):
 
 
 @pytest.mark.parametrize('payload, field', [
-    ({'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com'}, 'password'),
-    ({'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123'}, 'apelido'),
-    ({'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': ''}, 'password'),
+    ({'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'idade': 21}, 'password'),
+    ({'nome': 'Alice', 'email': 'alice@example.com', 'password': 'test-password-123', 'idade': 21}, 'apelido'),
+    ({'apelido': 'alice', 'nome': 'Alice', 'email': 'alice@example.com', 'password': '', 'idade': 21}, 'password'),
 ])
 def test_register_rejects_invalid_data(client, django_user_model, payload, field):
     response = client.post(reverse('register'), payload, format='json')
@@ -101,7 +102,7 @@ def test_register_rejects_invalid_data(client, django_user_model, payload, field
 def test_register_rejects_duplicate_apelido(client, user, django_user_model):
     response = client.post(
         reverse('register'),
-        {'apelido': user.apelido, 'nome': user.nome, 'email': user.email, 'password': 'another-password'},
+        {'apelido': user.apelido, 'nome': user.nome, 'email': user.email, 'password': 'another-password', 'idade': 21},
         format='json',
     )
 
@@ -264,7 +265,7 @@ def test_admin_can_create_user(client, django_user_model):
 
     response = client.post(
         reverse('user-list'),
-        {'apelido': 'bob', 'nome': 'Bob', 'email': 'bob@example.com', 'password': 'new-password'},
+        {'apelido': 'bob', 'nome': 'Bob', 'email': 'bob@example.com', 'password': 'new-password', 'idade': 21},
         format='json',
     )
 
