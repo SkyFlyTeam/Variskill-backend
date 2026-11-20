@@ -197,6 +197,21 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = os.environ.get('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles')
 
+# Media files (Local fallback para uploads e assets)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.environ.get('DJANGO_MEDIA_ROOT', BASE_DIR / 'media')
+
+# AWS S3 Settings (VAR-127)
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
+AWS_SESSION_TOKEN = os.environ.get('AWS_SESSION_TOKEN', '')
+AWS_USE_IAM_ROLE = os.environ.get('AWS_USE_IAM_ROLE', 'False')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME', '')
+AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
+AWS_S3_CUSTOM_DOMAIN = os.environ.get('AWS_S3_CUSTOM_DOMAIN', '')
+AWS_ENDPOINT_URL = os.environ.get('AWS_ENDPOINT_URL', '')
+
+
 
 # Django REST Framework
 # https://www.django-rest-framework.org/
