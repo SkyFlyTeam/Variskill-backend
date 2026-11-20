@@ -66,3 +66,38 @@ def test_novo_usuario_recebe_itens_padrao_automaticamente():
     assert UsuarioInventario.objects.filter(
         usuario=usuario, item__padrao_desbloqueado=True
     ).count() == 3
+
+
+def _nomes_equipados(usuario):
+    usuario.refresh_from_db()
+    return (
+        usuario.avatar_equipado.nome,
+        usuario.titulo_equipado.nome,
+        usuario.borda_equipada.nome,
+    )
+
+
+def test_novo_usuario_ja_vem_com_itens_padrao_equipados():
+    _seed()
+    usuario = User.objects.create_user(apelido='novato', password='senha-forte-123', email='n@x.com')
+
+    assert _nomes_equipados(usuario) == ('Vari Clássico', 'Estudante VariSkill', 'Borda Básica')
+    assert set(
+        UsuarioInventario.objects.filter(usuario=usuario, equipado=True)
+        .values_list('item__nome', flat=True)
+    ) == {'Vari Clássico', 'Estudante VariSkill', 'Borda Básica'}
+
+
+def test_seed_equipa_padroes_em_usuarios_existentes_sem_sobrescrever_escolhas():
+    usuario = baker.make(User)
+    _seed()
+    titulo_escolhido = ItemCosmetico.objects.get(nome='Mestre da Lógica')
+    UsuarioInventario.objects.create(usuario=usuario, item=titulo_escolhido, equipado=True)
+    UsuarioInventario.objects.filter(usuario=usuario, item__tipo='TITULO').exclude(
+        item=titulo_escolhido
+    ).update(equipado=False)
+    User.objects.filter(pk=usuario.pk).update(titulo_equipado=titulo_escolhido)
+
+    _seed()
+
+    assert _nomes_equipados(usuario) == ('Vari Clássico', 'Mestre da Lógica', 'Borda Básica')

@@ -9,6 +9,13 @@ from django.utils import timezone
 from activityManagement.models import ExecucaoAtividade, RespostaQuestao
 from .models import ItemCosmetico, RegistroAcessoDiario, User, UsuarioInventario
 
+# Tipo do item cosmético -> FK correspondente em User.
+CAMPO_EQUIPADO_POR_TIPO = {
+    'AVATAR': 'avatar_equipado',
+    'TITULO': 'titulo_equipado',
+    'BORDA': 'borda_equipada',
+}
+
 
 class GamificationService:
     @staticmethod
@@ -183,9 +190,11 @@ class StreakService:
 
 
 def conceder_itens_padrao(usuarios, itens=None) -> int:
-    """Garante que os itens cosméticos padrão estejam no inventário dos usuários.
+    """Garante que os itens cosméticos padrão estejam no inventário dos usuários
+    e equipa o item padrão de cada tipo nos slots que ainda estão vazios.
 
-    Idempotente: vínculos já existentes são ignorados (unique usuario+item).
+    Idempotente: vínculos já existentes são ignorados (unique usuario+item) e
+    slots já equipados não são sobrescritos.
     Retorna a quantidade de vínculos efetivamente criados.
     """
     if isinstance(usuarios, User):
@@ -207,7 +216,31 @@ def conceder_itens_padrao(usuarios, itens=None) -> int:
         if (uid, item.pk) not in existentes
     ]
     UsuarioInventario.objects.bulk_create(novos, ignore_conflicts=True)
+    _equipar_padroes_em_slots_vazios(usuarios, itens)
     return len(novos)
+
+
+def _equipar_padroes_em_slots_vazios(usuarios, itens):
+    # Um item padrão por tipo; ordena por nome para ser determinístico.
+    padrao_por_tipo = {}
+    for item in sorted(itens, key=lambda i: i.nome):
+        if item.tipo in CAMPO_EQUIPADO_POR_TIPO:
+            padrao_por_tipo.setdefault(item.tipo, item)
+
+    usuario_ids = [u.pk for u in usuarios]
+    for tipo, item in padrao_por_tipo.items():
+        campo = CAMPO_EQUIPADO_POR_TIPO[tipo]
+        vazios = User.objects.filter(pk__in=usuario_ids, **{f'{campo}__isnull': True})
+        ids = set(vazios.values_list('pk', flat=True))
+        if not ids:
+            continue
+        User.objects.filter(pk__in=ids, **{f'{campo}__isnull': True}).update(**{campo: item})
+        UsuarioInventario.objects.filter(usuario_id__in=ids, item=item).update(equipado=True)
+        # Mantém as instâncias em memória coerentes, para que um save() posterior
+        # (ex.: o próprio fluxo de criação) não sobrescreva o slot com None.
+        for usuario in usuarios:
+            if usuario.pk in ids:
+                setattr(usuario, campo, item)
 
 
 @transaction.atomic

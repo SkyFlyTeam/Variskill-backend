@@ -13,6 +13,7 @@ from .models import (
     Conquista,
     EventoAuditoria,
     Interesse,
+    ItemCosmetico,
     SolicitacaoRevisao,
     User,
     UsuarioConquista,
@@ -30,7 +31,7 @@ from .serializers import (
     SolicitacaoRevisaoSerializer,
     UserSerializer,
 )
-from .services import anonimizar_usuario, exportar_dados_usuario
+from .services import CAMPO_EQUIPADO_POR_TIPO, anonimizar_usuario, exportar_dados_usuario
 
 PROFILE_AUDIT_FIELDS = ('nome', 'apelido', 'email', 'sexo', 'idade')
 
@@ -411,9 +412,9 @@ class EventoAuditoriaListView(generics.ListAPIView):
 # Mapeia o tipo do item cosmético para a chave do agrupamento no inventário
 # e para a FK correspondente em User.
 CATEGORIAS_INVENTARIO = {
-    'AVATAR': ('avatares', 'avatar_equipado'),
-    'TITULO': ('titulos', 'titulo_equipado'),
-    'BORDA': ('bordas', 'borda_equipada'),
+    'AVATAR': ('avatares', CAMPO_EQUIPADO_POR_TIPO['AVATAR']),
+    'TITULO': ('titulos', CAMPO_EQUIPADO_POR_TIPO['TITULO']),
+    'BORDA': ('bordas', CAMPO_EQUIPADO_POR_TIPO['BORDA']),
 }
 
 
@@ -437,21 +438,27 @@ class ConquistaListView(generics.GenericAPIView):
 
 
 class InventarioView(generics.GenericAPIView):
-    """Inventário do usuário logado agrupado por categoria de item."""
+    """Catálogo de itens cosméticos agrupado por categoria, com o status de
+    desbloqueio/equipamento do usuário logado."""
 
     authentication_classes = (SessionAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = ItemInventarioSerializer
 
     def get(self, request):
-        itens = (
-            UsuarioInventario.objects.filter(usuario=request.user)
-            .select_related('item')
-            .order_by('item__nome')
+        registros = {
+            registro.item_id: registro
+            for registro in UsuarioInventario.objects.filter(usuario=request.user)
+        }
+        itens = ItemCosmetico.objects.filter(
+            tipo__in=CATEGORIAS_INVENTARIO
+        ).order_by('nome')
+        serializer = self.get_serializer(
+            itens, many=True, context={'registros': registros}
         )
         agrupado = {chave: [] for chave, _ in CATEGORIAS_INVENTARIO.values()}
-        for dado, registro in zip(self.get_serializer(itens, many=True).data, itens):
-            chave, _ = CATEGORIAS_INVENTARIO[registro.item.tipo]
+        for dado in serializer.data:
+            chave, _ = CATEGORIAS_INVENTARIO[dado['tipo']]
             agrupado[chave].append(dado)
         return Response(agrupado)
 
