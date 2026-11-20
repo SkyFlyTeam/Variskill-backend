@@ -3,6 +3,10 @@ from django.db import transaction
 
 from userManagement.models import Conquista, ItemCosmetico, User
 from userManagement.services import conceder_itens_padrao
+from settings.s3_storage import default_storage_service
+import io
+
+
 
 CONQUISTAS = [
     {
@@ -152,6 +156,36 @@ class Command(BaseCommand):
             self._log('Conquista', conquista.titulo, created)
         return conquistas
 
+    def _garantir_asset_no_storage(self, recurso_visual: str, nome: str) -> str:
+        """
+        Verifica se o asset já existe no storage (S3 ou local).
+        Se não existir, faz o upload físico do asset para o storage e só então retorna o link!
+        """
+        if not recurso_visual:
+            return ''
+
+        # Se já existir fisicamente no bucket / storage local, apenas retorna a URL
+        if default_storage_service.exists(recurso_visual):
+            return default_storage_service.get_asset_url(recurso_visual)
+
+        # Se não existe, provisiona o arquivo real no storage
+        ext = recurso_visual.split('.')[-1].lower() if '.' in recurso_visual else 'png'
+        content_type = 'image/svg+xml' if ext == 'svg' else 'image/png'
+
+        if ext == 'svg':
+            conteudo_arquivo = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="50">{nome}</text></svg>'.encode('utf-8')
+        else:
+            # 1x1 PNG mínimo válido
+            conteudo_arquivo = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+
+        url = default_storage_service.upload_asset(
+            file_content=io.BytesIO(conteudo_arquivo),
+            s3_key=recurso_visual,
+            content_type=content_type,
+        )
+        self.stdout.write(self.style.SUCCESS(f"  [Storage] Asset '{recurso_visual}' enviado para o bucket!"))
+        return url
+
     def _seed_itens(self, conquistas):
         itens_padrao = []
         for dados in ITENS_COSMETICOS:
@@ -160,12 +194,18 @@ class Command(BaseCommand):
             nome = dados.pop('nome')
             tipo = dados.pop('tipo')
             padrao = codigo_conquista is None
+            recurso_visual = dados.get('recurso_visual', '')
+
+            # Garante que o objeto existe fisicamente no bucket/storage antes de salvar a URL no banco
+            asset_url = self._garantir_asset_no_storage(recurso_visual, nome)
+
             # nome não é unique no model; (nome, tipo) é a chave natural do seed.
             item, created = ItemCosmetico.objects.update_or_create(
                 nome=nome,
                 tipo=tipo,
                 defaults={
                     **dados,
+                    'asset_url': asset_url,
                     'padrao_desbloqueado': padrao,
                     'conquista_requisito': None if padrao else conquistas[codigo_conquista],
                 },
