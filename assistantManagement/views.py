@@ -1,3 +1,6 @@
+from django.db import transaction
+from django.db.models import F
+from django.http import Http404
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -8,6 +11,8 @@ from assistantManagement.serializers import (
     DecisaoNivelSerializer,
     EnviarMensagemInputSerializer,
     EnviarMensagemResponseSerializer,
+    FeedbackDuvidaInputSerializer,
+    FeedbackDuvidaResponseSerializer,
     HistoricoSessaoResponseSerializer,
     IniciarSessaoResponseSerializer,
 )
@@ -17,6 +22,7 @@ from assistantManagement.services import (
     iniciar_sessao_chat,
     obter_historico_chat,
 )
+from semanticSearch.models import DuvidaAssimilada
 
 
 class IniciarSessaoView(APIView):
@@ -103,3 +109,35 @@ class DecidirNivelView(APIView):
 
         return Response(result, status=status.HTTP_200_OK)
 
+
+class FeedbackDuvidaView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Registrar feedback do estudante sobre uma dúvida assimilada",
+        description="Incrementa atomicamente feedbacks_positivos (util=true) ou feedbacks_negativos (util=false) da DuvidaAssimilada informada e retorna os contadores atualizados.",
+        request=FeedbackDuvidaInputSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=FeedbackDuvidaResponseSerializer,
+                description="Feedback registrado com sucesso.",
+            ),
+            404: OpenApiResponse(description="Dúvida assimilada não encontrada."),
+        },
+    )
+    def post(self, request, duvida_id):
+        serializer = FeedbackDuvidaInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        campo = "feedbacks_positivos" if serializer.validated_data["util"] else "feedbacks_negativos"
+
+        with transaction.atomic():
+            atualizados = DuvidaAssimilada.objects.filter(pk=duvida_id).update(**{campo: F(campo) + 1})
+            if not atualizados:
+                raise Http404("Dúvida assimilada não encontrada.")
+            contadores = DuvidaAssimilada.objects.filter(pk=duvida_id).values(
+                "feedbacks_positivos", "feedbacks_negativos"
+            ).get()
+
+        response_serializer = FeedbackDuvidaResponseSerializer({"sucesso": True, **contadores})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)

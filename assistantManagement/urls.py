@@ -2,6 +2,7 @@ from django.urls import path
 from assistantManagement.views import (
     DecidirNivelView,
     EnviarMensagemView,
+    FeedbackDuvidaView,
     HistoricoSessaoView,
     IniciarSessaoView,
 )
@@ -28,6 +29,11 @@ urlpatterns = [
         'sessao/<uuid:sessao_id>/decidir-nivel/',
         DecidirNivelView.as_view(),
         name='decidir-nivel',
+    ),
+    path(
+        'duvidas/<uuid:duvida_id>/feedback/',
+        FeedbackDuvidaView.as_view(),
+        name='feedback-duvida',
     ),
 ]
 

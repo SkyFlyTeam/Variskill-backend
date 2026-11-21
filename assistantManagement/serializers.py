@@ -76,3 +76,13 @@ class HistoricoSessaoResponseSerializer(serializers.Serializer):
     mensagens = MensagemHistoricoSerializer(many=True)
 
 
+
+
+class FeedbackDuvidaInputSerializer(serializers.Serializer):
+    util = serializers.BooleanField()
+
+
+class FeedbackDuvidaResponseSerializer(serializers.Serializer):
+    sucesso = serializers.BooleanField()
+    feedbacks_positivos = serializers.IntegerField()
+    feedbacks_negativos = serializers.IntegerField()
