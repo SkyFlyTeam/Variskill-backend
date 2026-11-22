@@ -1,3 +1,4 @@
+import random
 import re
 import unicodedata
 import uuid
@@ -6,13 +7,14 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from django.db import transaction
+from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 from assistantManagement.base_conhecimento import BaseConhecimento, ORIGEM_CACHE_SEMANTICO, RespostaLocal
 from assistantManagement.models import Mensagem, Sessao
 from trackManagement.models import Trilha, Modulo, Matricula, ProgressoModulo
 from trackManagement.services import efetivar_matricula, recomendar_trilhas_por_perfil
 from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
-from intents.models import Intention
+from intents.models import Intention, Response
 from learning.hint_service import CONTINGENCY_RESPONSE, HintService
 from questionsManagement.models import Questao
 from semanticSearch.service.nlp.preprocessor import TextPreprocessor
@@ -415,24 +417,140 @@ def _pedir_escolha_de_trilha(ctx: ContextoConversa, pergunta: str, modelo_sugest
     )
 
 
+# --- Saudação contextual: catálogo de templates dinâmicos (seed_intencoes.py) ---
+
+STREAK_MINIMO_ENGAJAMENTO = 3
+DIAS_SEM_ESTUDO_RETORNO = 2
+# Limita cada valor de slot para manter o payload da saudação abaixo de ~250 tokens.
+MAX_CARACTERES_SLOT = 60
+MAX_SUGESTOES_SAUDACAO = 4
+
+SUGESTOES_JORNADA = ["Tirar uma dúvida", "Ver meu progresso"]
+MODELO_SUGESTAO_RETOMADA = "Continuar {nome_atividade}"
+MODELO_SUGESTAO_REFORCO = "Quero revisar {topico_dificuldade}"
+
+
+@dataclass
+class EstadoEstudante:
+    """Slots de contexto da saudação e a atividade pendente que os originou."""
+    slots: dict
+    proxima_atividade: Optional[Atividade] = None
+    em_sequencia: bool = False
+    retornando: bool = False
+
+
+def _matricula_em_andamento(usuario) -> Optional[Matricula]:
+    return (
+        Matricula.objects.filter(usuario=usuario, status="EM_ANDAMENTO", trilha__ativo=True)
+        .select_related("trilha").order_by("-criado_em").first()
+    )
+
+
+def _encurtar(valor) -> str:
+    texto = str(valor)
+    return texto if len(texto) <= MAX_CARACTERES_SLOT else texto[: MAX_CARACTERES_SLOT - 1].rstrip() + "…"
+
+
+def _estado_estudante(usuario, resumo: Optional[ResumoPedagogico], matricula: Optional[Matricula]) -> EstadoEstudante:
+    hoje = timezone.localdate()
+    ultimo_dia = usuario.ultimo_dia_estudo
+    dias_sem_estudo = (hoje - ultimo_dia).days if ultimo_dia else None
+    # streak_dias só é zerado na próxima conclusão: sem estudo desde anteontem, a sequência já caiu.
+    streak = usuario.streak_dias if dias_sem_estudo is not None and dias_sem_estudo < DIAS_SEM_ESTUDO_RETORNO else 0
+
+    slots = {"nome": usuario.nome or usuario.apelido or "Estudante"}
+    if streak:
+        slots["streak_dias"] = streak
+
+    atividade = _buscar_proxima_atividade(matricula) if matricula else None
+    if atividade:
+        slots["nome_atividade"] = atividade.titulo
+        slots["nome_modulo"] = atividade.modulo.titulo
+    if resumo and resumo.modulos_com_dificuldade:
+        slots["topico_dificuldade"] = resumo.modulos_com_dificuldade[0]["titulo"]
+    if resumo and resumo.modulos_com_dominio:
+        slots["ponto_forte"] = resumo.modulos_com_dominio[0]["titulo"]
+
+    return EstadoEstudante(
+        slots={chave: _encurtar(valor) for chave, valor in slots.items()},
+        proxima_atividade=atividade,
+        em_sequencia=streak >= STREAK_MINIMO_ENGAJAMENTO,
+        retornando=dias_sem_estudo is not None and dias_sem_estudo >= DIAS_SEM_ESTUDO_RETORNO,
+    )
+
+
+def _categorias_saudacao(estado: EstadoEstudante) -> list:
+    """Categorias de template em ordem de prioridade: C (reforço), A (streak/retorno) e B (retomada)."""
+    categorias = []
+    if "topico_dificuldade" in estado.slots:
+        categorias.append("SAUDACAO_REFORCO")
+    if estado.em_sequencia:
+        categorias.append("SAUDACAO_STREAK")
+    elif estado.retornando:
+        categorias.append("SAUDACAO_RETORNO")
+    if estado.proxima_atividade:
+        categorias.append("SAUDACAO_RETOMADA")
+    return categorias
+
+
+def _templates_da_intencao(codigo: str) -> list:
+    textos = list(Response.objects.filter(intention__code=codigo).values_list("text", flat=True))
+    if textos:
+        return textos
+    # Banco ainda não semeado: recorre ao mesmo catálogo do seed, sem textos próprios no serviço.
+    from intents.management.commands.seed_intencoes import INTENCOES_CANONICAS
+    return next((item["responses"] for item in INTENCOES_CANONICAS if item["code"] == codigo), [])
+
+
+def _resolver_template(categorias: list, slots: dict) -> Optional[tuple]:
+    """
+    Sorteia um template da primeira categoria que tenha algum template com todos os slots disponíveis
+    (ex.: "{nome_atividade}" só é usado se houver atividade pendente). Retorna (categoria, texto).
+    """
+    for categoria in categorias:
+        candidatos = [
+            t for t in _templates_da_intencao(categoria)
+            if set(re.findall(r"\{(\w+)\}", t)) <= slots.keys()
+        ]
+        if candidatos:
+            return categoria, _preencher(random.choice(candidatos), **slots)
+    return None
+
+
+def _sugestoes_saudacao(estado: EstadoEstudante) -> list:
+    """Quick Chips gerados a partir do tópico a reforçar e da próxima atividade do estudante."""
+    sugestoes = []
+    if "topico_dificuldade" in estado.slots:
+        sugestoes.append(_preencher(MODELO_SUGESTAO_REFORCO, **estado.slots))
+    if estado.proxima_atividade:
+        sugestoes.append(_preencher(MODELO_SUGESTAO_RETOMADA, **estado.slots))
+        sugestoes += SUGESTOES_JORNADA
+    else:
+        sugestoes += SUGESTOES_INICIAIS
+    return sugestoes[:MAX_SUGESTOES_SAUDACAO]
+
+
+def _dados_saudacao(categoria: str, estado: EstadoEstudante) -> dict:
+    dados = {"categoria_saudacao": categoria}
+    if estado.proxima_atividade:
+        dados["atividade_id"] = str(estado.proxima_atividade.id)
+        dados["modulo_id"] = str(estado.proxima_atividade.modulo_id)
+    return dados
+
+
 # --- Handlers das intenções canônicas (intents/management/commands/seed_intencoes.py) ---
 
 def _tratar_saudacao(ctx: ContextoConversa) -> RespostaIntencao:
-    conteudo = ctx.resposta_base
-    resumo = ctx.resumo_pedagogico
-
-    if resumo and resumo.modulos_com_dificuldade:
-        topico = resumo.modulos_com_dificuldade[0]["titulo"]
-        conteudo = (
-            f"{conteudo} "
-            f"Notei que questões sobre '{topico}' foram desafiadoras na última atividade. "
-            f"Quer revisar esse conceito?"
-        )
-        sugestoes = [f"Quero revisar {topico}"] + SUGESTOES_INICIAIS[:2]
-    else:
-        sugestoes = SUGESTOES_INICIAIS
-
-    return RespostaIntencao(conteudo, sugestoes_rapidas=sugestoes)
+    estado = _estado_estudante(ctx.usuario, ctx.resumo_pedagogico, _matricula_ativa(ctx))
+    # Sem contexto relevante, vale o template de SAUDACAO já sorteado pelo classificador.
+    categoria, conteudo = _resolver_template(_categorias_saudacao(estado), estado.slots) or (
+        "SAUDACAO", ctx.resposta_base,
+    )
+    return RespostaIntencao(
+        conteudo,
+        sugestoes_rapidas=_sugestoes_saudacao(estado),
+        dados_acao=_dados_saudacao(categoria, estado),
+    )
 
 
 def _tratar_ajuda(ctx: ContextoConversa) -> RespostaIntencao:
@@ -1084,27 +1202,17 @@ HANDLERS_INTENCAO = {
 def iniciar_sessao_chat(usuario):
     """
     Cria uma sessão ativa para o estudante e retorna a mensagem de abertura do Coach
-    com sugestões rápidas de diálogo. Para estudantes com histórico de dificuldades,
-    a saudação reconhece o tópico problemático e oferece revisão imediata.
+    com sugestões rápidas de diálogo. A abertura vem do catálogo de templates do seed,
+    escolhido pelo estado do estudante: reforço do tópico vulnerável, streak ou retorno
+    após inatividade, continuidade da próxima atividade ou, por fim, boas-vindas.
     """
     sessao = Sessao.objects.create(usuario=usuario)
-    nome_usuario = usuario.nome or usuario.apelido or "Estudante"
     resumo = agregar_historico_pedagogico(usuario)
+    estado = _estado_estudante(usuario, resumo, _matricula_em_andamento(usuario))
 
-    if resumo.modulos_com_dificuldade:
-        topico = resumo.modulos_com_dificuldade[0]["titulo"]
-        conteudo_abertura = (
-            f"Que bom ter você de volta, {nome_usuario}! "
-            f"Notei que questões sobre '{topico}' foram desafiadoras na última atividade. "
-            f"Quer revisar esse conceito ou explorar uma nova área?"
-        )
-        sugestoes = [f"Quero revisar {topico}"] + SUGESTOES_INICIAIS[:2]
-    else:
-        conteudo_abertura = (
-            f"Olá, {nome_usuario}! Seja muito bem-vindo ao VariSkill! "
-            f"Eu sou o seu Coach de aprendizagem. Qual área você gostaria de dominar hoje?"
-        )
-        sugestoes = SUGESTOES_INICIAIS
+    categorias = _categorias_saudacao(estado) + ["SAUDACAO_BOAS_VINDAS", "SAUDACAO"]
+    _, conteudo_abertura = _resolver_template(categorias, estado.slots)
+    sugestoes = _sugestoes_saudacao(estado)
 
     mensagem_inicial = Mensagem.objects.create(
         sessao=sessao,
