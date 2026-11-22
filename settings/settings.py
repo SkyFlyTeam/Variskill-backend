@@ -73,6 +73,14 @@ LGPD_AUDITORIA_RETENCAO_DIAS = int(os.environ.get('LGPD_AUDITORIA_RETENCAO_DIAS'
 LGPD_MAX_PROMPT_CHARS = int(os.environ.get('LGPD_MAX_PROMPT_CHARS', '500'))
 TERMOS_DE_USO_VERSAO = os.environ.get('TERMOS_DE_USO_VERSAO', '1.0')
 
+# Base de conhecimento local do Coach (apostila EntradaCorpus + caderno DuvidaAssimilada).
+# Similaridade mínima para responder localmente, sem acionar a IA externa.
+SEMANTIC_CACHE_THRESHOLD = float(os.environ.get('SEMANTIC_CACHE_THRESHOLD', '0.82'))
+# Similaridade a partir da qual uma nova dúvida é considerada duplicata de uma já assimilada.
+ANTI_DUPLICATION_THRESHOLD = float(os.environ.get('ANTI_DUPLICATION_THRESHOLD', '0.95'))
+# Dúvida assimilada deixa de ser servida com ao menos N feedbacks negativos e mais negativos que positivos.
+DUVIDA_FEEDBACK_MIN_NEGATIVOS = int(os.environ.get('DUVIDA_FEEDBACK_MIN_NEGATIVOS', '3'))
+
 if not DEBUG and (
     not LGPD_RESTRINGIR_USERS
     or not LGPD_CAMPOS_READONLY

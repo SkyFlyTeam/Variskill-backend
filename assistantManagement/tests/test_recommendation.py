@@ -371,8 +371,8 @@ class RecomendacaoPorModuloChatTests(APITestCase):
     def test_duvida_de_conteudo_nao_e_reclassificada(self, mock_clf, mock_embed, mock_prep):
         mock_clf.return_value = self._classificacao("DUVIDA_CONTEUDO", 0.75)
 
-        with patch("assistantManagement.services.CorpusSearch") as mock_corpus:
-            mock_corpus.return_value.buscar.return_value = MagicMock(entrada=None, relacionadas=[])
+        with patch("assistantManagement.services.BaseConhecimento.buscar") as mock_base:
+            mock_base.return_value = MagicMock(resposta=None, relacionadas=[])
             dados = self._enviar(mock_prep, mock_embed, "Como funciona o laço for?")
 
         self.assertEqual(dados["intencao_detectada"], "DUVIDA_CONTEUDO")
