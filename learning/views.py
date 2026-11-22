@@ -6,7 +6,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from activityManagement.models import Atividade, Conteudo, ExecucaoAtividade
-from activityManagement.services import submit_activity
+from activityManagement.services import avaliar_conquistas_conclusao, submit_activity
 
 from .hint_service import HintService
 from .permissions import IsAdminForUnsafeMethods
@@ -14,6 +14,7 @@ from .serializers import (
     ActivityCreateSerializer,
     ActivitySerializer,
     ActivitySubmissionSerializer,
+    ConquistaDesbloqueadaSerializer,
     ContentSerializer,
     HintRequestSerializer,
     HintResponseSerializer,
@@ -108,11 +109,22 @@ class ActivityViewSet(viewsets.ModelViewSet):
                 },
             )
             gamification = GamificationService()
-            gamification.atualizar_streak(locked_user)
+            streak_dias = gamification.atualizar_streak(locked_user)
             if created and getattr(atividade, 'xp_recompensa', 0) > 0:
                 gamification.creditar_xp(locked_user, atividade)
 
-        return Response({'status': 'CONCLUIDO', 'atividade_id': str(atividade.id)})
+            # Lição não tem questões: taxa 0 evita conceder PRECISAO_MAXIMA.
+            conquistas_desbloqueadas = avaliar_conquistas_conclusao(
+                locked_user, atividade, taxa_acerto=0, streak_dias=streak_dias,
+            )
+
+        return Response({
+            'status': 'CONCLUIDO',
+            'atividade_id': str(atividade.id),
+            'conquistas_desbloqueadas': ConquistaDesbloqueadaSerializer(
+                conquistas_desbloqueadas, many=True,
+            ).data,
+        })
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):

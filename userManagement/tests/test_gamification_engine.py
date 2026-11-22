@@ -30,7 +30,15 @@ def engine():
 
 @pytest.fixture
 def modulo():
-    return baker.make(Modulo, trilha=baker.make(Trilha))
+    # Outro módulo com atividade pendente: concluir `modulo` não conclui a trilha.
+    trilha = baker.make(Trilha)
+    baker.make(Atividade, modulo=baker.make(Modulo, trilha=trilha), ativo=True)
+    return baker.make(Modulo, trilha=trilha)
+
+
+@pytest.fixture
+def trilha():
+    return baker.make(Trilha)
 
 
 def _atividade_com_questao(modulo, xp=100):
@@ -157,3 +165,87 @@ def test_resubmissao_nao_duplica_conquistas(client, usuario, modulo):
     usuario.refresh_from_db()
     assert usuario.xp_total == xp_apos_primeira
     assert UsuarioConquista.objects.filter(usuario=usuario).count() == 3
+
+
+def test_concluir_licao_retorna_conquistas_desbloqueadas(client, usuario, modulo):
+    licao = baker.make(Atividade, modulo=modulo, xp_recompensa=0, ativo=True)
+    client.force_login(usuario)
+
+    r = client.post(f'/api/atividades/{licao.pk}/concluir/')
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body['status'] == 'CONCLUIDO'
+    # Lição não tem questões: não concede PRECISAO_MAXIMA.
+    assert _codigos(body['conquistas_desbloqueadas']) == {'PRIMEIRO_PASSO', 'EXPLORADOR_MODULO'}
+    assert set(body['conquistas_desbloqueadas'][0]) >= {
+        'id', 'codigo', 'titulo', 'descricao', 'icone', 'xp_recompensa',
+        'item_desbloqueado', 'itens_desbloqueados',
+    }
+
+
+def test_concluir_licao_novamente_nao_duplica_conquistas(client, usuario, modulo):
+    licao = baker.make(Atividade, modulo=modulo, xp_recompensa=0, ativo=True)
+    client.force_login(usuario)
+    url = f'/api/atividades/{licao.pk}/concluir/'
+
+    client.post(url)
+    r = client.post(url)
+
+    assert r.json()['conquistas_desbloqueadas'] == []
+    assert UsuarioConquista.objects.filter(usuario=usuario).count() == 2
+
+
+def test_trilha_incompleta_nao_concede(engine, usuario, trilha):
+    m1 = baker.make(Modulo, trilha=trilha)
+    m2 = baker.make(Modulo, trilha=trilha)
+    a1 = baker.make(Atividade, modulo=m1, ativo=True)
+    baker.make(Atividade, modulo=m2, ativo=True)
+    baker.make(ExecucaoAtividade, usuario=usuario, atividade=a1, aprovado=True, resposta={})
+
+    result = engine.avaliar_conquistas_usuario(usuario, 'TRILHA_CONCLUIDA', {'trilha_id': trilha.pk})
+    assert result == []
+
+
+def test_trilha_ignora_atividades_inativas(engine, usuario, trilha):
+    m1 = baker.make(Modulo, trilha=trilha)
+    a1 = baker.make(Atividade, modulo=m1, ativo=True)
+    baker.make(Atividade, modulo=baker.make(Modulo, trilha=trilha), ativo=False)
+    baker.make(ExecucaoAtividade, usuario=usuario, atividade=a1, aprovado=True, resposta={})
+
+    result = engine.avaliar_conquistas_usuario(usuario, 'TRILHA_CONCLUIDA', {'trilha_id': trilha.pk})
+
+    assert _codigos(result) == {'MESTRE_TRILHA'}
+    assert result[0]['item_desbloqueado']['nome'] == 'Vari Sensei'
+    assert UsuarioInventario.objects.filter(usuario=usuario, item__nome='Vari Sensei').exists()
+
+
+def test_submissao_ultima_atividade_da_trilha_concede_mestre_trilha(client, usuario, trilha):
+    m1 = baker.make(Modulo, trilha=trilha)
+    m2 = baker.make(Modulo, trilha=trilha)
+    a1, q1 = _atividade_com_questao(m1)
+    a2, q2 = _atividade_com_questao(m2)
+    client.force_login(usuario)
+
+    r1 = client.post(f'/api/atividades/{a1.pk}/submeter/', {'respostas': {str(q1.pk): ['A']}},
+                     content_type='application/json')
+    assert 'MESTRE_TRILHA' not in _codigos(r1.json()['conquistas_desbloqueadas'])
+
+    r2 = client.post(f'/api/atividades/{a2.pk}/submeter/', {'respostas': {str(q2.pk): ['A']}},
+                     content_type='application/json')
+    # EXPLORADOR_MODULO já saiu no primeiro módulo: cada conquista é concedida uma única vez.
+    assert _codigos(r2.json()['conquistas_desbloqueadas']) == {'MESTRE_TRILHA'}
+
+
+def test_concluir_licao_final_da_trilha_concede_mestre_trilha(client, usuario, trilha):
+    m1 = baker.make(Modulo, trilha=trilha)
+    a1, q1 = _atividade_com_questao(m1)
+    licao = baker.make(Atividade, modulo=baker.make(Modulo, trilha=trilha), xp_recompensa=0, ativo=True)
+    client.force_login(usuario)
+
+    client.post(f'/api/atividades/{a1.pk}/submeter/', {'respostas': {str(q1.pk): ['A']}},
+                content_type='application/json')
+    r = client.post(f'/api/atividades/{licao.pk}/concluir/')
+
+    assert r.status_code == 200
+    assert _codigos(r.json()['conquistas_desbloqueadas']) == {'MESTRE_TRILHA'}
