@@ -4,7 +4,7 @@ from intents.models import Intention, IntentionExample, Response
 from semanticSearch.service.text_embedding_service import TextEmbeddingService
 
 INTENCOES_CANONICAS = [
-    {"code": "SAUDACAO", "system_action": "ACOLHER_ESTUDANTE", "description": "Acolhimento e saudação ao estudante, incluindo retomada de estudos e reconhecimento de dificuldade.", "examples": ["Olá", "Oi", "Oi, tudo bem?", "Bom dia, Coach", "Quero começar meus estudos", "Olá, estou chegando agora", "Boa tarde", "Estou de volta", "Voltei para estudar", "Quero retomar os estudos", "Posso continuar de onde parei?", "Estou aqui de novo", "Pode me ajudar?"], "responses": ["Olá, {nome}! Que bom ter você aqui.", "Boas-vindas, {nome}! Vamos aprender juntos.", "Que bom te ver de novo, {nome}! Pronto para continuar?"]},
+    {"code": "SAUDACAO", "system_action": "ACOLHER_ESTUDANTE", "description": "Acolhimento e saudação ao estudante, incluindo retomada de estudos e reconhecimento de dificuldade.", "examples": ["Olá", "Oi", "Oi, tudo bem?", "Bom dia, Coach", "Quero começar meus estudos", "Olá, estou chegando agora", "Boa tarde", "Estou de volta", "Voltei para estudar", "Quero retomar os estudos", "Estou aqui de novo", "Pode me ajudar?"], "responses": ["Olá, {nome}! Que bom ter você aqui.", "Boas-vindas, {nome}! Vamos aprender juntos.", "Que bom te ver de novo, {nome}! Pronto para continuar?"]},
     # Catálogos contextuais de saudação (Pilares A, B e C). Não têm exemplos: o classificador nunca as
     # retorna; o handler de SAUDACAO e a abertura de sessão escolhem a categoria pelo estado do estudante
     # e usam só os templates cujos slots estão disponíveis ({nome}, {streak_dias}, {nome_atividade},
@@ -65,7 +65,7 @@ INTENCOES_CANONICAS = [
         ],
     },
     {"code": "AJUDA_COMANDOS", "system_action": "APRESENTAR_RECURSOS", "description": "Apresentação dos recursos do Coach e de como ele funciona.", "examples": ["O que você pode fazer?", "Como funciona o Coach?", "Preciso de ajuda para usar a plataforma", "Quais comandos estão disponíveis?", "Pode me explicar como estudar aqui?", "Como funciona a plataforma?"], "responses": ["Posso ajudar você a listar trilhas, escolher uma trilha, fazer o nivelamento e pedir dicas.", "Você pode perguntar pelas trilhas, iniciar seu diagnóstico, começar do zero ou pedir uma dica durante a atividade."]},
-    {"code": "LISTAR_TRILHAS", "system_action": "LISTAR_TRILHAS_ATIVAS", "description": "Listagem das trilhas ativas disponíveis para matrícula.", "examples": ["Quais trilhas estão disponíveis?", "Quero ver as trilhas", "Me mostre as opções de cursos", "Que trilhas posso fazer?", "Listar trilhas ativas"], "responses": ["Estas são as trilhas disponíveis para você: {lista_trilhas}.", "Encontrei estas trilhas ativas: {lista_trilhas}. Qual delas você quer conhecer?"]},
+    {"code": "LISTAR_TRILHAS", "system_action": "LISTAR_TRILHAS_ATIVAS", "description": "Listagem das trilhas ativas disponíveis para matrícula.", "examples": ["Quais trilhas estão disponíveis?", "Quero ver as trilhas", "Me mostre as opções de cursos", "Que trilhas posso fazer?", "Listar trilhas ativas", "Me mostre as trilhas disponíveis", "Quais cursos existem na plataforma?", "Ver o catálogo de trilhas"], "responses": ["Estas são as trilhas disponíveis para você: {lista_trilhas}.", "Encontrei estas trilhas ativas: {lista_trilhas}. Qual delas você quer conhecer?"]},
     {"code": "MATRICULAR_TRILHA", "system_action": "MATRICULAR_EM_TRILHA", "description": "Escolha e confirmação da trilha pelo diálogo de matrícula (RFN02).", "examples": ["Quero me matricular em uma trilha", "Pode me inscrever nessa trilha", "Quero escolher a trilha de Python", "Como faço minha matrícula?", "Confirmo minha matrícula na trilha", "Quero me inscrever na trilha"], "responses": ["Vamos confirmar sua matrícula na trilha {titulo_trilha}.", "Ótima escolha! Posso matricular você na trilha {titulo_trilha}. Confirma?"]},
     {
         "code": "INICIAR_DIAGNOSTICO",
@@ -98,13 +98,24 @@ INTENCOES_CANONICAS = [
             "Tenho uma dúvida sobre Python",
             "Para que serve esse comando em Python?",
             "Quero tirar uma dúvida",
+            # Revisão de conteúdo (chip "Quero revisar <módulo>" e card Meu Raio-X): o corpus indexa
+            # "Quero revisar <módulo>", então a revisão é respondida como dúvida de conteúdo.
+            "Quero revisar",
+            "Revisar conteúdo",
+            "Quero revisar esse conteúdo",
+            "Preciso revisar a matéria",
+            "Me ajude a revisar esse tema",
+            "Revisão do conteúdo",
+            "Quero reforçar esse conceito",
+            "Tenho dificuldade nesse assunto",
+            "Quero revisar. Me dá uma dica de estudo?",
         ],
         "responses": [
             "{resposta_corpus}",
             "Boa pergunta! {resposta_corpus}",
         ],
     },
-    {"code": "PEDIR_DICA", "system_action": "FORNECER_DICA_PEDAGOGICA", "description": "Orientação pedagógica durante a atividade, sem entregar o gabarito (RFN06).", "examples": ["Pode me dar uma dica?", "Preciso de uma orientação para resolver", "Não entendi, me ajude sem dar a resposta", "Tem alguma pista para esta atividade?", "Como posso pensar nessa questão?"], "responses": ["Claro! Pense no primeiro passo e observe as informações mais importantes: {texto_dica}.", "Aqui vai uma pista, sem entregar o gabarito: {texto_dica}."]},
+    {"code": "PEDIR_DICA", "system_action": "FORNECER_DICA_PEDAGOGICA", "description": "Orientação pedagógica durante a atividade, sem entregar o gabarito (RFN06).", "examples": ["Pode me dar uma dica?", "Preciso de uma orientação para resolver", "Não entendi, me ajude sem dar a resposta", "Tem alguma pista para esta atividade?", "Como posso pensar nessa questão?", "Me dá uma dica", "Preciso de uma dica para resolver a questão", "Estou travado nesse exercício"], "responses": ["Claro! Pense no primeiro passo e observe as informações mais importantes: {texto_dica}.", "Aqui vai uma pista, sem entregar o gabarito: {texto_dica}."]},
     {
         "code": "RECOMENDAR_TRILHA",
         "system_action": "RECOMENDAR_TRILHAS_CONTEXTUAL",
@@ -113,6 +124,7 @@ INTENCOES_CANONICAS = [
         # quando identifica uma trilha ou um módulo, por isso há exemplos com e sem o tema.
         "examples": [
             "Qual trilha você me recomenda?",
+            "Me recomende uma trilha",
             "Qual trilha devo estudar?",
             "Me sugira uma trilha",
             "Qual curso combina comigo?",
@@ -157,6 +169,8 @@ INTENCOES_CANONICAS = [
             "quero ver meu XP",
             "quanto XP falta para subir de nível?",
             "Ver meu progresso",
+            "Como estou indo nos estudos?",
+            "Como anda meu progresso?",
         ],
         "responses": [
             "Você está no nível {nivel}, com {xp_atual} XP. Faltam {xp_restante} XP para o nível {proximo_nivel}!",
@@ -177,6 +191,17 @@ INTENCOES_CANONICAS = [
             "quero seguir para a próxima lição",
             "Continuar a atividade",
             "Continuar a lição",
+            # Chip "Continuar <atividade>": o título da atividade é removido antes da classificação.
+            "Continuar",
+            "Quero continuar",
+            "Continuar minha trilha",
+            "Quero continuar a trilha",
+            "Continuar meu curso",
+            "Continuar de onde parei",
+            "Posso continuar de onde parei?",
+            "Continuar estudando",
+            "Retomar minha trilha",
+            "Seguir na minha trilha",
         ],
         "responses": [
             "Sua próxima atividade é {titulo_atividade}, no módulo {titulo_modulo}. Bora lá!",
@@ -219,6 +244,9 @@ class Command(BaseCommand):
                 if not ex_created:
                     example.embedding = embedding
                     example.save(update_fields=["embedding"])
+
+            # Exemplos removidos do catálogo deixam de existir no banco (ex.: frase movida de intenção).
+            intention.examples.exclude(text__in=item["examples"]).delete()
 
             for resp_text in item["responses"]:
                 Response.objects.get_or_create(
