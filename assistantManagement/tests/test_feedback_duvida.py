@@ -53,4 +53,5 @@ class FeedbackDuvidaTests(APITestCase):
     def test_requer_autenticacao(self):
         self.client.force_authenticate(user=None)
         resp = self.client.post(self.url, {"util": True}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+        # Autenticação por sessão: o DRF responde 403 (sem header WWW-Authenticate) em vez de 401.
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])

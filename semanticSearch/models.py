@@ -1,6 +1,8 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
+from django.db.models import F
 from pgvector.django import HnswIndex, VectorField
 
 from intents.models import EMBEDDING_DIMENSIONS
@@ -43,6 +45,33 @@ class PerguntaCorpus(models.Model):
         return self.texto[:50]
 
 
+class DuvidaAssimiladaQuerySet(models.QuerySet):
+    def no_escopo(self, questao_id=None, atividade_id=None, modulo_id=None, somente_globais: bool = False):
+        """Restringe a busca ao contexto pedagógico da dúvida (o primeiro critério informado vale).
+
+        - questao_id: dicas, presas à questão (a resposta da IA cita o enunciado da questão);
+        - atividade_id: todas as dúvidas da atividade;
+        - somente_globais: dúvidas conceituais do chat, que não pertencem a nenhuma atividade;
+        - modulo_id: todas as dúvidas do módulo.
+        """
+        if questao_id is not None:
+            return self.filter(questao_id=questao_id)
+        if atividade_id is not None:
+            return self.filter(atividade_id=atividade_id)
+        if somente_globais:
+            return self.filter(atividade__isnull=True)
+        if modulo_id is not None:
+            return self.filter(modulo_id=modulo_id)
+        return self
+
+    def utilizaveis(self):
+        """Exclui dúvidas que os estudantes avaliaram mal (feedback negativo recorrente e majoritário)."""
+        return self.exclude(
+            feedbacks_negativos__gte=settings.DUVIDA_FEEDBACK_MIN_NEGATIVOS,
+            feedbacks_negativos__gt=F('feedbacks_positivos'),
+        )
+
+
 class DuvidaAssimilada(models.Model):
     """Dúvida de aluno assimilada ao corpus vetorial após resposta da IA externa (VAR-113).
 
@@ -56,6 +85,14 @@ class DuvidaAssimilada(models.Model):
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Preenchida nas dicas: a resposta da IA é específica do enunciado desta questão.
+    questao = models.ForeignKey(
+        'questionsManagement.Questao',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='duvidas_assimiladas',
+    )
     atividade = models.ForeignKey(
         'activityManagement.Atividade',
         null=True,
@@ -79,6 +116,8 @@ class DuvidaAssimilada(models.Model):
     feedbacks_negativos = models.PositiveIntegerField(default=0)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
+
+    objects = DuvidaAssimiladaQuerySet.as_manager()
 
     class Meta:
         db_table = 'DUVIDA_ASSIMILADA'

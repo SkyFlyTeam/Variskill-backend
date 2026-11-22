@@ -133,4 +133,5 @@ class HintResponseSerializer(serializers.Serializer):
     resposta_coach = serializers.CharField()
     origem_resposta = serializers.CharField()
     questao_id = serializers.UUIDField()
+    duvida_assimilada_id = serializers.UUIDField(allow_null=True, required=False)
 

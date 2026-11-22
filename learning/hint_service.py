@@ -33,6 +33,8 @@ class HintResult:
     resposta_coach: str
     origem_resposta: str
     questao_id: str
+    # Dúvida assimilada reaproveitada (origem CACHE_SEMANTICO), alvo do feedback do estudante.
+    duvida_assimilada_id: Optional[str] = None
 
 
 class HintService:
@@ -197,28 +199,17 @@ class HintService:
             return None
 
     @classmethod
-    def _buscar_no_cache_semantico(cls, pergunta: str, topico: Optional[str] = None) -> Optional[str]:
+    def _buscar_na_base_local(cls, pergunta: str, topico: Optional[str], questao_id):
         """
-        Consulta o cache semântico (Corpus) antes de acionar a IA externa (VAR-116).
-        Usa o mesmo pipeline de sanitização e pré-processamento da ingestão.
+        Consulta a base de conhecimento local (apostila e dicas já assimiladas para a questão)
+        antes de acionar a IA externa (VAR-116). Retorna RespostaLocal ou None.
         """
         try:
-            from semanticSearch.models import PerguntaCorpus
-            from semanticSearch.service.corpus_search import CorpusSearch
-            from semanticSearch.service.sanitizer import TextSanitizer
-            from semanticSearch.service.text_embedding_service import TextEmbeddingService
+            from assistantManagement.base_conhecimento import BaseConhecimento
 
-            if not PerguntaCorpus.objects.filter(entrada__ativo=True).exists():
-                return None
-
-            pergunta_limpa = TextSanitizer.sanitizar(pergunta, remover_saudacao=True) or pergunta
-            vetor = TextEmbeddingService().gerar_embedding(pergunta_limpa)
-            resultado = CorpusSearch(similarity_threshold=0.82).buscar(vetor, topico=topico)
-            if resultado.entrada:
-                return resultado.entrada.resposta
-            return None
+            return BaseConhecimento.buscar_por_texto(pergunta, topico=topico, questao_id=questao_id).resposta
         except Exception as e:
-            logger.warning(f"Falha ao consultar cache semântico no suporte da atividade: {e}")
+            logger.warning(f"Falha ao consultar a base de conhecimento no suporte da atividade: {e}")
             return None
 
     @classmethod
@@ -259,30 +250,34 @@ class HintService:
         # 2. Etapa 1: Consulta Local (dica_conceitual preenchida e correspondente)
         resposta_text = None
         origem = "PLN_LOCAL"
+        duvida_assimilada_id = None
 
         if questao.dica_conceitual and questao.dica_conceitual.strip():
             dica_limpa = questao.dica_conceitual.strip()
             if cls._dica_corresponde(pergunta, dica_limpa):
                 resposta_text = dica_limpa
 
-        # 3. Etapa 2: Consulta ao Cache Semântico (dúvidas já assimiladas no corpus)
+        # 3. Etapa 2: Base de conhecimento local (apostila e dicas já assimiladas para esta questão)
         if not resposta_text:
-            resposta_cache = cls._buscar_no_cache_semantico(pergunta, topico=topico_dica)
-            if resposta_cache:
-                origem = "PLN_LOCAL"
-                resposta_text = resposta_cache
+            local = cls._buscar_na_base_local(pergunta, topico=topico_dica, questao_id=questao.id)
+            if local:
+                origem = local.origem
+                resposta_text = local.texto
+                duvida_assimilada_id = local.duvida_assimilada_id
 
         # 4. Etapa 3: Fallback para IA Externa se a dúvida for aberta / não coberta localmente
         if not resposta_text:
             origem = "IA_EXTERNA"
             resposta_text = cls._call_external_ai(questao, pergunta)
             if resposta_text:
-                # Etapa 4: Ingestão assíncrona pós-IA (VAR-115)
-                from semanticSearch.service.ingestion_service import CorpusIngestionService
-                CorpusIngestionService.assimilar_duvida_async(
+                # Etapa 4: Assimilação assíncrona pós-IA como dica desta questão (VAR-115)
+                from assistantManagement.base_conhecimento import BaseConhecimento
+                BaseConhecimento.assimilar_async(
                     pergunta=pergunta,
                     resposta=resposta_text,
-                    topico=topico_dica,
+                    questao_id=questao.id,
+                    atividade_id=questao.atividade_id,
+                    modulo_id=getattr(questao.atividade, "modulo_id", None),
                 )
 
         # 5. Etapa 5: Resiliência em caso de falha da IA
@@ -299,10 +294,13 @@ class HintService:
             sessao=sessao,
             remetente=Mensagem.Remetente.ASSISTENTE,
             conteudo=resposta_text,
+            origem_resposta=origem,
+            duvida_assimilada_id=duvida_assimilada_id,
         )
 
         return HintResult(
             resposta_coach=resposta_text,
             origem_resposta=origem,
             questao_id=str(questao.id),
+            duvida_assimilada_id=duvida_assimilada_id,
         )
