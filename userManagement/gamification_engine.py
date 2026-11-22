@@ -10,6 +10,8 @@ Eventos suportados e o `dados_evento` esperado:
     -> DEDICACAO_INICIAL (>= 3 dias), HABITO_DE_FERRO (>= 7 dias)
 - MODULO_CONCLUIDO: {'modulo_id': UUID}
     -> EXPLORADOR_MODULO (todas as atividades ativas do módulo aprovadas)
+- TRILHA_CONCLUIDA: {'trilha_id': UUID}
+    -> MESTRE_TRILHA (todas as atividades ativas da trilha aprovadas)
 
 A concessão é idempotente: uma conquista já registrada em UsuarioConquista nunca é
 concedida de novo, nem credita XP outra vez.
@@ -24,6 +26,7 @@ from .models import Conquista, User, UsuarioConquista, UsuarioInventario
 EVENTO_ATIVIDADE_CONCLUIDA = 'ATIVIDADE_CONCLUIDA'
 EVENTO_STREAK_ATUALIZADO = 'STREAK_ATUALIZADO'
 EVENTO_MODULO_CONCLUIDO = 'MODULO_CONCLUIDO'
+EVENTO_TRILHA_CONCLUIDA = 'TRILHA_CONCLUIDA'
 
 MARCOS_STREAK = (
     (3, 'DEDICACAO_INICIAL'),
@@ -37,6 +40,7 @@ class GamificationEngine:
             EVENTO_ATIVIDADE_CONCLUIDA: self._avaliar_atividade_concluida,
             EVENTO_STREAK_ATUALIZADO: self._avaliar_streak,
             EVENTO_MODULO_CONCLUIDO: self._avaliar_modulo_concluido,
+            EVENTO_TRILHA_CONCLUIDA: self._avaliar_trilha_concluida,
         }
 
     @transaction.atomic
@@ -79,6 +83,12 @@ class GamificationEngine:
             return []
         return ['EXPLORADOR_MODULO']
 
+    def _avaliar_trilha_concluida(self, usuario, dados):
+        trilha_id = dados.get('trilha_id')
+        if trilha_id is None or not trilha_concluida(usuario, trilha_id):
+            return []
+        return ['MESTRE_TRILHA']
+
     # --- Concessão atômica -------------------------------------------------------
 
     def _conceder(self, usuario, conquista):
@@ -103,9 +113,16 @@ class GamificationEngine:
 
 def modulo_concluido(usuario, modulo_id) -> bool:
     """True se o usuário tem execução aprovada em todas as atividades ativas do módulo."""
-    atividades_ids = set(
-        Atividade.objects.filter(modulo_id=modulo_id, ativo=True).values_list('id', flat=True)
-    )
+    return _todas_aprovadas(usuario, Atividade.objects.filter(modulo_id=modulo_id, ativo=True))
+
+
+def trilha_concluida(usuario, trilha_id) -> bool:
+    """True se o usuário tem execução aprovada em todas as atividades ativas da trilha."""
+    return _todas_aprovadas(usuario, Atividade.objects.filter(modulo__trilha_id=trilha_id, ativo=True))
+
+
+def _todas_aprovadas(usuario, atividades) -> bool:
+    atividades_ids = set(atividades.values_list('id', flat=True))
     if not atividades_ids:
         return False
     aprovadas = set(
