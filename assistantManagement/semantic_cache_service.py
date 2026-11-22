@@ -10,60 +10,69 @@ from __future__ import annotations
 import re
 from typing import Optional
 
+from django.conf import settings
 from django.db.models import F
 from pgvector.django import CosineDistance
 
 from semanticSearch.models import DuvidaAssimilada
 from semanticSearch.service.nlp.embedding_service import EmbeddingService
-
-DEFAULT_THRESHOLD = 0.85
+from semanticSearch.service.vetorizacao import vetorizar_duvida
 
 # Piso de segurança: nenhum resultado é considerado match abaixo deste valor, mesmo que o
 # chamador informe um threshold menor.
 SIMILARITY_FLOOR = 0.70
 
 
-def _normalizar_pergunta(texto: Optional[str]) -> str:
-    """Normaliza a pergunta de entrada: minúsculo e sem pontuação excedente."""
+def _tem_conteudo(texto: Optional[str]) -> bool:
+    """Indica se a pergunta tem ao menos uma palavra (não é vazia nem só pontuação)."""
     if not texto or not isinstance(texto, str):
-        return ""
-    texto_normalizado = texto.strip().lower()
-    texto_normalizado = re.sub(r"[^\w\s]", " ", texto_normalizado, flags=re.UNICODE)
-    return re.sub(r"\s+", " ", texto_normalizado).strip()
+        return False
+    return bool(re.sub(r"[^\w]", "", texto, flags=re.UNICODE))
 
 
 class SemanticCacheService:
     @staticmethod
     def buscar_duvida_semelhante(
-        pergunta: str,
+        pergunta: Optional[str] = None,
         atividade_id=None,
         modulo_id=None,
-        threshold: float = DEFAULT_THRESHOLD,
+        threshold: Optional[float] = None,
+        vetor: Optional[list[float]] = None,
+        somente_globais: bool = False,
+        questao_id=None,
     ) -> Optional[dict]:
-        """Busca a dúvida assimilada mais parecida com `pergunta` no escopo informado.
+        """Busca a dúvida assimilada mais parecida no escopo informado.
 
-        Escopo: se `atividade_id` for informado, busca restrita àquela atividade; senão, se
-        `modulo_id` for informado, busca em todo o módulo ativo; senão, busca global.
+        O vetor pode ser informado já calculado (chat/suporte, que já vetorizaram a mensagem);
+        senão é gerado a partir de `pergunta` pelo mesmo pipeline da ingestão.
+
+        Escopo (vale o primeiro informado): `questao_id` restringe à questão (dicas);
+        `atividade_id` à atividade; `somente_globais` às dúvidas conceituais sem atividade;
+        `modulo_id` ao módulo; sem nada, busca em todo o caderno.
+        Dúvidas mal avaliadas pelos estudantes são ignoradas.
 
         Em caso de match (similaridade >= max(threshold, SIMILARITY_FLOOR)), incrementa
         `contador_utilizacoes` atomicamente e retorna a resposta didática, o id da dúvida e a
         similaridade. Caso contrário, retorna None.
         """
-        pergunta_normalizada = _normalizar_pergunta(pergunta)
-        if not pergunta_normalizada:
-            return None
+        if vetor is None:
+            if not _tem_conteudo(pergunta):
+                return None
+            _, vetor = vetorizar_duvida(pergunta, embedding_service=EmbeddingService.get_instance())
 
-        embedding_pergunta = EmbeddingService.get_instance().gerar_embedding(pergunta_normalizada)
-
-        candidatos = DuvidaAssimilada.objects.all()
-        if atividade_id is not None:
-            candidatos = candidatos.filter(atividade_id=atividade_id)
-        elif modulo_id is not None:
-            candidatos = candidatos.filter(modulo_id=modulo_id)
+        if threshold is None:
+            threshold = settings.SEMANTIC_CACHE_THRESHOLD
 
         duvida = (
-            candidatos
-            .annotate(distancia=CosineDistance('embedding', embedding_pergunta))
+            DuvidaAssimilada.objects
+            .no_escopo(
+                questao_id=questao_id,
+                atividade_id=atividade_id,
+                modulo_id=modulo_id,
+                somente_globais=somente_globais,
+            )
+            .utilizaveis()
+            .annotate(distancia=CosineDistance('embedding', vetor))
             .order_by('distancia')
             .first()
         )

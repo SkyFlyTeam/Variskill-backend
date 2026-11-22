@@ -1,8 +1,16 @@
 import pytest
-import time
-from semanticSearch.models import EntradaCorpus, PerguntaCorpus
+from model_bakery import baker
+
+from activityManagement.models import Atividade
+from assistantManagement.semantic_cache_service import SemanticCacheService
+from questionsManagement.models import Questao
+from semanticSearch.models import DuvidaAssimilada, EntradaCorpus
+from semanticSearch.service.ingestion_service import DuvidaAssimiladaIngestionService
 from semanticSearch.service.sanitizer import TextSanitizer
-from semanticSearch.service.ingestion_service import CorpusIngestionService
+from semanticSearch.service.vetorizacao import normalizar_duvida
+from trackManagement.models import Modulo
+
+RESPOSTA_TUPLA = "Listas são mutáveis (podem ser alteradas) enquanto tuplas são imutáveis após criadas."
 
 
 def test_sanitizacao_remove_dados_pessoais():
@@ -48,81 +56,139 @@ def test_sanitizacao_trunca_pergunta_muito_longa():
     assert p_limpa.endswith("?")
 
 
+def _vetor_fixo() -> list[float]:
+    vetor = [0.0] * 384
+    vetor[0] = 1.0
+    return vetor
+
+
+@pytest.fixture
+def vetor_fixo(monkeypatch):
+    """Faz toda pergunta gerar o mesmo vetor, simulando paráfrases com similaridade 1.0."""
+    monkeypatch.setattr(
+        "semanticSearch.service.ingestion_service.vetorizar_duvida",
+        lambda texto: ("texto normalizado", _vetor_fixo()),
+    )
+
+
 @pytest.mark.django_db
-def test_assimilar_duvida_cria_entrada_e_pergunta_corpus_com_vetor():
+def test_assimilar_duvida_cria_duvida_assimilada_com_vetor_e_nao_toca_na_apostila():
     pergunta = "Como funciona o operador walrus no Python?"
     resposta = "O operador walrus (:=) permite atribuir valores a variáveis como parte de uma expressão maior."
-    topico = "Sintaxe Python"
 
-    entrada = CorpusIngestionService.assimilar_duvida(
-        pergunta=pergunta,
-        resposta=resposta,
-        topico=topico,
-    )
+    duvida = DuvidaAssimiladaIngestionService.assimilar_duvida(pergunta=pergunta, resposta=resposta)
 
-    assert entrada is not None
-    assert entrada.topico == "Sintaxe Python"
-    assert entrada.pergunta == pergunta
-    assert entrada.resposta == resposta
-    assert entrada.ativo is True
-
-    # Verifica se PerguntaCorpus foi criada com vetor
-    pergunta_corpus = PerguntaCorpus.objects.filter(entrada=entrada).first()
-    assert pergunta_corpus is not None
-    assert pergunta_corpus.texto == pergunta
-    assert len(pergunta_corpus.embedding) == 384
+    assert duvida is not None
+    assert duvida.pergunta_texto == pergunta
+    assert duvida.pergunta_normalizada == normalizar_duvida(pergunta)
+    assert duvida.resposta_didatica == resposta
+    assert duvida.atividade_id is None
+    assert duvida.modulo_id is None
+    assert len(duvida.embedding) == 384
+    assert not EntradaCorpus.objects.exists()
 
 
 @pytest.mark.django_db
-def test_idempotencia_nao_duplica_pergunta_identica():
-    pergunta = "Qual a diferença entre tupla e lista em Python?"
-    resposta = "Listas são mutáveis (podem ser alteradas) enquanto tuplas são imutáveis após criadas."
+def test_assimilar_duvida_registra_contexto_de_questao_atividade_e_modulo(vetor_fixo):
+    modulo = baker.make(Modulo)
+    atividade = baker.make(Atividade, modulo=modulo)
+    questao = baker.make(Questao, atividade=atividade)
 
-    entrada1 = CorpusIngestionService.assimilar_duvida(pergunta, resposta, "Tipos de Dados")
-    entrada2 = CorpusIngestionService.assimilar_duvida(pergunta, resposta, "Tipos de Dados")
+    duvida = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Qual comando interrompe o loop?", "Use a instrução break para interromper a iteração.",
+        questao_id=questao.id, atividade_id=atividade.id, modulo_id=modulo.id,
+    )
 
-    assert entrada1 is not None
-    assert entrada2 is not None
-    assert entrada1.id == entrada2.id
-
-    # Garante que não criou registros duplicados
-    assert EntradaCorpus.objects.filter(pergunta=pergunta).count() == 1
-    assert PerguntaCorpus.objects.filter(entrada=entrada1).count() == 1
+    assert duvida.questao_id == questao.id
+    assert duvida.atividade_id == atividade.id
+    assert duvida.modulo_id == modulo.id
 
 
 @pytest.mark.django_db
-def test_anti_duplicacao_semantica_acima_095_nao_duplica_registro(monkeypatch):
-    vetor_fixo = [0.0] * 384
-    vetor_fixo[0] = 1.0
-    monkeypatch.setattr(
-        "semanticSearch.service.ingestion_service.TextEmbeddingService.gerar_embedding",
-        lambda self, texto: vetor_fixo,
+def test_mesma_pergunta_em_questoes_diferentes_gera_dicas_separadas(vetor_fixo):
+    """A tela de exercício envia sempre a mesma pergunta; cada questão precisa da própria dica."""
+    atividade = baker.make(Atividade)
+    questao1 = baker.make(Questao, atividade=atividade)
+    questao2 = baker.make(Questao, atividade=atividade)
+
+    dica1 = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Como resolver este exercício?", "Pense em qual instrução encerra a repetição.",
+        questao_id=questao1.id, atividade_id=atividade.id,
+    )
+    dica2 = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Como resolver este exercício?", "Lembre que listas começam no índice zero.",
+        questao_id=questao2.id, atividade_id=atividade.id,
     )
 
-    resposta = "Listas são mutáveis (podem ser alteradas) enquanto tuplas são imutáveis após criadas."
-    entrada1 = CorpusIngestionService.assimilar_duvida(
-        "Qual a diferença entre tupla e lista no Python?", resposta, "Tipos de Dados"
-    )
-    entrada2 = CorpusIngestionService.assimilar_duvida(
-        "Qual é a diferença entre tupla e lista em Python?", resposta, "Tipos de Dados"
+    assert dica1.id != dica2.id
+    assert DuvidaAssimilada.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_assimilar_duvida_remove_dados_pessoais(vetor_fixo):
+    duvida = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Olá, meu nome é Maria! Como usar list comprehension? Meu email é maria@exemplo.com",
+        "Use [x for x in lista]. Dúvidas: suporte@escola.com",
     )
 
-    assert entrada1 is not None
-    assert entrada2 is not None
-    assert entrada1.id == entrada2.id
-    assert EntradaCorpus.objects.filter(topico="Tipos de Dados").count() == 1
+    assert "maria@exemplo.com" not in duvida.pergunta_texto
+    assert "Maria" not in duvida.pergunta_texto
+    assert "suporte@escola.com" not in duvida.resposta_didatica
+
+
+@pytest.mark.django_db
+def test_anti_duplicacao_semantica_acima_095_no_mesmo_escopo(vetor_fixo):
+    duvida1 = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Qual a diferença entre tupla e lista no Python?", RESPOSTA_TUPLA,
+    )
+    duvida2 = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Qual é a diferença entre tupla e lista em Python?", RESPOSTA_TUPLA,
+    )
+
+    assert duvida1 is not None
+    assert duvida1.id == duvida2.id
+    assert DuvidaAssimilada.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_anti_duplicacao_nao_mistura_dica_de_questao_com_duvida_global(vetor_fixo):
+    atividade = baker.make(Atividade)
+    questao = baker.make(Questao, atividade=atividade)
+
+    global_ = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Qual a diferença entre tupla e lista?", RESPOSTA_TUPLA,
+    )
+    da_atividade = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Qual a diferença entre tupla e lista?", RESPOSTA_TUPLA, questao_id=questao.id, atividade_id=atividade.id,
+    )
+
+    assert global_.id != da_atividade.id
+    assert DuvidaAssimilada.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_duvida_mal_avaliada_nao_impede_nova_assimilacao(vetor_fixo, settings):
+    settings.DUVIDA_FEEDBACK_MIN_NEGATIVOS = 3
+    mal_avaliada = baker.make(
+        DuvidaAssimilada, embedding=_vetor_fixo(), feedbacks_negativos=5, feedbacks_positivos=1,
+    )
+
+    nova = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Qual a diferença entre tupla e lista?", RESPOSTA_TUPLA,
+    )
+
+    assert nova.id != mal_avaliada.id
+    assert DuvidaAssimilada.objects.count() == 2
 
 
 @pytest.mark.django_db
 def test_ignora_duvidas_curtas_ou_sem_conteudo():
-    entrada_curta = CorpusIngestionService.assimilar_duvida("oi", "ola tudo bem com voce?")
-    assert entrada_curta is None
-
-    entrada_operacional = CorpusIngestionService.assimilar_duvida("Oi Vari, como vai você?", "Vou bem e pronto para ajudar nos estudos!")
-    assert entrada_operacional is None
-
-    entrada_resposta_curta = CorpusIngestionService.assimilar_duvida("Como usar decorators?", "sim")
-    assert entrada_resposta_curta is None
+    assert DuvidaAssimiladaIngestionService.assimilar_duvida("oi", "ola tudo bem com voce?") is None
+    assert DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Oi Vari, como vai você?", "Vou bem e pronto para ajudar nos estudos!",
+    ) is None
+    assert DuvidaAssimiladaIngestionService.assimilar_duvida("Como usar decorators?", "sim") is None
+    assert not DuvidaAssimilada.objects.exists()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -130,16 +196,24 @@ def test_execucao_assincrona_assimila_em_background():
     pergunta = "O que são generators e yield em Python?"
     resposta = "Generators são funções que usam yield para produzir uma sequência de valores sob demanda, economizando memória."
 
-    thread = CorpusIngestionService.assimilar_duvida_async(
-        pergunta=pergunta,
-        resposta=resposta,
-        topico="Funções Avançadas",
-    )
-
+    thread = DuvidaAssimiladaIngestionService.assimilar_duvida_async(pergunta=pergunta, resposta=resposta)
     thread.join(timeout=10.0)
 
-    # Verifica persistência no banco
-    entrada = EntradaCorpus.objects.filter(pergunta=pergunta).first()
-    assert entrada is not None
-    assert entrada.topico == "Funções Avançadas"
-    assert PerguntaCorpus.objects.filter(entrada=entrada).exists()
+    assert DuvidaAssimilada.objects.filter(pergunta_texto=pergunta).exists()
+
+
+@pytest.mark.django_db
+def test_busca_encontra_duvida_assimilada_pelo_mesmo_pipeline_de_vetorizacao():
+    """Ingestão e busca vetorizam igual: saudação e pontuação extras não derrubam a similaridade."""
+    duvida = DuvidaAssimiladaIngestionService.assimilar_duvida(
+        "Como funciona o operador walrus no Python?",
+        "O operador walrus (:=) permite atribuir valores a variáveis como parte de uma expressão maior.",
+    )
+
+    resultado = SemanticCacheService.buscar_duvida_semelhante(
+        "Olá! Como funciona o operador walrus no Python???", somente_globais=True,
+    )
+
+    assert resultado is not None
+    assert resultado["duvida_id"] == str(duvida.id)
+    assert resultado["similaridade"] == pytest.approx(1.0, abs=1e-4)

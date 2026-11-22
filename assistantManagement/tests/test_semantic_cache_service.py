@@ -6,6 +6,7 @@ from model_bakery import baker
 
 from activityManagement.models import Atividade
 from assistantManagement.semantic_cache_service import SemanticCacheService
+from questionsManagement.models import Questao
 from semanticSearch.models import DuvidaAssimilada
 from trackManagement.models import Modulo
 
@@ -35,9 +36,14 @@ def _vetor_com_similaridade(similaridade: float) -> list[float]:
 def embedding_service_mock():
     mock_service = MagicMock()
     mock_service.gerar_embedding.return_value = _vetor_base()
+    mock_preprocessor = MagicMock()
+    mock_preprocessor.processar.side_effect = lambda texto: texto.lower()
     with patch(
         'assistantManagement.semantic_cache_service.EmbeddingService.get_instance',
         return_value=mock_service,
+    ), patch(
+        'semanticSearch.service.vetorizacao.TextPreprocessor.get_instance',
+        return_value=mock_preprocessor,
     ):
         yield mock_service
 
@@ -160,3 +166,73 @@ def test_busca_vetorial_responde_em_menos_de_100ms():
 
     assert resultado is not None
     assert duracao_ms < 100
+
+
+def test_usa_vetor_informado_sem_gerar_embedding(embedding_service_mock):
+    duvida = baker.make(DuvidaAssimilada, embedding=_vetor_com_similaridade(1.0))
+
+    resultado = SemanticCacheService.buscar_duvida_semelhante(vetor=_vetor_base())
+
+    assert resultado['duvida_id'] == str(duvida.pk)
+    embedding_service_mock.gerar_embedding.assert_not_called()
+
+
+def test_somente_globais_ignora_dicas_de_atividades():
+    atividade = baker.make(Atividade)
+    baker.make(DuvidaAssimilada, atividade=atividade, embedding=_vetor_com_similaridade(1.0))
+    global_ = baker.make(DuvidaAssimilada, atividade=None, embedding=_vetor_com_similaridade(0.9))
+
+    resultado = SemanticCacheService.buscar_duvida_semelhante(vetor=_vetor_base(), somente_globais=True)
+
+    assert resultado['duvida_id'] == str(global_.pk)
+
+
+def test_threshold_padrao_vem_das_settings(settings):
+    settings.SEMANTIC_CACHE_THRESHOLD = 0.95
+    baker.make(DuvidaAssimilada, embedding=_vetor_com_similaridade(0.9))
+
+    assert SemanticCacheService.buscar_duvida_semelhante(vetor=_vetor_base()) is None
+
+
+def test_ignora_duvida_mal_avaliada_e_serve_a_proxima(settings):
+    settings.DUVIDA_FEEDBACK_MIN_NEGATIVOS = 3
+    mal_avaliada = baker.make(
+        DuvidaAssimilada, embedding=_vetor_com_similaridade(1.0),
+        feedbacks_negativos=3, feedbacks_positivos=1, contador_utilizacoes=1,
+    )
+    boa = baker.make(DuvidaAssimilada, embedding=_vetor_com_similaridade(0.9))
+
+    resultado = SemanticCacheService.buscar_duvida_semelhante(vetor=_vetor_base())
+
+    assert resultado['duvida_id'] == str(boa.pk)
+    mal_avaliada.refresh_from_db()
+    assert mal_avaliada.contador_utilizacoes == 1
+
+
+@pytest.mark.parametrize('negativos, positivos', [(2, 0), (3, 3), (4, 10)])
+def test_mantem_duvida_com_poucos_negativos_ou_maioria_positiva(settings, negativos, positivos):
+    settings.DUVIDA_FEEDBACK_MIN_NEGATIVOS = 3
+    duvida = baker.make(
+        DuvidaAssimilada, embedding=_vetor_com_similaridade(1.0),
+        feedbacks_negativos=negativos, feedbacks_positivos=positivos,
+    )
+
+    resultado = SemanticCacheService.buscar_duvida_semelhante(vetor=_vetor_base())
+
+    assert resultado['duvida_id'] == str(duvida.pk)
+
+
+def test_filtra_por_questao_id_antes_da_atividade():
+    atividade = baker.make(Atividade)
+    questao = baker.make(Questao, atividade=atividade)
+    outra_questao = baker.make(Questao, atividade=atividade)
+    baker.make(DuvidaAssimilada, questao=outra_questao, atividade=atividade, embedding=_vetor_com_similaridade(1.0))
+    da_questao = baker.make(
+        DuvidaAssimilada, questao=questao, atividade=atividade, embedding=_vetor_com_similaridade(0.9),
+    )
+
+    resultado = SemanticCacheService.buscar_duvida_semelhante(
+        vetor=_vetor_base(), questao_id=questao.id, atividade_id=atividade.id,
+    )
+
+    assert resultado['duvida_id'] == str(da_questao.pk)

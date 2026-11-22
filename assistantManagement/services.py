@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from django.db import transaction
 from rest_framework.exceptions import NotFound, ValidationError
+from assistantManagement.base_conhecimento import BaseConhecimento, ORIGEM_CACHE_SEMANTICO, RespostaLocal
 from assistantManagement.models import Mensagem, Sessao
 from trackManagement.models import Trilha, Modulo, Matricula, ProgressoModulo
 from trackManagement.services import efetivar_matricula, recomendar_trilhas_por_perfil
@@ -17,10 +18,8 @@ from questionsManagement.models import Questao
 from semanticSearch.service.nlp.preprocessor import TextPreprocessor
 from semanticSearch.service.nlp.embedding_service import EmbeddingService
 from semanticSearch.models import EntradaCorpus
-from semanticSearch.service.corpus_search import CorpusSearch
-from semanticSearch.service.ingestion_service import CorpusIngestionService
 from semanticSearch.service.nlp.intent_classifier import IntentClassifier
-from semanticSearch.service.sanitizer import TextSanitizer
+from semanticSearch.service.vetorizacao import normalizar_duvida
 from userManagement.services import GamificationService
 
 SUGESTOES_INICIAIS = [
@@ -74,8 +73,10 @@ class RespostaIntencao:
     dados_acao: dict = field(default_factory=dict)
     # Permite ao handler corrigir a intenção reportada (ex.: FALLBACK respondido pelo corpus).
     intencao: Optional[str] = None
-    # Origem da resposta para transparência do uso de IA (PLN_LOCAL/IA_EXTERNA/CONTINGENCIA).
+    # Origem da resposta para transparência do uso de IA (PLN_LOCAL/CACHE_SEMANTICO/IA_EXTERNA/CONTINGENCIA).
     origem_resposta: Optional[str] = None
+    # Dúvida assimilada reaproveitada (origem CACHE_SEMANTICO), alvo do feedback do estudante.
+    duvida_assimilada_id: Optional[str] = None
 
 
 @dataclass
@@ -596,25 +597,28 @@ def _tratar_pedir_dica(ctx: ContextoConversa) -> RespostaIntencao:
             origem_resposta="PLN_LOCAL",
         )
 
-    # 2. Cache Semântico: consulta dúvidas já assimiladas no corpus antes de acionar a IA externa
+    # 2. Base de conhecimento local: apostila e, depois, dicas já assimiladas para esta questão
     if ctx.vetor is not None:
-        resultado_cache = CorpusSearch(similarity_threshold=0.82).buscar(ctx.vetor, topico=topico_dica)
-        if resultado_cache.entrada:
+        local = BaseConhecimento.buscar(ctx.vetor, topico=topico_dica, questao_id=questao.id).resposta
+        if local:
             return RespostaIntencao(
-                conteudo=_preencher(ctx.resposta_base, texto_dica=resultado_cache.entrada.resposta.rstrip(".")),
+                conteudo=_preencher(ctx.resposta_base, texto_dica=local.texto.rstrip(".")),
                 acao="DICA_FORNECIDA",
-                dados_acao={
-                    **dados,
-                    "origem_resposta": "PLN_LOCAL",
-                    "entrada_corpus_id": str(resultado_cache.entrada.id),
-                },
-                origem_resposta="PLN_LOCAL",
+                dados_acao={**dados, **_dados_resposta_local(local)},
+                origem_resposta=local.origem,
+                duvida_assimilada_id=local.duvida_assimilada_id,
             )
 
-    # 3. Fallback para IA Externa + Ingestão Assíncrona pós-IA (VAR-115 & VAR-116)
+    # 3. Fallback para IA Externa + assimilação assíncrona como dica desta questão
     dica_externa = HintService._call_external_ai(questao, ctx.conteudo)
     if dica_externa:
-        CorpusIngestionService.assimilar_duvida_async(ctx.conteudo, dica_externa, topico=topico_dica)
+        BaseConhecimento.assimilar_async(
+            ctx.conteudo,
+            dica_externa,
+            questao_id=questao.id,
+            atividade_id=questao.atividade_id,
+            modulo_id=getattr(questao.atividade, "modulo_id", None),
+        )
         return RespostaIntencao(
             conteudo=dica_externa,
             acao="DICA_FORNECIDA",
@@ -629,42 +633,61 @@ def _tratar_pedir_dica(ctx: ContextoConversa) -> RespostaIntencao:
     )
 
 
-def _resposta_do_corpus(ctx: ContextoConversa, entrada: EntradaCorpus, similaridade: float) -> RespostaIntencao:
+def _dados_resposta_local(local: RespostaLocal) -> dict:
+    """Identifica em dados_acao de onde veio a resposta local (apostila ou dúvida assimilada)."""
+    dados = {"origem_resposta": local.origem, "similaridade": round(local.similaridade, 4)}
+    if local.entrada_corpus is not None:
+        dados["entrada_corpus_id"] = str(local.entrada_corpus.id)
+        dados["topico"] = local.entrada_corpus.topico
+    if local.duvida_assimilada_id:
+        dados["duvida_assimilada_id"] = local.duvida_assimilada_id
+    return dados
+
+
+def _resposta_local(ctx: ContextoConversa, local: RespostaLocal) -> RespostaIntencao:
     modelo = ctx.resposta_base if "{resposta_corpus}" in ctx.resposta_base else "{resposta_corpus}"
-    mesmo_topico = (EntradaCorpus.objects.filter(topico=entrada.topico, ativo=True)
-                    .exclude(pk=entrada.pk).values_list("pergunta", flat=True)[:3])
+    entrada = local.entrada_corpus
+    if entrada is not None:
+        sugestoes = list(EntradaCorpus.objects.filter(topico=entrada.topico, ativo=True)
+                         .exclude(pk=entrada.pk).values_list("pergunta", flat=True)[:3])
+    else:
+        sugestoes = SUGESTOES_AJUDA[:3]
     return RespostaIntencao(
-        conteudo=_preencher(modelo, resposta_corpus=entrada.resposta),
-        sugestoes_rapidas=list(mesmo_topico),
-        acao="RESPOSTA_CORPUS",
-        dados_acao={
-            "entrada_corpus_id": str(entrada.id),
-            "topico": entrada.topico,
-            "similaridade": round(similaridade, 4),
-        },
+        conteudo=_preencher(modelo, resposta_corpus=local.texto),
+        sugestoes_rapidas=sugestoes,
+        acao="RESPOSTA_CORPUS" if local.origem != ORIGEM_CACHE_SEMANTICO else "RESPOSTA_DUVIDA_ASSIMILADA",
+        dados_acao=_dados_resposta_local(local),
         intencao="DUVIDA_CONTEUDO",
+        origem_resposta=local.origem,
+        duvida_assimilada_id=local.duvida_assimilada_id,
     )
+
+
+def _modulo_do_contexto(ctx: ContextoConversa):
+    """Módulo da atividade em que o estudante está, para registrar o contexto da dúvida assimilada."""
+    if not ctx.atividade_id:
+        return None
+    return Atividade.objects.filter(pk=ctx.atividade_id).values_list("modulo_id", flat=True).first()
 
 
 def _tratar_duvida_conteudo(ctx: ContextoConversa) -> RespostaIntencao:
     trilha_atual = ctx.resolver_trilha()
     topico_escopo = trilha_atual.habilidade if trilha_atual else None
 
-    # 1. Cache Semântico: consulta a base de conhecimento local com threshold de similaridade 0.82
-    resultado = CorpusSearch(similarity_threshold=0.82).buscar(ctx.vetor, topico=topico_escopo)
-    if resultado.entrada:
-        return _resposta_do_corpus(ctx, resultado.entrada, resultado.similaridade)
+    # 1. Base de conhecimento local: apostila e, depois, dúvidas conceituais já assimiladas
+    resultado = BaseConhecimento.buscar(ctx.vetor, topico=topico_escopo)
+    if resultado.resposta:
+        return _resposta_local(ctx, resultado.resposta)
 
-    # 2. Se a similaridade for < 0.82, faz fallback para IA externa protegida por Circuit Breaker
+    # 2. Sem resposta local, faz fallback para IA externa protegida por Circuit Breaker
     contexto_trilha = None
     if trilha_atual:
         contexto_trilha = f"{trilha_atual.titulo} ({trilha_atual.habilidade})"
 
     resposta_ia = HintService.call_external_ai_chat(ctx.conteudo, contexto_extra=contexto_trilha)
     if resposta_ia:
-        # 3. Ingestão Assíncrona: alimenta o corpus em background com a resposta da IA externa (VAR-115)
-        topico_assimilacao = trilha_atual.habilidade if trilha_atual else "Geral"
-        CorpusIngestionService.assimilar_duvida_async(ctx.conteudo, resposta_ia, topico=topico_assimilacao)
+        # 3. Assimilação assíncrona: alimenta o caderno de dúvidas em background (VAR-115)
+        BaseConhecimento.assimilar_async(ctx.conteudo, resposta_ia, modulo_id=_modulo_do_contexto(ctx))
 
         return RespostaIntencao(
             conteudo=resposta_ia,
@@ -691,20 +714,19 @@ def _tratar_fallback(ctx: ContextoConversa) -> RespostaIntencao:
     trilha_atual = ctx.resolver_trilha()
     topico_escopo = trilha_atual.habilidade if trilha_atual else None
 
-    # Perguntas conceituais com formulação distante dos exemplos da intenção ainda podem estar no corpus.
-    resultado = CorpusSearch(similarity_threshold=0.82).buscar(ctx.vetor, topico=topico_escopo)
-    if resultado.entrada:
-        return _resposta_do_corpus(ctx, resultado.entrada, resultado.similaridade)
+    # Perguntas conceituais com formulação distante dos exemplos da intenção ainda podem estar na base local.
+    resultado = BaseConhecimento.buscar(ctx.vetor, topico=topico_escopo)
+    if resultado.resposta:
+        return _resposta_local(ctx, resultado.resposta)
 
-    # Se não houver correspondência direta no corpus, consulta a IA externa (VAR-116)
+    # Se não houver correspondência local, consulta a IA externa (VAR-116)
     contexto_trilha = None
     if trilha_atual:
         contexto_trilha = f"{trilha_atual.titulo} ({trilha_atual.habilidade})"
 
     resposta_ia = HintService.call_external_ai_chat(ctx.conteudo, contexto_extra=contexto_trilha)
     if resposta_ia:
-        topico_assimilacao = trilha_atual.habilidade if trilha_atual else "Geral"
-        CorpusIngestionService.assimilar_duvida_async(ctx.conteudo, resposta_ia, topico=topico_assimilacao)
+        BaseConhecimento.assimilar_async(ctx.conteudo, resposta_ia, modulo_id=_modulo_do_contexto(ctx))
         return RespostaIntencao(
             conteudo=resposta_ia,
             sugestoes_rapidas=SUGESTOES_AJUDA[:3],
@@ -1173,12 +1195,11 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
     resumo_pedagogico = agregar_historico_pedagogico(usuario)
 
     # 2. Execução da ação de sistema associada à intenção
-    # Para buscas semânticas no Corpus (dúvidas, dicas ou fallback), aplicamos o mesmo
-    # pipeline de sanitização e pré-processamento da ingestão (sem remover termos de trilha).
+    # Para buscas na base de conhecimento (dúvidas, dicas ou fallback), aplicamos o mesmo
+    # pipeline de vetorização da ingestão (sem remover termos de trilha).
     vetor_corpus = vetor
     if intencao_codigo in ("DUVIDA_CONTEUDO", "FALLBACK", "PEDIR_DICA") or intencao_codigo not in HANDLERS_INTENCAO:
-        texto_sanitizado = TextSanitizer.sanitizar(conteudo, remover_saudacao=True) or conteudo
-        texto_corpus_processado = preprocessor.processar(texto_sanitizado) or texto_sanitizado
+        texto_corpus_processado = normalizar_duvida(conteudo, preprocessor)
         if texto_corpus_processado != texto_para_embedding:
             vetor_corpus = embedding_service.gerar_embedding(texto_corpus_processado)
 
@@ -1218,6 +1239,7 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
             intencao=intencao_obj,
             distancia=distancia,
             origem_resposta=origem_resposta,
+            duvida_assimilada_id=resposta.duvida_assimilada_id,
         )
 
     return {
@@ -1232,6 +1254,7 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
             "redirecionar_para": resposta.redirecionar_para,
             "dados_acao": resposta.dados_acao,
             "origem_resposta": origem_resposta,
+            "duvida_assimilada_id": resposta.duvida_assimilada_id,
             "criada_em": mensagem_assistente.criada_em,
         }
     }
@@ -1256,6 +1279,7 @@ def obter_historico_chat(usuario, sessao_id):
             "conteudo": msg.conteudo,
             "intencao_detectada": intencao_codigo,
             "origem_resposta": msg.origem_resposta or None,
+            "duvida_assimilada_id": msg.duvida_assimilada_id,
             "criada_em": msg.criada_em,
         }
         if intencao_codigo == "LISTAR_TRILHAS":

@@ -53,6 +53,7 @@ class RespostaAssistenteSerializer(serializers.Serializer):
     redirecionar_para = serializers.CharField(allow_null=True, required=False)
     dados_acao = serializers.DictField(required=False)
     origem_resposta = serializers.CharField(allow_null=True, required=False)
+    duvida_assimilada_id = serializers.UUIDField(allow_null=True, required=False)
     criada_em = serializers.DateTimeField(required=False)
 
 
@@ -67,6 +68,7 @@ class MensagemHistoricoSerializer(serializers.Serializer):
     intencao_detectada = serializers.CharField(allow_null=True)
     opcoes_trilhas = OpcaoTrilhaSerializer(many=True, required=False)
     origem_resposta = serializers.CharField(allow_null=True, required=False)
+    duvida_assimilada_id = serializers.UUIDField(allow_null=True, required=False)
     criada_em = serializers.DateTimeField()
 
 
