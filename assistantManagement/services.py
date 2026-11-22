@@ -248,18 +248,27 @@ def _remover_termos(texto: str, frases: set, termos_singulares: set = frozenset(
     return " ".join(p for p in sem_termos.split() if _singular(p) not in termos_singulares)
 
 
+def _titulos_atividades_no_texto(texto: str, trilhas: list) -> set:
+    """Títulos de atividades citados por inteiro na mensagem (ex.: o chip "Continuar <atividade>")."""
+    texto_norm = f" {_normalizar(texto)} "
+    titulos = Atividade.objects.filter(modulo__trilha__in=trilhas, ativo=True).values_list("titulo", flat=True)
+    return {t for t in map(_normalizar, titulos) if t and f" {t} " in texto_norm}
+
+
 def texto_sem_tema(conteudo: str, trilhas: list) -> Optional[str]:
     """
-    Mensagem sem a trilha e os assuntos de módulo citados, ou None se nenhum módulo foi citado.
-    Serve para classificar só o pedido (ex.: "quero aprender ... por onde começo").
+    Mensagem sem a trilha, os títulos de atividade e os assuntos de módulo citados, ou None se
+    nenhum deles foi citado. Serve para classificar só o pedido (ex.: "quero aprender ... por onde
+    começo", "continuar <atividade>", "quero revisar <módulo>").
     """
     modulos = identificar_modulos_no_texto(conteudo, trilhas)
-    if not modulos:
+    atividades = _titulos_atividades_no_texto(conteudo, trilhas)
+    if not modulos and not atividades:
         return None
-    frases = set()
+    frases = set(atividades)
     trilha = identificar_trilha_no_texto(conteudo, trilhas)
     if trilha:
-        frases = _frases_trilha(trilha) | _palavras_chave(trilha)
+        frases |= _frases_trilha(trilha) | _palavras_chave(trilha)
     termos = set().union(*(m.termos for m in modulos))
     return _remover_termos(conteudo, frases, termos).strip() or None
 
@@ -1234,6 +1243,44 @@ def iniciar_sessao_chat(usuario):
     }
 
 
+# Intenções que a classificação só do pedido pode impor sobre a da mensagem completa.
+INTENCOES_DO_PEDIDO = ("RECOMENDAR_TRILHA", "PROXIMA_ATIVIDADE", "DUVIDA_CONTEUDO")
+
+
+def classificar_mensagem(conteudo: str, trilhas_ativas: list, contexto: Optional[dict] = None) -> tuple:
+    """
+    Classifica a intenção da mensagem. Retorna (classificação, texto usado no embedding, vetor).
+
+    Assuntos de módulo e títulos de atividade (ex.: "variaveis", "pandas") dominam o embedding e
+    escondem pedidos como "quero aprender ..., por onde começo?", "continuar <atividade>" ou
+    "quero revisar <módulo>". Classifica também só o pedido e, se ele for uma das INTENCOES_DO_PEDIDO
+    ao menos tão confiável, usa esse resultado. Recomendações e dúvidas de conteúdo já identificadas
+    não são reavaliadas: sem o assunto, "Como definir uma variável?" vira só "como definir". O vetor
+    original segue para os handlers, pois a busca no corpus depende do assunto.
+    """
+    preprocessor = TextPreprocessor.get_instance()
+    embedding_service = EmbeddingService.get_instance()
+    classifier = IntentClassifier()
+
+    texto_para_embedding = texto_para_classificacao(preprocessor, conteudo, trilhas_ativas)
+    vetor = embedding_service.gerar_embedding(texto_para_embedding)
+    classificacao = classifier.classificar(vetor, contexto=contexto)
+
+    pedido = texto_sem_tema(conteudo, trilhas_ativas)
+    if pedido and classificacao.get("intencao") not in ("RECOMENDAR_TRILHA", "DUVIDA_CONTEUDO"):
+        texto_pedido = preprocessor.processar(pedido) or pedido
+        classificacao_pedido = classifier.classificar(
+            embedding_service.gerar_embedding(texto_pedido), contexto=contexto,
+        )
+        if (
+            classificacao_pedido.get("intencao") in INTENCOES_DO_PEDIDO
+            and classificacao_pedido.get("similaridade", 0.0) >= classificacao.get("similaridade", 0.0)
+        ):
+            classificacao = classificacao_pedido
+
+    return classificacao, texto_para_embedding, vetor
+
+
 def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade_id=None, questao_id=None):
     """
     Recebe a mensagem do usuário, pré-processa o texto, gera embedding,
@@ -1246,41 +1293,19 @@ def enviar_mensagem_chat(usuario, sessao_id, conteudo, trilha_id=None, atividade
 
     # Pré-carrega trilhas ativas para enriquecer contexto se necessário
     trilhas_ativas = list(Trilha.objects.filter(ativo=True))
-
-    # 1. Pipeline local de PLN
-    preprocessor = TextPreprocessor.get_instance()
-    texto_para_embedding = texto_para_classificacao(preprocessor, conteudo, trilhas_ativas)
-
-    embedding_service = EmbeddingService.get_instance()
-    vetor = embedding_service.gerar_embedding(texto_para_embedding)
     lista_trilhas_formatada = "\n".join(
         f"{idx}. **{t.titulo}** ({t.habilidade})"
         for idx, t in enumerate(trilhas_ativas, start=1)
     )
-
-    classifier = IntentClassifier()
     contexto = {
         "nome": usuario.nome or usuario.apelido or "Estudante",
         "lista_trilhas": lista_trilhas_formatada,
     }
-    classificacao = classifier.classificar(vetor, contexto=contexto)
 
-    # Assuntos de módulo (ex.: "variaveis", "pandas") dominam o embedding e escondem pedidos como
-    # "quero aprender ..., por onde começo?". Classifica também só o pedido e, se for uma recomendação
-    # de trilha ao menos tão confiável, usa esse resultado. Dúvidas de conteúdo não são reavaliadas:
-    # sem o assunto, "Como definir uma variável?" vira só "como definir". O vetor original segue para
-    # os handlers, pois a busca no corpus depende do assunto.
-    pedido = texto_sem_tema(conteudo, trilhas_ativas)
-    if pedido and classificacao.get("intencao") not in ("RECOMENDAR_TRILHA", "DUVIDA_CONTEUDO"):
-        texto_pedido = preprocessor.processar(pedido) or pedido
-        classificacao_pedido = classifier.classificar(
-            embedding_service.gerar_embedding(texto_pedido), contexto=contexto,
-        )
-        if (
-            classificacao_pedido.get("intencao") == "RECOMENDAR_TRILHA"
-            and classificacao_pedido.get("similaridade", 0.0) >= classificacao.get("similaridade", 0.0)
-        ):
-            classificacao = classificacao_pedido
+    # 1. Pipeline local de PLN
+    classificacao, texto_para_embedding, vetor = classificar_mensagem(conteudo, trilhas_ativas, contexto)
+    preprocessor = TextPreprocessor.get_instance()
+    embedding_service = EmbeddingService.get_instance()
 
     intencao_codigo = classificacao.get("intencao", "FALLBACK")
     similaridade = classificacao.get("similaridade", 0.0)
