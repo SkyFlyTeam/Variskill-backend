@@ -11,6 +11,7 @@ from userManagement.gamification_engine import (
     EVENTO_ATIVIDADE_CONCLUIDA,
     EVENTO_MODULO_CONCLUIDO,
     EVENTO_STREAK_ATUALIZADO,
+    EVENTO_TRILHA_CONCLUIDA,
     GamificationEngine,
 )
 from userManagement.services import GamificationService, StreakService
@@ -46,6 +47,29 @@ class SubmissionResult:
 def _is_correct(questao, answer):
     payload = _PAYLOAD_BY_EXERCISE_TYPE[questao.tipo_exercicio](answer)
     return ResponseValidatorContext.for_questao(questao).validar(questao, payload)
+
+
+def avaliar_conquistas_conclusao(usuario, atividade, *, taxa_acerto, streak_dias=None) -> list[dict]:
+    """Avalia as conquistas disparadas pela conclusão aprovada de uma atividade.
+
+    Deve ser chamada após persistir a ExecucaoAtividade aprovada. Usada tanto na
+    submissão de exercícios quanto na conclusão de lições teóricas.
+    """
+    engine = GamificationEngine()
+    conquistas = engine.avaliar_conquistas_usuario(
+        usuario, EVENTO_ATIVIDADE_CONCLUIDA, {'aprovado': True, 'taxa_acerto': taxa_acerto},
+    )
+    if streak_dias is not None:
+        conquistas += engine.avaliar_conquistas_usuario(
+            usuario, EVENTO_STREAK_ATUALIZADO, {'streak_dias': streak_dias},
+        )
+    conquistas += engine.avaliar_conquistas_usuario(
+        usuario, EVENTO_MODULO_CONCLUIDO, {'modulo_id': atividade.modulo_id},
+    )
+    conquistas += engine.avaliar_conquistas_usuario(
+        usuario, EVENTO_TRILHA_CONCLUIDA, {'trilha_id': atividade.modulo.trilha_id},
+    )
+    return conquistas
 
 
 @transaction.atomic
@@ -112,16 +136,11 @@ def submit_activity(user, atividade, answers):
     # Avaliada após persistir a execução: PRIMEIRO_PASSO e EXPLORADOR_MODULO dependem dela.
     conquistas_desbloqueadas = []
     if approved:
-        engine = GamificationEngine()
-        conquistas_desbloqueadas += engine.avaliar_conquistas_usuario(
-            locked_user, EVENTO_ATIVIDADE_CONCLUIDA, {'aprovado': approved, 'taxa_acerto': hit_rate},
-        )
-        if streak_info is not None:
-            conquistas_desbloqueadas += engine.avaliar_conquistas_usuario(
-                locked_user, EVENTO_STREAK_ATUALIZADO, {'streak_dias': streak_info['streak_dias']},
-            )
-        conquistas_desbloqueadas += engine.avaliar_conquistas_usuario(
-            locked_user, EVENTO_MODULO_CONCLUIDO, {'modulo_id': atividade.modulo_id},
+        conquistas_desbloqueadas = avaliar_conquistas_conclusao(
+            locked_user,
+            atividade,
+            taxa_acerto=hit_rate,
+            streak_dias=streak_info['streak_dias'] if streak_info is not None else None,
         )
 
     # Calculado após as conquistas para que o XP bônus conte no level up.
