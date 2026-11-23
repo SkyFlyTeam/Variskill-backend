@@ -8,6 +8,11 @@ from assistantManagement.models import MemoriaPedagogicaUsuario
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
 URL = '/api/users/me/diagnostico-pedagogico/'
+TOPICO_PRATICAR = {
+    'topico': 'List Comprehension',
+    'trilha_id': '8f6c1a2e-3b4d-4c5e-9f60-718293a4b5c6',
+    'atividade_id': '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
+}
 
 
 @pytest.fixture
@@ -27,6 +32,7 @@ def memoria(user):
         usuario=user,
         pontos_fortes=['Estruturas Condicionais', 'Operadores Lógicos'],
         topicos_dificuldade=['List Comprehension', 'Funções Lambda'],
+        topicos_praticar=[TOPICO_PRATICAR],
         taxa_acerto_geral=78.5,
         total_atividades_avaliadas=14,
     )
@@ -51,6 +57,7 @@ def test_usuario_sem_historico_recebe_payload_padrao(client, user):
     assert response.json() == {
         'pontos_fortes': [],
         'topicos_dificuldade': [],
+        'topicos_praticar': [],
         'taxa_acerto_geral': 0.0,
         'total_atividades_avaliadas': 0,
         'ultima_atualizacao': None,
@@ -66,11 +73,12 @@ def test_retorna_memoria_consolidada_do_usuario(client, user, memoria):
     data = response.json()
     assert data['pontos_fortes'] == ['Estruturas Condicionais', 'Operadores Lógicos']
     assert data['topicos_dificuldade'] == ['List Comprehension', 'Funções Lambda']
+    assert data['topicos_praticar'] == [TOPICO_PRATICAR]
     assert data['taxa_acerto_geral'] == 78.5
     assert data['total_atividades_avaliadas'] == 14
     assert data['ultima_atualizacao'] is not None
     assert set(data) == {
-        'pontos_fortes', 'topicos_dificuldade', 'taxa_acerto_geral',
+        'pontos_fortes', 'topicos_dificuldade', 'topicos_praticar', 'taxa_acerto_geral',
         'total_atividades_avaliadas', 'ultima_atualizacao',
     }
 

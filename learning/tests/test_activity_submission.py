@@ -92,6 +92,21 @@ def test_approved_submission_persists_execution_and_credits_xp(client, student, 
     assert student.streak_dias == 1
 
 
+def test_submissao_registra_se_iniciou_uma_pratica_de_reforco(client, student, atividade):
+    questao = make_questao(atividade)
+    client.force_login(student)
+
+    comum = submit(client, atividade, {str(questao.pk): ['A']})
+    pratica = client.post(
+        reverse('atividade-submit', args=[atividade.pk]),
+        {'respostas': {str(questao.pk): ['A']}, 'pratica_reforco': True},
+        format='json',
+    )
+
+    assert ExecucaoAtividade.objects.get(pk=comum.data['execucao_id']).pratica_reforco is False
+    assert ExecucaoAtividade.objects.get(pk=pratica.data['execucao_id']).pratica_reforco is True
+
+
 def test_reenvio_de_atividade_ja_aprovada_nao_duplica_contador_do_dia(client, student, atividade):
     # Review de VAR-105/PR#38, ponto 2: reenviar uma atividade já aprovada não concede
     # XP de novo (comportamento preexistente) e, agora, também não deve contar como uma

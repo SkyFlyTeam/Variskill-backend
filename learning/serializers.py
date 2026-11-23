@@ -82,6 +82,10 @@ class ActivitySubmissionSerializer(serializers.Serializer):
     respostas = serializers.DictField(
         child=serializers.ListField(child=serializers.CharField(allow_blank=True)),
     )
+    pratica_reforco = serializers.BooleanField(
+        default=False,
+        help_text='Primeira submissão de uma prática iniciada pelo "Praticar de novo" do Raio-X.',
+    )
 
 
 class QuestionFeedbackSerializer(serializers.Serializer):

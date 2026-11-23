@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 from django.contrib.auth import get_user_model
 from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
@@ -9,6 +11,7 @@ from assistantManagement.memory_service import (
     LIMIAR_DOMINIO_PERCENT,
     LIMIAR_DIFICULDADE_PERCENT,
     MIN_QUESTOES_PARA_PONTO_FORTE,
+    JANELA_RETENTATIVA,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
@@ -173,7 +176,7 @@ def test_classifica_modulo_com_baixo_aproveitamento_como_dificuldade(
 
 
 @pytest.mark.django_db
-def test_considera_apenas_a_ultima_execucao_de_cada_atividade(
+def test_considera_apenas_a_primeira_execucao_de_cada_atividade(
     usuario, modulo_repeticao, atividade_repeticao
 ):
     q1 = Questao.objects.create(
@@ -210,7 +213,7 @@ def test_considera_apenas_a_ultima_execucao_de_cada_atividade(
     RespostaQuestao.objects.create(execucao=exec1, questao=q2, correta=False)
     RespostaQuestao.objects.create(execucao=exec1, questao=q3, correta=False)
 
-    # 2ª execução (mais recente) com acerto
+    # 2ª execução (retentativa) com acerto
     exec2 = ExecucaoAtividade.objects.create(
         usuario=usuario,
         atividade=atividade_repeticao,
@@ -221,14 +224,63 @@ def test_considera_apenas_a_ultima_execucao_de_cada_atividade(
     RespostaQuestao.objects.create(execucao=exec2, questao=q1, correta=True)
     RespostaQuestao.objects.create(execucao=exec2, questao=q2, correta=True)
     RespostaQuestao.objects.create(execucao=exec2, questao=q3, correta=True)
+    ExecucaoAtividade.objects.filter(pk=exec2.pk).update(
+        executado_em=exec1.executado_em + timedelta(hours=1)
+    )
 
     memoria = PedagogicalMemoryService.consolidar_perfil(usuario)
 
-    # Deve refletir a 2ª execução (100% de acerto com 3 questões -> Ponto Forte)
+    # Deve refletir a 1ª execução: a retentativa não apaga os erros (0% -> Dificuldade)
     assert memoria.total_atividades_avaliadas == 1
+    assert memoria.taxa_acerto_geral == 0.0
+    assert "Estruturas de Repetição" in memoria.topicos_dificuldade
+    assert memoria.pontos_fortes == []
+
+    # Voltar à atividade depois da janela de retentativa abre uma nova rodada, que passa a valer
+    ExecucaoAtividade.objects.filter(pk=exec2.pk).update(
+        executado_em=exec1.executado_em + JANELA_RETENTATIVA + timedelta(minutes=1)
+    )
+
+    memoria = PedagogicalMemoryService.consolidar_perfil(usuario)
+
     assert memoria.taxa_acerto_geral == 100.0
     assert "Estruturas de Repetição" in memoria.pontos_fortes
     assert memoria.topicos_dificuldade == []
+    assert memoria.topicos_praticar == []
+
+
+@pytest.mark.django_db
+def test_topicos_praticar_aponta_a_atividade_com_menor_acerto_do_modulo(
+    usuario, trilha, modulo_repeticao, atividade_repeticao
+):
+    atividade_pior = Atividade.objects.create(
+        modulo=modulo_repeticao,
+        titulo="Exercícios While",
+        contexto_avaliacao="FORMATIVA",
+        ordem=3,
+    )
+    for atividade, acertos in ((atividade_repeticao, [True, False]), (atividade_pior, [False, False])):
+        execucao = ExecucaoAtividade.objects.create(
+            usuario=usuario, atividade=atividade, resposta={}, pontuacao_obtida=0, aprovado=False,
+        )
+        for ordem, correta in enumerate(acertos, start=1):
+            questao = Questao.objects.create(
+                atividade=atividade,
+                tipo_exercicio="MULTIPLA_ESCOLHA",
+                enunciado=f"Questão {ordem}",
+                gabarito_esperado="A",
+                ordem_questao=ordem,
+            )
+            RespostaQuestao.objects.create(execucao=execucao, questao=questao, correta=correta)
+
+    memoria = PedagogicalMemoryService.consolidar_perfil(usuario)
+
+    assert memoria.topicos_dificuldade == ["Estruturas de Repetição"]
+    assert memoria.topicos_praticar == [{
+        "topico": "Estruturas de Repetição",
+        "trilha_id": str(trilha.id),
+        "atividade_id": str(atividade_pior.id),
+    }]
 
 
 @pytest.mark.django_db

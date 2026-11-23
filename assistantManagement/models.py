@@ -58,6 +58,8 @@ class MemoriaPedagogicaUsuario(models.Model):
     )
     pontos_fortes = models.JSONField(default=list, blank=True)
     topicos_dificuldade = models.JSONField(default=list, blank=True)
+    # [{topico, trilha_id, atividade_id}]: atividade a refazer para superar cada tópico
+    topicos_praticar = models.JSONField(default=list, blank=True)
     total_atividades_avaliadas = models.PositiveIntegerField(default=0)
     taxa_acerto_geral = models.FloatField(default=0.0)
     resumo_perfil_didatico = models.TextField(blank=True, default='')

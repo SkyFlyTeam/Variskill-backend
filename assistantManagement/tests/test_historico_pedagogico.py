@@ -92,7 +92,7 @@ class AgregarHistoricoPedagogicoTests(TestCase):
         self.assertEqual(resumo.modulos_com_dificuldade, [])
         self.assertEqual(resumo.modulos_com_dominio, [])
 
-    def test_considera_apenas_a_ultima_execucao_de_cada_atividade(self):
+    def test_considera_apenas_a_primeira_execucao_de_cada_atividade(self):
         modulo = Modulo.objects.create(trilha=self.trilha, titulo="Módulo 1", nivel="INICIANTE", ordem_modulo=1)
         atividade = make_atividade(modulo)
         questao = make_questao(atividade)
@@ -105,8 +105,55 @@ class AgregarHistoricoPedagogicoTests(TestCase):
 
         resumo = agregar_historico_pedagogico(self.user)
 
+        self.assertEqual(resumo.modulos_com_dominio, [])
+        self.assertEqual(len(resumo.modulos_com_dificuldade), 1)
+        self.assertEqual(resumo.modulos_com_dificuldade[0]["taxa_acerto"], 0.0)
+
+    def test_pratica_de_reforco_abre_nova_rodada_mesmo_dentro_da_janela(self):
+        modulo = Modulo.objects.create(trilha=self.trilha, titulo="Módulo 1", nivel="INICIANTE", ordem_modulo=1)
+        atividade = make_atividade(modulo)
+        questao = make_questao(atividade)
+
+        make_execucao_com_respostas(
+            self.user, atividade, [(questao, False)],
+            executado_em=timezone.now() - timedelta(hours=2),
+        )
+        pratica = make_execucao_com_respostas(
+            self.user, atividade, [(questao, True)],
+            executado_em=timezone.now() - timedelta(hours=1),
+        )
+        ExecucaoAtividade.objects.filter(pk=pratica.pk).update(pratica_reforco=True)
+        # "Tentar de novo" dentro da prática continua na mesma rodada
+        make_execucao_com_respostas(self.user, atividade, [(questao, False)])
+
+        resumo = agregar_historico_pedagogico(self.user)
+
         self.assertEqual(resumo.modulos_com_dificuldade, [])
-        self.assertEqual(len(resumo.modulos_com_dominio), 1)
+        self.assertEqual(resumo.modulos_com_dominio[0]["taxa_acerto"], 100.0)
+
+    def test_nova_rodada_apos_a_janela_de_retentativa_substitui_a_anterior(self):
+        modulo = Modulo.objects.create(trilha=self.trilha, titulo="Módulo 1", nivel="INICIANTE", ordem_modulo=1)
+        atividade = make_atividade(modulo)
+        questao = make_questao(atividade)
+
+        make_execucao_com_respostas(
+            self.user, atividade, [(questao, False)],
+            executado_em=timezone.now() - timedelta(days=3),
+        )
+        make_execucao_com_respostas(
+            self.user, atividade, [(questao, True)],
+            executado_em=timezone.now() - timedelta(days=3) + timedelta(minutes=5),
+        )
+        # Volta dias depois e acerta de primeira; a retentativa seguinte é da mesma rodada
+        make_execucao_com_respostas(
+            self.user, atividade, [(questao, True)],
+            executado_em=timezone.now() - timedelta(hours=1),
+        )
+        make_execucao_com_respostas(self.user, atividade, [(questao, False)])
+
+        resumo = agregar_historico_pedagogico(self.user)
+
+        self.assertEqual(resumo.modulos_com_dificuldade, [])
         self.assertEqual(resumo.modulos_com_dominio[0]["taxa_acerto"], 100.0)
 
     def test_nao_mistura_historico_de_outro_usuario(self):

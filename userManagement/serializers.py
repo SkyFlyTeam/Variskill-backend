@@ -295,6 +295,14 @@ class ChangePasswordSerializer(serializers.Serializer):
         return value
 
 
+class TopicoPraticarSerializer(serializers.Serializer):
+    topico = serializers.CharField(help_text='Tópico (módulo) com dificuldade.')
+    trilha_id = serializers.UUIDField(help_text='Trilha do módulo.')
+    atividade_id = serializers.UUIDField(
+        help_text='Atividade do módulo com menor acerto, a refazer para superar o tópico.',
+    )
+
+
 class DiagnosticoPedagogicoSerializer(serializers.Serializer):
     """Raio-X de aprendizado do estudante (VAR-126), lido da memória pedagógica (VAR-118)."""
 
@@ -305,6 +313,10 @@ class DiagnosticoPedagogicoSerializer(serializers.Serializer):
     topicos_dificuldade = serializers.ListField(
         child=serializers.CharField(),
         help_text='Tópicos (módulos) com erros recorrentes, a praticar.',
+    )
+    topicos_praticar = TopicoPraticarSerializer(
+        many=True,
+        help_text='Atividade a refazer para cada tópico com dificuldade.',
     )
     taxa_acerto_geral = serializers.FloatField(
         help_text='Percentual de acerto em todas as questões avaliadas (0 a 100).',

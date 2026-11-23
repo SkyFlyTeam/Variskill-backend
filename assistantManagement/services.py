@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 from assistantManagement.base_conhecimento import BaseConhecimento, ORIGEM_CACHE_SEMANTICO, RespostaLocal
+from assistantManagement.memory_service import ids_execucoes_avaliadas
 from assistantManagement.models import Mensagem, Sessao
 from trackManagement.models import Trilha, Modulo, Matricula, ProgressoModulo
 from trackManagement.services import efetivar_matricula, recomendar_trilhas_por_perfil
@@ -369,24 +370,19 @@ def _matricular_no_nivel_basico(usuario, trilha: Trilha):
 
 def agregar_historico_pedagogico(usuario) -> ResumoPedagogico:
     """
-    Agrega o histórico pedagógico do estudante (VAR-100) a partir da última execução de
-    cada atividade já realizada, classificando os módulos com reincidência de erros
-    (taxa de acerto < 70%) e os módulos já dominados (taxa de acerto >= 80%).
+    Agrega o histórico pedagógico do estudante (VAR-100) a partir da execução avaliada de
+    cada atividade (primeira da rodada mais recente, ver ids_execucoes_avaliadas),
+    classificando os módulos com reincidência de erros (taxa de acerto < 70%) e os módulos
+    já dominados (taxa de acerto >= 80%).
 
-    Usa a mesma estratégia de VAR-94 (última execução por atividade via DISTINCT ON do
-    Postgres) e resolve o agregado por módulo em memória, com uma única consulta a
-    RESPOSTA_QUESTAO (select_related evita N+1 ao acessar execucao/atividade/modulo).
+    Resolve o agregado por módulo em memória, com uma única consulta a RESPOSTA_QUESTAO
+    (select_related evita N+1 ao acessar execucao/atividade/modulo).
     """
-    ultimas_execucoes_ids = (
-        ExecucaoAtividade.objects.filter(usuario=usuario)
-        .order_by("atividade_id", "-executado_em")
-        .distinct("atividade_id")
-        .values_list("id", flat=True)
-    )
+    execucoes_avaliadas_ids = ids_execucoes_avaliadas(usuario)
 
     respostas = (
         RespostaQuestao.objects
-        .filter(execucao_id__in=list(ultimas_execucoes_ids))
+        .filter(execucao_id__in=execucoes_avaliadas_ids)
         .select_related("execucao__atividade__modulo")
     )
 

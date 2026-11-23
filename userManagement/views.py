@@ -429,7 +429,8 @@ class DiagnosticoPedagogicoView(generics.GenericAPIView):
     @extend_schema(
         summary='Diagnóstico pedagógico do estudante logado',
         description=(
-            'Retorna os pontos fortes, os tópicos com dificuldade, a taxa de acerto geral, '
+            'Retorna os pontos fortes, os tópicos com dificuldade (com a atividade a refazer '
+            'para cada um), a taxa de acerto geral, '
             'o total de atividades avaliadas e a data da última consolidação da memória '
             'pedagógica do usuário autenticado. Usuários sem memória consolidada recebem '
             '200 com listas vazias, taxa 0 e ultima_atualizacao nula.'
@@ -446,7 +447,7 @@ class DiagnosticoPedagogicoView(generics.GenericAPIView):
         memoria = (
             MemoriaPedagogicaUsuario.objects.filter(usuario=request.user)
             .only(
-                'pontos_fortes', 'topicos_dificuldade', 'taxa_acerto_geral',
+                'pontos_fortes', 'topicos_dificuldade', 'topicos_praticar', 'taxa_acerto_geral',
                 'total_atividades_avaliadas', 'atualizado_em',
             )
             .first()
@@ -455,6 +456,7 @@ class DiagnosticoPedagogicoView(generics.GenericAPIView):
             dados = {
                 'pontos_fortes': [],
                 'topicos_dificuldade': [],
+                'topicos_praticar': [],
                 'taxa_acerto_geral': 0.0,
                 'total_atividades_avaliadas': 0,
                 'ultima_atualizacao': None,
@@ -463,6 +465,7 @@ class DiagnosticoPedagogicoView(generics.GenericAPIView):
             dados = {
                 'pontos_fortes': memoria.pontos_fortes or [],
                 'topicos_dificuldade': memoria.topicos_dificuldade or [],
+                'topicos_praticar': memoria.topicos_praticar or [],
                 'taxa_acerto_geral': memoria.taxa_acerto_geral,
                 'total_atividades_avaliadas': memoria.total_atividades_avaliadas,
                 'ultima_atualizacao': memoria.atualizado_em,
