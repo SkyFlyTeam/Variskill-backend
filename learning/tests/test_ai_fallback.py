@@ -1,7 +1,8 @@
+import json
 import os
 import urllib.error
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -52,3 +53,29 @@ def test_breaker_aberto_nao_chama_a_rede():
     with patch("urllib.request.urlopen") as mock_urlopen:
         assert HintService._call_external_ai(_questao_fake(), "duvida") is None
     mock_urlopen.assert_not_called()
+
+
+def _resposta_http(conteudo: str):
+    resposta = MagicMock(status=200)
+    resposta.read.return_value = json.dumps({"choices": [{"message": {"content": conteudo}}]}).encode("utf-8")
+    resposta.__enter__.return_value = resposta
+    return resposta
+
+
+@patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"})
+def test_json_usa_structured_outputs_e_timeout_proprio():
+    schema = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
+    with patch("urllib.request.urlopen", return_value=_resposta_http('{"tema": "culinaria"}')) as mock_urlopen:
+        resposta = HintService.call_external_ai_json("prompt", "pedido", timeout=60, schema=schema, nome_schema="teste")
+    assert resposta == {"tema": "culinaria"}
+    requisicao = mock_urlopen.call_args.args[0]
+    assert json.loads(requisicao.data)["response_format"] == {
+        "type": "json_schema", "json_schema": {"name": "teste", "strict": True, "schema": schema},
+    }
+    assert mock_urlopen.call_args.kwargs["timeout"] == 60
+
+
+@patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"})
+def test_json_invalido_retorna_none():
+    with patch("urllib.request.urlopen", return_value=_resposta_http("não é json")):
+        assert HintService.call_external_ai_json("prompt", "pedido", timeout=60, schema={}, nome_schema="teste") is None

@@ -110,7 +110,10 @@ class RoadmapView(APIView):
             matricula.save(update_fields=['status', 'concluido_em'])
 
         return Response({
-            'trilha': {'id': trilha.pk, 'titulo': trilha.titulo, 'habilidade': trilha.habilidade},
+            'trilha': {
+                'id': trilha.pk, 'titulo': trilha.titulo, 'habilidade': trilha.habilidade,
+                'gerada_por_ia': trilha.gerada_por_ia,
+            },
             'percentual_conclusao': round(completed * 100 / total, 1) if total else 0.0,
             'modulos': result,
             'proxima_atividade_recomendada': recommended

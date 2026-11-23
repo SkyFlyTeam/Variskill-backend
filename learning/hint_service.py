@@ -58,29 +58,35 @@ class HintService:
             return False
 
     @staticmethod
-    def _call_external_ai(questao: Questao, pergunta: str) -> Optional[str]:
+    def _minimizar(texto: str) -> str:
+        # Minimização (LGPD): removemos PII do texto livre e limitamos o tamanho
+        # antes de qualquer chamada externa.
+        max_chars = getattr(settings, 'LGPD_MAX_PROMPT_CHARS', 500)
+        texto_limpo = TextSanitizer.sanitizar(texto or '', remover_saudacao=False)
+        return (texto_limpo or texto or '')[:max_chars]
+
+    @staticmethod
+    def _chat_completion(
+        prompt_system: str,
+        mensagem_usuario: str,
+        origem_log: str,
+        timeout: float = TIMEOUT_SECONDS,
+        **parametros,
+    ) -> Optional[str]:
+        """
+        Chamada única ao LLM externo, protegida pelo CircuitBreaker AI_CIRCUIT_BREAKER.
+        Retorna o texto da resposta ou None em qualquer falha (nunca propaga exceção).
+        """
         # Fail-fast: se o circuito está aberto, a IA falhou recentemente; não toca na rede.
         if not AI_CIRCUIT_BREAKER.allow_request():
-            logger.warning("Circuit breaker da IA aberto; retornando contingência imediata.")
+            logger.warning(f"Circuit breaker da IA aberto; contingência imediata ({origem_log}).")
             return None
 
         api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("EXTERNAL_AI_API_KEY")
         if not api_key:
-            logger.warning("Nenhuma chave de API externa configurada.")
+            logger.warning(f"Nenhuma chave de API externa configurada ({origem_log}).")
             return None
 
-        prompt_system = (
-            f"Você é um tutor de programação. "
-            f"O aluno está na questão: '{questao.enunciado}'. "
-            f"Responda à dúvida dele dando apenas pistas conceituais. "
-            f"NUNCA revele a resposta ou o gabarito final."
-        )
-
-        # Minimização (LGPD): removemos PII do texto livre e limitamos o tamanho
-        # antes de qualquer chamada externa.
-        max_chars = getattr(settings, 'LGPD_MAX_PROMPT_CHARS', 500)
-        pergunta_limpa = TextSanitizer.sanitizar(pergunta or '', remover_saudacao=False)
-        pergunta_minimizada = (pergunta_limpa or pergunta or '')[:max_chars]
         modelo = os.environ.get("EXTERNAL_AI_MODEL", "gpt-4o-mini")
         registrar_chamada_ia_externa(modelo)
 
@@ -88,9 +94,10 @@ class HintService:
             "model": modelo,
             "messages": [
                 {"role": "system", "content": prompt_system},
-                {"role": "user", "content": pergunta_minimizada},
+                {"role": "user", "content": mensagem_usuario},
             ],
             "temperature": 0.7,
+            **parametros,
         }).encode("utf-8")
 
         req = urllib.request.Request(
@@ -104,9 +111,9 @@ class HintService:
         )
 
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as response:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
                 if response.status != 200:
-                    logger.warning(f"IA externa respondeu status inesperado: {response.status}")
+                    logger.warning(f"IA externa respondeu status inesperado: {response.status} ({origem_log}).")
                     AI_CIRCUIT_BREAKER.record_failure()
                     return None
                 data = json.loads(response.read().decode("utf-8"))
@@ -115,20 +122,30 @@ class HintService:
                 return resposta
         except urllib.error.HTTPError as e:
             if e.code == 429:
-                logger.warning("IA externa retornou 429 (cota/rate limit). Acionando contingência.")
+                logger.warning(f"IA externa retornou 429 (cota/rate limit) ({origem_log}). Acionando contingência.")
             else:
-                logger.error(f"IA externa retornou HTTP {e.code}. Acionando contingência.")
+                logger.error(f"IA externa retornou HTTP {e.code} ({origem_log}). Acionando contingência.")
             AI_CIRCUIT_BREAKER.record_failure()
             return None
         except (urllib.error.URLError, TimeoutError) as e:
-            logger.error(f"Falha de rede/timeout ao conectar com IA externa: {e}")
+            logger.error(f"Falha de rede/timeout ao conectar com IA externa ({origem_log}): {e}")
             AI_CIRCUIT_BREAKER.record_failure()
             return None
         except Exception as e:
             # Rede de segurança: nenhuma falha inesperada deve propagar (evita HTTP 500).
-            logger.error(f"Erro inesperado ao consultar IA externa: {e}")
+            logger.error(f"Erro inesperado ao consultar IA externa ({origem_log}): {e}")
             AI_CIRCUIT_BREAKER.record_failure()
             return None
+
+    @classmethod
+    def _call_external_ai(cls, questao: Questao, pergunta: str) -> Optional[str]:
+        prompt_system = (
+            f"Você é um tutor de programação. "
+            f"O aluno está na questão: '{questao.enunciado}'. "
+            f"Responda à dúvida dele dando apenas pistas conceituais. "
+            f"NUNCA revele a resposta ou o gabarito final."
+        )
+        return cls._chat_completion(prompt_system, cls._minimizar(pergunta), origem_log="dica")
 
     @classmethod
     def call_external_ai_chat(cls, pergunta: str, contexto_extra: Optional[str] = None) -> Optional[str]:
@@ -136,15 +153,6 @@ class HintService:
         Consulta LLM externo para dúvidas conceituais de chat geral quando não há resposta no corpus.
         Protegido pelo CircuitBreaker AI_CIRCUIT_BREAKER e minimização de dados LGPD.
         """
-        if not AI_CIRCUIT_BREAKER.allow_request():
-            logger.warning("Circuit breaker da IA aberto; contingência imediata no chat.")
-            return None
-
-        api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("EXTERNAL_AI_API_KEY")
-        if not api_key:
-            logger.warning("Nenhuma chave de API externa configurada para o chat.")
-            return None
-
         prompt_system = (
             "Você é o Coach de Programação da plataforma VariSkill. "
             "Seu papel é responder dúvidas conceituais de forma didática, clara e objetiva. "
@@ -153,57 +161,34 @@ class HintService:
         )
         if contexto_extra:
             prompt_system += f" Contexto do tema/trilha: {contexto_extra}."
+        return cls._chat_completion(prompt_system, cls._minimizar(pergunta), origem_log="chat")
 
-        max_chars = getattr(settings, 'LGPD_MAX_PROMPT_CHARS', 500)
-        pergunta_limpa = TextSanitizer.sanitizar(pergunta or '', remover_saudacao=False)
-        pergunta_minimizada = (pergunta_limpa or pergunta or '')[:max_chars]
-        modelo = os.environ.get("EXTERNAL_AI_MODEL", "gpt-4o-mini")
-        registrar_chamada_ia_externa(modelo)
-
-        payload = json.dumps({
-            "model": modelo,
-            "messages": [
-                {"role": "system", "content": prompt_system},
-                {"role": "user", "content": pergunta_minimizada},
-            ],
-            "temperature": 0.7,
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            "https://api.openai.com/v1/chat/completions",
-            data=payload,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
+    @classmethod
+    def call_external_ai_json(
+        cls, prompt_system: str, mensagem: str, timeout: float, schema: dict, nome_schema: str,
+    ) -> Optional[dict]:
+        """
+        Consulta o LLM externo com Structured Outputs (ex.: geração de trilhas): a resposta segue o
+        JSON Schema informado. Retorna o objeto decodificado ou None se a IA falhar.
+        """
+        resposta = cls._chat_completion(
+            prompt_system,
+            cls._minimizar(mensagem),
+            origem_log="json",
+            timeout=timeout,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": nome_schema, "strict": True, "schema": schema},
             },
-            method="POST",
         )
-
+        if not resposta:
+            return None
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as response:
-                if response.status != 200:
-                    logger.warning(f"IA externa respondeu status inesperado: {response.status}")
-                    AI_CIRCUIT_BREAKER.record_failure()
-                    return None
-                data = json.loads(response.read().decode("utf-8"))
-                resposta = data["choices"][0]["message"]["content"].strip()
-                AI_CIRCUIT_BREAKER.record_success()
-                return resposta
-        except urllib.error.HTTPError as e:
-            if e.code == 429:
-                logger.warning("IA externa retornou 429 (cota/rate limit) no chat.")
-            else:
-                logger.error(f"IA externa retornou HTTP {e.code} no chat.")
-            AI_CIRCUIT_BREAKER.record_failure()
+            dados = json.loads(resposta)
+        except json.JSONDecodeError:
+            logger.warning("IA externa respondeu JSON inválido.")
             return None
-        except (urllib.error.URLError, TimeoutError) as e:
-            logger.error(f"Falha de rede/timeout ao conectar com IA externa no chat: {e}")
-            AI_CIRCUIT_BREAKER.record_failure()
-            return None
-        except Exception as e:
-            logger.error(f"Erro inesperado ao consultar IA externa no chat: {e}")
-            AI_CIRCUIT_BREAKER.record_failure()
-            return None
+        return dados if isinstance(dados, dict) else None
 
     @classmethod
     def _buscar_na_base_local(cls, pergunta: str, topico: Optional[str], questao_id):

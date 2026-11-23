@@ -13,6 +13,11 @@ from assistantManagement.base_conhecimento import BaseConhecimento, ORIGEM_CACHE
 from assistantManagement.memory_service import ids_execucoes_avaliadas
 from assistantManagement.models import Mensagem, Sessao
 from trackManagement.models import Trilha, Modulo, Matricula, ProgressoModulo
+from trackManagement.geracao_trilha import (
+    LIMITE_TRILHAS_GERADAS_POR_USUARIO,
+    gerar_trilha_por_tema,
+    limite_de_trilhas_geradas_atingido,
+)
 from trackManagement.services import efetivar_matricula, recomendar_trilhas_por_perfil
 from activityManagement.models import Atividade, ExecucaoAtividade, RespostaQuestao
 from intents.models import Intention, Response
@@ -306,6 +311,7 @@ def _opcoes_trilhas(trilhas) -> list:
             "id": str(trilha.id),
             "titulo": trilha.titulo,
             "habilidade": trilha.habilidade,
+            "gerada_por_ia": trilha.gerada_por_ia,
         }
         for trilha in trilhas
     ]
@@ -950,6 +956,68 @@ def _recomendar_trilhas_contextual(usuario, trilhas_ativas: list[Trilha]) -> tup
 
 PALAVRAS_NIVEL_BASICO = {"basico", "basica", "iniciante", "zero", "comecando"}
 
+# Palavras do pedido de recomendação em si (ver exemplos de RECOMENDAR_TRILHA em seed_intencoes.py):
+# o que sobra na mensagem sem elas é o tema que o estudante quer aprender.
+PALAVRAS_PEDIDO_RECOMENDACAO = PALAVRAS_IGNORADAS_MODULO | {
+    "voce", "recomenda", "recomende", "recomendar", "recomendacao", "indica", "indique", "indicar",
+    "sugere", "sugira", "sugerir", "sugestao", "combina", "comigo", "devo", "aprendo", "estudo",
+    "tenho", "interesse", "interesses", "nessa", "nesse", "area", "assunto", "caminho", "complementar",
+    "meu", "meus", "minha", "minhas", "pode", "poderia", "gostaria", "preciso", "algo", "agora", "mim",
+    "sou", "estou", "pra", "pro", "uma", "dar", "tema", "coisa", "alguma", "algum", "mais",
+    "nao", "sei", "combinam", "aprenda", "estude",
+}
+# Sem uma destas palavras, mensagem com tema fora do catálogo não é pedido de trilha (ex.: "Qual a capital da França?").
+PALAVRAS_DESEJO_APRENDER = {
+    "aprender", "aprendo", "aprenda", "estudar", "estudo", "estude", "entender", "comecar", "comeco",
+    "trilha", "trilhas", "curso", "cursos",
+}
+
+
+def _pedido_sem_tema_livre(texto: str) -> Optional[str]:
+    """
+    Só as palavras do pedido de recomendação (ex.: "quero aprender a ... por onde comeco"), ou None se
+    a mensagem não tiver tema nem pedir para aprender algo. Serve para classificar pedidos sobre temas fora do catálogo.
+    """
+    if not _tema_do_pedido(texto) or not PALAVRAS_DESEJO_APRENDER & set(_normalizar(texto).split()):
+        return None
+    palavras = [
+        p for p in _normalizar(texto).split()
+        if len(p) < 3 or p in PALAVRAS_PEDIDO_RECOMENDACAO or _singular(p) in PALAVRAS_PEDIDO_RECOMENDACAO
+    ]
+    return " ".join(palavras) or None
+
+
+def _tema_do_pedido(texto: str) -> Optional[str]:
+    """Tema que o estudante quer aprender (ex.: "culinaria"), ou None se a mensagem só pede uma trilha."""
+    termos = [
+        p for p in _normalizar(texto).split()
+        if len(p) >= 3 and p not in PALAVRAS_PEDIDO_RECOMENDACAO and _singular(p) not in PALAVRAS_PEDIDO_RECOMENDACAO
+    ]
+    return " ".join(termos) or None
+
+
+def _recomendar_trilha_gerada(ctx: ContextoConversa) -> Optional[RespostaIntencao]:
+    """
+    Tema sem trilha no catálogo: pede à IA externa uma trilha nova (ou a trilha do catálogo que já cobre
+    o tema) e a recomenda como qualquer outra. None se a IA não puder ajudar.
+    """
+    resultado = gerar_trilha_por_tema(ctx.conteudo, ctx.trilhas_ativas, ctx.usuario)
+    if resultado is None:
+        return None
+
+    trilha = resultado.trilha
+    if trilha not in ctx.trilhas_ativas:
+        ctx.trilhas_ativas.append(trilha)
+    resposta = _recomendar_trilha_do_tema(ctx, trilha)
+    if resultado.criada:
+        resposta.conteudo = (
+            f"Ainda não tínhamos uma trilha sobre esse tema, então criei uma para você com IA generativa! "
+            f"{resposta.conteudo}"
+        )
+    resposta.dados_acao["trilha_gerada"] = resultado.criada
+    resposta.origem_resposta = "IA_EXTERNA"
+    return resposta
+
 
 def _tema_da_mensagem(texto: str, trilhas: list) -> tuple[list, Optional[Modulo]]:
     """
@@ -1048,10 +1116,8 @@ def _recomendar_trilha_do_tema(ctx: ContextoConversa, trilha: Trilha, modulo: Op
 
 
 def _tratar_recomendar_trilha(ctx: ContextoConversa) -> RespostaIntencao:
-    if not ctx.trilhas_ativas:
-        return RespostaIntencao("No momento não há trilhas ativas disponíveis para recomendação. Volte em breve!")
-
     # Pedido com tema (ex.: "Quero aprender devops, qual trilha faço?") é respondido pela trilha do tema;
+    # tema sem trilha (ex.: "Quero aprender culinária") ganha uma trilha gerada pela IA externa;
     # sem tema, a recomendação usa os interesses e o histórico do estudante.
     trilhas_tema, modulo = _tema_da_mensagem(ctx.conteudo, ctx.trilhas_ativas)
     if len(trilhas_tema) == 1:
@@ -1064,10 +1130,27 @@ def _tratar_recomendar_trilha(ctx: ContextoConversa) -> RespostaIntencao:
             acao="RECOMENDACAO_TRILHA",
         )
 
+    tema = _tema_do_pedido(ctx.conteudo)
+    limite_atingido = bool(tema) and limite_de_trilhas_geradas_atingido(ctx.usuario)
+    if tema and not limite_atingido:
+        resposta = _recomendar_trilha_gerada(ctx)
+        if resposta:
+            return resposta
+
+    if not ctx.trilhas_ativas:
+        return RespostaIntencao("No momento não há trilhas ativas disponíveis para recomendação. Volte em breve!")
+
     trilhas_ranqueadas, interesses, motivo = _recomendar_trilhas_contextual(ctx.usuario, ctx.trilhas_ativas)
     top_trilhas = trilhas_ranqueadas[:3]
 
     conteudo = f"{motivo}\n\n{ctx.resposta_base}" if ctx.resposta_base else motivo
+    if limite_atingido:
+        conteudo = (
+            f"Ainda não temos uma trilha sobre esse tema, e você já criou {LIMITE_TRILHAS_GERADAS_POR_USUARIO} "
+            f"trilhas com IA generativa, o limite por estudante. {conteudo}"
+        )
+    elif tema:
+        conteudo = f"Ainda não temos uma trilha sobre esse tema. {conteudo}"
 
     sugestoes = [f"Quero me matricular na trilha {t.titulo}" for t in top_trilhas]
     if len(sugestoes) < 4:
@@ -1272,6 +1355,17 @@ def classificar_mensagem(conteudo: str, trilhas_ativas: list, contexto: Optional
             classificacao_pedido.get("intencao") in INTENCOES_DO_PEDIDO
             and classificacao_pedido.get("similaridade", 0.0) >= classificacao.get("similaridade", 0.0)
         ):
+            classificacao = classificacao_pedido
+
+    # Tema fora do catálogo (ex.: "Quero aprender fotografia") também domina o embedding e cai em FALLBACK;
+    # se só o pedido for uma recomendação, o Coach recomenda (ou gera com IA) a trilha do tema.
+    pedido_livre = _pedido_sem_tema_livre(conteudo) if classificacao.get("intencao") == "FALLBACK" else None
+    if pedido_livre:
+        classificacao_pedido = classifier.classificar(
+            embedding_service.gerar_embedding(preprocessor.processar(pedido_livre) or pedido_livre),
+            contexto=contexto,
+        )
+        if classificacao_pedido.get("intencao") == "RECOMENDAR_TRILHA":
             classificacao = classificacao_pedido
 
     return classificacao, texto_para_embedding, vetor

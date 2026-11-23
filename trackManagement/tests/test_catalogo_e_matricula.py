@@ -69,6 +69,18 @@ def test_listar_trilhas_retorna_apenas_ativas_com_contagens(django_user_model):
     assert body[0]['total_atividades'] == 2
 
 
+def test_trilha_gerada_por_outro_estudante_aparece_para_todos_com_a_marcacao(django_user_model):
+    autor = make_user(django_user_model, apelido='autor-ia')
+    outro = make_user(django_user_model, apelido='outro-aluno')
+    make_trilha(titulo='Javascript')
+    gerada = make_trilha(titulo='Culinaria: Primeiros Passos', habilidade='Culinaria', gerada_por_ia=True, criada_por=autor)
+
+    body = authenticated_client(outro).get('/api/trilhas/').json()
+
+    marcacoes = {item['titulo']: item['gerada_por_ia'] for item in body}
+    assert marcacoes == {'Javascript': False, gerada.titulo: True}
+
+
 def test_listar_trilhas_exige_autenticacao():
     response = APIClient().get('/api/trilhas/')
     assert response.status_code in (401, 403)
@@ -143,3 +155,24 @@ def test_matricular_trilha_inexistente_retorna_404(django_user_model):
     )
 
     assert response.status_code == 404
+
+
+def test_schema_da_geracao_de_trilha_segue_o_modo_strict():
+    # Structured Outputs (strict) exige todo objeto com additionalProperties=False e todos os campos obrigatórios.
+    from trackManagement.geracao_trilha import SCHEMA_GERACAO
+
+    def objetos(no):
+        if isinstance(no, dict):
+            if no.get("type") == "object":
+                yield no
+            for valor in no.values():
+                yield from objetos(valor)
+        elif isinstance(no, list):
+            for valor in no:
+                yield from objetos(valor)
+
+    encontrados = list(objetos(SCHEMA_GERACAO))
+    assert len(encontrados) == 5
+    for objeto in encontrados:
+        assert objeto["additionalProperties"] is False
+        assert set(objeto["required"]) == set(objeto["properties"])
