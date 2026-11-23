@@ -47,6 +47,8 @@ class ExecucaoAtividade(models.Model):
     resposta = models.JSONField()
     pontuacao_obtida = models.IntegerField()
     aprovado = models.BooleanField()
+    # Iniciada pelo "Praticar de novo" do Raio-X: abre uma nova rodada na memória pedagógica.
+    pratica_reforco = models.BooleanField(default=False)
     executado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:

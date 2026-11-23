@@ -1,5 +1,6 @@
 import logging
 import threading
+from datetime import timedelta
 from typing import Dict, Any
 
 from django.db import transaction
@@ -14,31 +15,51 @@ LIMIAR_DOMINIO_PERCENT = 80.0
 LIMIAR_DIFICULDADE_PERCENT = 60.0
 MIN_QUESTOES_PARA_PONTO_FORTE = 3
 MIN_ERROS_PARA_REINCIDENCIA = 2
+# Execuções da mesma atividade a menos disso da anterior são retentativas da mesma rodada
+# (salvo a que inicia uma prática pelo "Praticar de novo" do Raio-X).
+JANELA_RETENTATIVA = timedelta(hours=12)
+
+
+def ids_execucoes_avaliadas(usuario) -> list:
+    """
+    Para cada atividade, a primeira execução da rodada mais recente. Retentativas imediatas
+    ("Tentar de novo" reenvia as respostas já corretas) não apagam os erros, mas voltar à
+    atividade depois, ou praticá-la pelo Raio-X, e acertar de primeira mostra que o
+    estudante superou o tópico.
+    """
+    execucoes = (
+        ExecucaoAtividade.objects.filter(usuario=usuario)
+        .order_by("atividade_id", "executado_em")
+        .values_list("id", "atividade_id", "executado_em", "pratica_reforco")
+    )
+    inicio_da_rodada = {}
+    execucao_anterior = {}
+    for execucao_id, atividade_id, executado_em, pratica_reforco in execucoes:
+        anterior = execucao_anterior.get(atividade_id)
+        if pratica_reforco or anterior is None or executado_em - anterior > JANELA_RETENTATIVA:
+            inicio_da_rodada[atividade_id] = execucao_id
+        execucao_anterior[atividade_id] = executado_em
+    return list(inicio_da_rodada.values())
 
 
 class PedagogicalMemoryService:
     """
     Serviço determinístico de consolidação e síntese pedagógica contínua do estudante (VAR-118).
     
-    Analisa o histórico de submissões (RespostaQuestao) a partir da última execução
-    de cada atividade já realizada, classificando módulos/tópicos dominados (>= 80%)
+    Analisa o histórico de submissões (RespostaQuestao) a partir da primeira execução
+    da rodada mais recente de cada atividade (ver ids_execucoes_avaliadas), classificando módulos/tópicos dominados (>= 80%)
     e tópicos com reincidência de vulnerabilidade (< 60%).
     """
 
     @classmethod
     def consolidar_perfil(cls, usuario) -> MemoriaPedagogicaUsuario:
         """
-        Consolida atomicamente a memória pedagógica do estudante com base nas últimas execuções.
+        Consolida atomicamente a memória pedagógica do estudante com base nas execuções avaliadas.
         """
-        # 1. Recupera o ID da última execução de cada atividade realizada pelo usuário
-        ultimas_execucoes_ids = list(
-            ExecucaoAtividade.objects.filter(usuario=usuario)
-            .order_by("atividade_id", "-executado_em")
-            .distinct("atividade_id")
-            .values_list("id", flat=True)
-        )
+        # 1. Recupera a execução avaliada de cada atividade realizada pelo usuário
+        execucoes_avaliadas_ids = ids_execucoes_avaliadas(usuario)
 
-        total_atividades = len(ultimas_execucoes_ids)
+        total_atividades = len(execucoes_avaliadas_ids)
 
         if total_atividades == 0:
             with transaction.atomic():
@@ -47,6 +68,7 @@ class PedagogicalMemoryService:
                     defaults={
                         "pontos_fortes": [],
                         "topicos_dificuldade": [],
+                        "topicos_praticar": [],
                         "total_atividades_avaliadas": 0,
                         "taxa_acerto_geral": 0.0,
                         "resumo_perfil_didatico": "Estudante ainda não realizou atividades avaliadas.",
@@ -54,9 +76,9 @@ class PedagogicalMemoryService:
                 )
             return memoria
 
-        # 2. Busca todas as respostas das últimas execuções vinculadas aos módulos
+        # 2. Busca todas as respostas das execuções avaliadas vinculadas aos módulos
         respostas = (
-            RespostaQuestao.objects.filter(execucao_id__in=ultimas_execucoes_ids)
+            RespostaQuestao.objects.filter(execucao_id__in=execucoes_avaliadas_ids)
             .select_related("execucao__atividade__modulo")
         )
 
@@ -67,15 +89,22 @@ class PedagogicalMemoryService:
 
         for resposta in respostas:
             execucoes_com_questoes.add(resposta.execucao_id)
-            modulo = resposta.execucao.atividade.modulo
+            atividade = resposta.execucao.atividade
+            modulo = atividade.modulo
             agregado = agregados_por_modulo.setdefault(
                 str(modulo.id),
-                {"titulo": modulo.titulo, "total": 0, "acertos": 0},
+                {"titulo": modulo.titulo, "trilha_id": str(modulo.trilha_id), "total": 0, "acertos": 0, "atividades": {}},
+            )
+            # Por atividade, para indicar qual delas o estudante deve praticar de novo
+            agregado_atividade = agregado["atividades"].setdefault(
+                str(atividade.id), {"ordem": atividade.ordem, "total": 0, "acertos": 0},
             )
             agregado["total"] += 1
+            agregado_atividade["total"] += 1
             total_questoes_geral += 1
             if resposta.correta:
                 agregado["acertos"] += 1
+                agregado_atividade["acertos"] += 1
                 total_acertos_geral += 1
 
         # Considera como atividades avaliadas apenas aquelas que possuem questões
@@ -103,6 +132,8 @@ class PedagogicalMemoryService:
                     "topico": dados["titulo"],
                     "taxa_acerto": taxa_acerto,
                     "questoes_avaliadas": dados["total"],
+                    "trilha_id": dados["trilha_id"],
+                    "atividade_id": cls._atividade_com_menor_acerto(dados["atividades"]),
                 })
 
         # Ordenar pontos fortes do maior acerto para o menor
@@ -127,6 +158,10 @@ class PedagogicalMemoryService:
                 defaults={
                     "pontos_fortes": [pf["topico"] for pf in pontos_fortes],
                     "topicos_dificuldade": [td["topico"] for td in topicos_dificuldade],
+                    "topicos_praticar": [
+                        {"topico": td["topico"], "trilha_id": td["trilha_id"], "atividade_id": td["atividade_id"]}
+                        for td in topicos_dificuldade
+                    ],
                     "total_atividades_avaliadas": total_atividades_avaliadas,
                     "taxa_acerto_geral": taxa_acerto_geral,
                     "resumo_perfil_didatico": resumo_texto,
@@ -170,6 +205,17 @@ class PedagogicalMemoryService:
         if memoria is not None:
             return memoria
         return cls.consolidar_perfil(usuario)
+
+    @staticmethod
+    def _atividade_com_menor_acerto(atividades: Dict[str, Dict[str, Any]]) -> str:
+        """Atividade do módulo com menor taxa de acerto (empate: a primeira na ordem da trilha)."""
+        return min(
+            atividades,
+            key=lambda atividade_id: (
+                atividades[atividade_id]["acertos"] / atividades[atividade_id]["total"],
+                atividades[atividade_id]["ordem"],
+            ),
+        )
 
     @staticmethod
     def _gerar_resumo_textual(

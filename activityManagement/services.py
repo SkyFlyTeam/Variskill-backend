@@ -73,7 +73,7 @@ def avaliar_conquistas_conclusao(usuario, atividade, *, taxa_acerto, streak_dias
 
 
 @transaction.atomic
-def submit_activity(user, atividade, answers):
+def submit_activity(user, atividade, answers, pratica_reforco=False):
     questoes = list(atividade.questoes.all())
     feedback = []
     respostas_avaliadas = []
@@ -121,6 +121,7 @@ def submit_activity(user, atividade, answers):
         resposta=answers,
         aprovado=approved,
         pontuacao_obtida=score_obtained,
+        pratica_reforco=pratica_reforco,
     )
 
     RespostaQuestao.objects.bulk_create([
@@ -147,10 +148,11 @@ def submit_activity(user, atividade, answers):
     novo_nivel = gamification.calcular_nivel(locked_user.xp_total)
     level_up = (novo_nivel > nivel_anterior)
 
-    # Consolidação assíncrona da memória pedagógica do estudante (VAR-118) sem travar a thread
+    # Consolidação assíncrona da memória pedagógica do estudante (VAR-118) sem travar a thread.
+    # Só após o commit: antes dele a thread (outra conexão) não enxerga esta submissão.
     try:
         from assistantManagement.memory_service import PedagogicalMemoryService
-        PedagogicalMemoryService.consolidar_perfil_async(locked_user)
+        transaction.on_commit(lambda: PedagogicalMemoryService.consolidar_perfil_async(locked_user))
     except Exception as exc:
         logger.warning("Falha ao agendar consolidação de memória pedagógica para usuário %s: %s", locked_user.pk, exc)
 

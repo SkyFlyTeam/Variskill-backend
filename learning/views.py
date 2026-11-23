@@ -83,7 +83,10 @@ class ActivityViewSet(viewsets.ModelViewSet):
                 'respostas': [f'Questões que não pertencem à atividade: {", ".join(sorted(unknown_ids))}'],
             })
 
-        result = submit_activity(request.user, atividade, answers)
+        result = submit_activity(
+            request.user, atividade, answers,
+            pratica_reforco=serializer.validated_data['pratica_reforco'],
+        )
         return Response(SubmissionResultSerializer(result).data)
 
     @action(
