@@ -6,8 +6,8 @@ from .models import Trilha, Modulo, Matricula, ProgressoModulo
 class TrilhaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Trilha
-        fields = ('id', 'titulo', 'descricao', 'habilidade', 'ativo')
-        read_only_fields = ('id',)
+        fields = ('id', 'titulo', 'descricao', 'habilidade', 'ativo', 'gerada_por_ia')
+        read_only_fields = ('id', 'gerada_por_ia')
 
 
 class TrilhaPrimaryKeyRelatedField(serializers.PrimaryKeyRelatedField):
@@ -97,7 +97,7 @@ class TrilhaListaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Trilha
         fields = (
-            'id', 'titulo', 'descricao', 'habilidade', 'ativo',
+            'id', 'titulo', 'descricao', 'habilidade', 'ativo', 'gerada_por_ia',
             'total_modulos', 'total_atividades',
         )
 

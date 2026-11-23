@@ -26,6 +26,7 @@ class OpcaoTrilhaSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     titulo = serializers.CharField()
     habilidade = serializers.CharField()
+    gerada_por_ia = serializers.BooleanField()
 
 
 class MensagemInicialSerializer(serializers.Serializer):

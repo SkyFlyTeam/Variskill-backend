@@ -142,6 +142,9 @@ INTENCOES_CANONICAS = [
             "Tenho interesse, o que faço?",
             "Me indica uma trilha",
             "Quero aprender programação, por onde começo?",
+            # Temas fora do catálogo também são pedidos de recomendação: o Coach gera a trilha com IA.
+            "Quero aprender culinária, por onde começo?",
+            "Quero aprender violão, qual trilha faço?",
             "Qual trilha faço para aprender esse assunto?",
             "Tenho interesse nessa área, qual trilha você indica?",
             "Quero aprender, o nível bem básico, sabe? Por onde começo?",

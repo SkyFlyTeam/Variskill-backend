@@ -278,6 +278,24 @@ def test_variacoes_do_comando_acertam_ao_menos_90_por_cento(trilhas, esperada):
     assert taxa >= TAXA_MINIMA_ACERTO, f"{taxa:.0%} de acerto; erros: {erros}"
 
 
+# Temas fora do catálogo: o pedido precisa chegar a RECOMENDAR_TRILHA para o Coach gerar a trilha com IA.
+TEMAS_FORA_DO_CATALOGO = [
+    "Quero aprender culinária, por onde começo?",
+    "Quero aprender fotografia, por onde começo?",
+    "Quero estudar marketing digital, qual trilha faço?",
+    "Quero aprender a tocar piano",
+]
+
+
+def test_tema_fora_do_catalogo_pede_recomendacao_de_trilha(trilhas):
+    erros = _erros(TEMAS_FORA_DO_CATALOGO, "RECOMENDAR_TRILHA", trilhas)
+    assert not erros, erros
+
+
+def test_pergunta_fora_do_catalogo_sem_pedido_de_aprender_nao_vira_recomendacao(trilhas):
+    assert _intencao("Qual a capital da França?", trilhas) != "RECOMENDAR_TRILHA"
+
+
 def test_seed_remove_exemplos_que_sairam_do_catalogo(trilhas):
     saudacao = Intention.objects.get(code="SAUDACAO")
     saudacao.examples.create(text="Posso continuar de onde parei?", embedding=[0.0] * 384)

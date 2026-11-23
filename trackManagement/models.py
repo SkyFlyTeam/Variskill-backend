@@ -9,6 +9,12 @@ class Trilha(models.Model):
     descricao = models.TextField(blank=True)
     habilidade = models.CharField(max_length=50)
     ativo = models.BooleanField(default=True)
+    # Criada pelo Coach com IA generativa quando nenhuma trilha cobria o tema pedido pelo estudante.
+    gerada_por_ia = models.BooleanField(default=False)
+    # Estudante cujo pedido originou a trilha gerada; limita quantas trilhas cada um pode criar.
+    criada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='trilhas_geradas', on_delete=models.SET_NULL, null=True, blank=True,
+    )
 
     class Meta:
         db_table = 'TRILHA'

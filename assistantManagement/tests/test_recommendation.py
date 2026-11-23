@@ -9,6 +9,7 @@ from assistantManagement.services import (
     _recomendar_trilhas_contextual,
     _singular,
     _tema_da_mensagem,
+    _tema_do_pedido,
     identificar_modulos_no_texto,
     texto_sem_tema,
 )
@@ -234,6 +235,191 @@ class RecomendacaoPorTemaTests(APITestCase):
 
         self.assertEqual(len(dados["opcoes_trilhas"]), 3)
         self.assertNotIn("Para esse tema", dados["conteudo"])
+
+
+def _trilha_gerada_pela_ia(titulo="Culinária: Primeiros Passos", habilidade="Culinária"):
+    def questao(n):
+        return {
+            "enunciado": f"Pergunta {n}?",
+            "opcoes": ["A", "B", "C", "D"],
+            "gabarito_idx": n % 4,
+            "dica": f"Dica {n}",
+        }
+
+    return {
+        "resultado": "NOVA_TRILHA",
+        "trilha_existente": None,
+        "trilha": {
+            "titulo": titulo,
+            "descricao": "Aprenda o básico da cozinha.",
+            "habilidade": habilidade,
+            "modulos": [
+                {
+                    "titulo": f"Módulo {m}",
+                    "descricao": f"Descrição {m}",
+                    "nivel": "INICIANTE",
+                    "licao": {"titulo": f"Lição {m}", "texto": "### Aula\n\nConteúdo."},
+                    "questoes": [questao(n) for n in range(3)],
+                }
+                for m in (1, 2)
+            ],
+        }
+    }
+
+
+@patch("trackManagement.geracao_trilha.HintService.call_external_ai_json")
+@patch("assistantManagement.services.TextPreprocessor.get_instance")
+@patch("assistantManagement.services.EmbeddingService.get_instance")
+@patch(
+    "assistantManagement.services.IntentClassifier.classificar",
+    return_value={"intencao": "RECOMENDAR_TRILHA", "similaridade": 0.95, "resposta_texto": ""},
+)
+class RecomendacaoComTrilhaGeradaTests(APITestCase):
+    """Tema sem trilha no catálogo (ex.: "Quero aprender culinária") ganha uma trilha gerada pela IA."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            apelido="aluno_ia", nome="Caio", email="aluno_ia@example.com", password="password123",
+        )
+        self.client.force_authenticate(user=self.user)
+        Intention.objects.create(
+            code="RECOMENDAR_TRILHA", system_action="RECOMENDAR_TRILHAS_CONTEXTUAL", description="Recomendação",
+        )
+        self.fundamentos = Trilha.objects.create(titulo="Python: Fundamentos", habilidade="Python", ativo=True)
+        Modulo.objects.create(trilha=self.fundamentos, titulo="Variaveis", nivel="INICIANTE", ordem_modulo=1)
+        self.sessao = Sessao.objects.create(usuario=self.user)
+
+    def _enviar(self, mock_prep_inst, mock_embed_inst, texto):
+        mock_prep_inst.return_value.processar.return_value = texto
+        mock_embed_inst.return_value.gerar_embedding.return_value = [0.1] * 384
+        response = self.client.post(
+            f"/api/chat/sessao/{self.sessao.id}/mensagem/", {"conteudo": texto}, format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["resposta_assistente"]
+
+    def test_tema_sem_trilha_gera_e_recomenda_trilha_nova(self, _clf, mock_embed, mock_prep, mock_ia):
+        mock_ia.return_value = _trilha_gerada_pela_ia()
+
+        dados = self._enviar(mock_prep, mock_embed, "QUero aprender culinária, por onde começo?")
+
+        trilha = Trilha.objects.get(titulo="Culinária: Primeiros Passos")
+        self.assertTrue(trilha.ativo)
+        self.assertTrue(trilha.gerada_por_ia)
+        self.assertEqual(trilha.criada_por, self.user)
+        self.assertEqual(trilha.modulos.count(), 2)
+        for modulo in trilha.modulos.all():
+            licao, exercicio = modulo.atividades.order_by("ordem")
+            self.assertIsNotNone(licao.conteudo)
+            questoes = list(exercicio.questoes.all())
+            self.assertEqual(len(questoes), 3)
+            self.assertEqual(sum(q.peso_pontuacao for q in questoes), exercicio.xp_recompensa)
+            for n, questao in enumerate(questoes):
+                correta = questao.opcoes.get(id=questao.gabarito_esperado)
+                self.assertEqual(correta.texto_opcao, "ABCD"[n % 4])
+
+        self.assertEqual(dados["acao"], "RECOMENDACAO_TRILHA")
+        self.assertEqual(dados["origem_resposta"], "IA_EXTERNA")
+        self.assertTrue(dados["dados_acao"]["trilha_gerada"])
+        self.assertEqual(
+            [(t["titulo"], t["gerada_por_ia"]) for t in dados["opcoes_trilhas"]], [(trilha.titulo, True)],
+        )
+        self.assertIn("criei uma para você", dados["conteudo"])
+        self.assertIn("Quero começar do zero", dados["sugestoes_rapidas"])
+        self.sessao.refresh_from_db()
+        self.assertEqual(self.sessao.trilha_contexto, trilha)
+
+    def test_trilha_gerada_e_reaproveitada_no_proximo_pedido(self, _clf, mock_embed, mock_prep, mock_ia):
+        mock_ia.return_value = _trilha_gerada_pela_ia()
+        self._enviar(mock_prep, mock_embed, "Quero aprender culinária")
+
+        dados = self._enviar(mock_prep, mock_embed, "Quero aprender culinária, por onde começo?")
+
+        mock_ia.assert_called_once()
+        self.assertEqual(Trilha.objects.filter(gerada_por_ia=True).count(), 1)
+        self.assertEqual([t["titulo"] for t in dados["opcoes_trilhas"]], ["Culinária: Primeiros Passos"])
+
+    def test_ia_indica_trilha_existente_sem_criar_outra(self, _clf, mock_embed, mock_prep, mock_ia):
+        mock_ia.return_value = {"resultado": "TRILHA_EXISTENTE", "trilha_existente": "Python: Fundamentos", "trilha": None}
+
+        dados = self._enviar(mock_prep, mock_embed, "Quero aprender programação, por onde começo?")
+
+        self.assertFalse(Trilha.objects.filter(gerada_por_ia=True).exists())
+        self.assertEqual([t["titulo"] for t in dados["opcoes_trilhas"]], [self.fundamentos.titulo])
+        self.assertFalse(dados["dados_acao"]["trilha_gerada"])
+        self.assertNotIn("criei", dados["conteudo"])
+
+    def test_ia_indisponivel_mantem_recomendacao_por_interesses(self, _clf, mock_embed, mock_prep, mock_ia):
+        mock_ia.return_value = None
+
+        dados = self._enviar(mock_prep, mock_embed, "Quero aprender culinária")
+
+        self.assertFalse(Trilha.objects.filter(gerada_por_ia=True).exists())
+        self.assertIn("Ainda não temos uma trilha sobre esse tema", dados["conteudo"])
+        self.assertEqual([t["titulo"] for t in dados["opcoes_trilhas"]], [self.fundamentos.titulo])
+
+    def test_limite_de_trilhas_geradas_por_estudante(self, _clf, mock_embed, mock_prep, mock_ia):
+        for tema in ("Violão", "Fotografia"):
+            Trilha.objects.create(
+                titulo=f"{tema}: Primeiros Passos", habilidade=tema, gerada_por_ia=True, criada_por=self.user,
+            )
+
+        dados = self._enviar(mock_prep, mock_embed, "Quero aprender culinária")
+
+        mock_ia.assert_not_called()
+        self.assertFalse(Trilha.objects.filter(habilidade="Culinária").exists())
+        self.assertIn("o limite por estudante", dados["conteudo"])
+        self.assertTrue(dados["opcoes_trilhas"])
+
+    def test_trilha_gerada_por_outro_estudante_nao_conta_no_limite(self, _clf, mock_embed, mock_prep, mock_ia):
+        outro = User.objects.create_user(apelido="outro_ia", nome="Ana", email="outro_ia@example.com", password="x")
+        for tema in ("Violão", "Fotografia"):
+            Trilha.objects.create(
+                titulo=f"{tema}: Primeiros Passos", habilidade=tema, gerada_por_ia=True, criada_por=outro,
+            )
+        mock_ia.return_value = _trilha_gerada_pela_ia()
+
+        self._enviar(mock_prep, mock_embed, "Quero aprender culinária")
+
+        self.assertTrue(Trilha.objects.filter(criada_por=self.user, gerada_por_ia=True).exists())
+
+    def test_tema_fora_de_escopo_nao_gera_trilha(self, _clf, mock_embed, mock_prep, mock_ia):
+        mock_ia.return_value = {"resultado": "FORA_DE_ESCOPO", "trilha_existente": None, "trilha": None}
+
+        self._enviar(mock_prep, mock_embed, "Quero aprender a fazer bombas")
+
+        self.assertFalse(Trilha.objects.filter(gerada_por_ia=True).exists())
+
+    def test_trilha_com_menos_modulos_validos_e_descartada(self, _clf, mock_embed, mock_prep, mock_ia):
+        resposta = _trilha_gerada_pela_ia()
+        resposta["trilha"]["modulos"][1]["questoes"] = [{"enunciado": "Sem opções", "gabarito_idx": 0}]
+        mock_ia.return_value = resposta
+
+        self._enviar(mock_prep, mock_embed, "Quero aprender culinária")
+
+        self.assertFalse(Trilha.objects.filter(gerada_por_ia=True).exists())
+
+    def test_ia_indica_trilha_fora_do_catalogo_nao_gera_nada(self, _clf, mock_embed, mock_prep, mock_ia):
+        mock_ia.return_value = {"resultado": "TRILHA_EXISTENTE", "trilha_existente": "Culinária Avançada", "trilha": None}
+
+        dados = self._enviar(mock_prep, mock_embed, "Quero aprender culinária")
+
+        self.assertFalse(Trilha.objects.filter(gerada_por_ia=True).exists())
+        self.assertIn("Ainda não temos uma trilha sobre esse tema", dados["conteudo"])
+
+    def test_pedido_sem_tema_nao_consulta_a_ia(self, _clf, mock_embed, mock_prep, mock_ia):
+        self._enviar(mock_prep, mock_embed, "Qual trilha você me recomenda?")
+
+        mock_ia.assert_not_called()
+
+    def test_exemplos_sem_tema_da_intencao_nao_tem_tema(self, *_mocks):
+        from intents.management.commands.seed_intencoes import INTENCOES_CANONICAS
+
+        exemplos = next(i["examples"] for i in INTENCOES_CANONICAS if i["code"] == "RECOMENDAR_TRILHA")
+        com_tema = {e for e in exemplos if any(t in e for t in ("programação", "culinária", "violão"))}
+        for exemplo in set(exemplos) - com_tema:
+            self.assertIsNone(_tema_do_pedido(exemplo), exemplo)
+        self.assertEqual(_tema_do_pedido("Quero aprender culinária, por onde começo?"), "culinaria")
 
 
 class BuscaPorModuloTests(APITestCase):
